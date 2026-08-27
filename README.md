@@ -1,35 +1,32 @@
-# Battlecode 2022 Scaffold
+# battlecode22-vibe
 
-This is the Battlecode 2022 scaffold, containing an `examplefuncsplayer`. Read https://play.battlecode.org/getting-started!
+A [Battlecode 2022](https://play.battlecode.org) ("Mutation") contest entry,
+built on the official [`battlecode22-scaffold`](https://github.com/battlecode/battlecode22-scaffold)
+(engine/client **2.2.1**, Java 8).
 
-### Project Structure
+## Layout
 
-- `README.md`
-    This file.
-- `build.gradle`
-    The Gradle build file used to build and run players.
-- `src/`
-    Player source code.
-- `test/`
-    Player test code.
-- `client/`
-    Contains the client. The proper executable can be found in this folder (don't move this!)
-- `build/`
-    Contains compiled player code and other artifacts of the build process. Can be safely ignored.
-- `matches/`
-    The output folder for match files.
-- `maps/`
-    The default folder for custom maps.
-- `gradlew`, `gradlew.bat`
-    The Unix (OS X/Linux) and Windows versions, respectively, of the Gradle wrapper. These are nifty scripts that you can execute in a terminal to run the Gradle build tasks of this project. If you aren't planning to do command line development, these can be safely ignored.
-- `gradle/`
-    Contains files used by the Gradle wrapper scripts. Can be safely ignored.
+| Path | What |
+|------|------|
+| `src/examplefuncsplayer/` | the stock example bot (our bot will live in `src/<teamname>/`) |
+| `SCAFFOLD.md` | the upstream scaffold README (gradle tasks, etc.) |
+| `SETUP.md` | how this checkout is set up — **builds/matches run on a GCE VM**, not locally |
+| `tools/bc22_replay.py` | replay (`.bc22`) → human-readable text transcript with a one-char-per-square ASCII board per round ([tools/README.md](tools/README.md)) |
+| `tools/vm-match.sh` | run headless matches on the VM and pull replays + logs back |
+| `tools/gen-schema.sh` | regenerate the FlatBuffers Python bindings for the replay format |
 
+Generated artifacts — `matches/` (`.bc22` replays), `logs/`, `client/`, `.tools/`
+— are git-ignored.
 
-### Useful Commands
+## Quick start
 
-- `./gradlew run`
-    Runs a game with the settings in gradle.properties
-- `./gradlew update`
-    Update to the newest version! Run every so often
+```bash
+# inspect a replay
+python3 -m venv tools/.venv && tools/.venv/bin/pip install -r tools/requirements.txt
+tools/.venv/bin/python tools/bc22_replay.py matches/some-replay.bc22 --step 25
 
+# run the example bot against itself on two maps (spins up the GCE VM)
+tools/vm-match.sh maptestsmall eckleburg
+```
+
+See `SETUP.md` for the VM details and why the build runs there.
