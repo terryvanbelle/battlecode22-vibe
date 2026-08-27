@@ -169,12 +169,14 @@ done
   losses=$(grep -c ',loss$' "$OUT/results.csv" || true)
   unknown=$(grep -c ',unknown$' "$OUT/results.csv" || true)
   echo "run $RUN_ID   bot=$BOT"
-  echo "overall: $wins/$total wins ($(awk "BEGIN{printf \"%.1f\", $total?100*$wins/$total:0}")%)  losses=$losses unknown=$unknown"
+  pct=$(awk -v w="$wins" -v t="$total" 'BEGIN{printf (t>0)?"%.1f":"0", (t>0)?100*w/t:0}')
+  echo "overall: $wins/$total wins (${pct}%)  losses=$losses unknown=$unknown"
   echo
   for OPP in $OPPONENTS; do
     t=$(grep -c "^$OPP," "$OUT/results.csv" || true)
     w=$(grep -c "^$OPP,.*,win$" "$OUT/results.csv" || true)
-    printf '  vs %-20s %s/%s (%.0f%%)\n' "$OPP" "$w" "$t" "$(awk "BEGIN{print $t?100*$w/$t:0}")"
+    op=$(awk -v w="$w" -v t="$t" 'BEGIN{printf "%.0f", (t>0)?100*w/t:0}')
+    printf '  vs %-20s %s/%s (%s%%)\n' "$OPP" "$w" "$t" "$op"
   done
   echo
   echo "losses:"

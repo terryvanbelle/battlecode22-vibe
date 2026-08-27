@@ -75,4 +75,34 @@ the replay event log via `bc22_replay.py`. No instrumentation change needed.
 A (annihilation, round 374) and B (annihilation, round 439). Iteration 0 lost
 both. → back to Step 2, full Gauntlet for Iteration 1.
 
-Gauntlet run pending.
+**Gauntlet (step 2/3).** Iteration 1 vs `examplefuncsplayer`: **27/28 (96%)** ≥
+`WinPct`. **Added to the Gauntlet as `g_iter1`.** Most wins by annihilation or
+"more Archons"; a handful of round-2000 tiebreak wins. **Step 4:** the one loss —
+`bot` (B) vs `examplefuncsplayer` (A) on `intersection`, round-2000 tiebreak
+("more gold net worth").
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)
+
+*Hypothesis:* Iteration 1 fails to close out clearly-won positions. In this loss
+we outnumber the enemy **281 units to 18** at round 2000 (153 miners + 128
+soldiers vs 15 + 2 + 1 Archon) but never locate and kill their last Archon, so
+the game hits the tiebreak — which we lose on gold **0 vs 16** (their miners
+collected the ~16 Au reclaimed from a dead Archon; ours mined gold **0** times).
+Root cause: a soldier with no enemy in sight marches to the mirror of *its own*
+position, so 128 soldiers scatter to ~85 distinct points instead of massing on
+the enemy's actual last Archon; enemy-Archon sightings are never shared.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | game ended by tiebreak, not annihilation | round == 2000 | 2000 | ✓ |
+| V2 | our units ÷ enemy units at round 2000 | `≥ 5` | 281 / 18 ≈ 15.6 | ✓ |
+| V3 | enemy Archons alive at round 2000 | `== 1` | 1 | ✓ |
+| V4 | distinct soldier march-targets (no enemy in sight) | `> 20` | ~85 | ✓ |
+| V5 | shared-array slots used to broadcast enemy-Archon locations | `== 0` | 0 (code) | ✓ |
+| V6 | gold our miners mined all game | `== 0` | 0 | ✓ |
+
+**All six criteria met → hypothesis verified.** Proceed to Step 6.
+
+---
+
+## Iteration 2  —  coordinated hunt (pending)
