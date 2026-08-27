@@ -147,7 +147,7 @@ class Match:
         ]
         # starting bodies (Archons)
         b = mp.Bodies()
-        self.start_bodies = [
+        self.start_bodies = [] if b is None else [
             (b.RobotIds(i), b.TeamIds(i), b.Types(i),
              b.Locs().Xs(i) - self.min_x, b.Locs().Ys(i) - self.min_y)
             for i in range(b.RobotIdsLength())
@@ -162,7 +162,8 @@ class Match:
 # ---------------------------------------------------------------------------
 def load(path):
     try:
-        raw = open(path, "rb").read()
+        with open(path, "rb") as fh:
+            raw = fh.read()
     except OSError as exc:
         sys.exit(f"cannot read replay: {exc}")
     if raw[:2] == b"\x1f\x8b":
@@ -399,10 +400,10 @@ def dump_match(m: Match, gh, out, args, match_no, n_matches):
             team_lead[tid] += d_lead[tid]
             team_gold[tid] += d_gold[tid]
 
-        # spawns
+        # spawns  (the spawnedBodies table is absent on rounds with no spawns)
         sb = rnd.SpawnedBodies()
         spawn_events = []
-        for k in range(sb.RobotIdsLength()):
+        for k in range(sb.RobotIdsLength() if sb is not None else 0):
             rid_ = sb.RobotIds(k)
             team = sb.TeamIds(k)
             bt = sb.Types(k)

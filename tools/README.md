@@ -19,6 +19,19 @@ tools/.venv/bin/pip install flatbuffers numpy
 (e.g. after a schema change), run [`gen-schema.sh`](gen-schema.sh) — needs
 `flatc` (`brew install flatbuffers`).
 
+## Tests
+
+```
+tools/run-tests.sh            # or: tools/.venv/bin/python tools/test_bc22_replay.py
+```
+
+`test_bc22_replay.py` builds a tiny synthetic replay in memory with the
+FlatBuffers builder (no fixture file) and checks parsing, the live
+lead/gold/rubble reconstruction, the Vortex transform, board rendering, and the
+CLI options. If any `matches/*.bc22` are checked out it also runs the full
+pipeline against the first one and asserts invariants (lead never negative,
+round numbering consistent with the footer).
+
 ## Usage
 
 ```
