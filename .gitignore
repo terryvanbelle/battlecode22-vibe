@@ -204,3 +204,6 @@ fabric.properties
 # /matches, /client, /logs, /.tools ignored above
 tools/.venv/
 **/__pycache__/
+
+# Claude Code personal project settings
+.claude/settings.local.json
