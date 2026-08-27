@@ -265,4 +265,30 @@ Iteration 5 **wins at round 572** (was annihilation at r711). Also flips `valley
 vs `g_iter3` from 0/2 to 2/2. → back to Step 2, full Gauntlet vs
 `{examplefuncsplayer, g_iter1..g_iter4}`.
 
-Gauntlet run pending.
+**Gauntlet (step 2/3).** Iteration 5 = **79/100 (79.0%)** ≥ `WinPct`. Dominates
+the early ancestors — `g_iter1` **20/20**, `g_iter2` 19/20 (Iteration 4 was 16/20
+vs `g_iter1`) — but **regressed vs `g_iter4` to 6/20**. **Added as `g_iter5`.**
+**Step 4:** loss `bot` (B) vs `g_iter4` (A) on `maptestsmall` — annihilated r150.
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)
+
+*Hypothesis:* the *time*-ramped miner rule interleaves miner and soldier builds
+for the whole game, so at every point both our economy and our army are smaller
+than a "build N miners, then 100% soldiers" opponent's. `g_iter4` (flat cap 16)
+reaches **lead 755 / 24 soldiers by r50** and **70 soldiers by r150**; we have
+100 / 20 and 13. It annihilates us at r150. The economy needs to be *front-
+loaded*, not dribbled in.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | enemy lead ÷ ours by r50 | ≥ 3 | 755 / 100 | ✓ |
+| V2 | enemy soldiers ÷ ours by r150 | ≥ 3 | 70 / 13 | ✓ |
+| V3 | we are still building miners past r90 | yes | miners 14→16 r73→r97 | ✓ |
+| V4 | annihilated before round 200 | yes | r150 | ✓ |
+| V5 | enemy hits a flat miner cap early then builds only army | yes | `g_iter4` = 17 miners by r30 | ✓ |
+
+**All five criteria met → hypothesis verified.** Proceed to Step 6.
+
+---
+
+## Iteration 6  —  front-loaded economy  (pending)
