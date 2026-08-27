@@ -59,34 +59,46 @@ gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" \
 gcloud compute scp --recurse "$REPO/src/." "$VM:~/battlecode22-scaffold/src/" \
   --zone="$ZONE" --project="$PROJECT" >/dev/null
 
-# Build a remote script that runs all games and prints one result line each,
-# copy it to the VM, and run it there (stdin piping through `gcloud ssh
-# --command` is unreliable, so we scp + execute by path).
+# Build a remote script and run it on the VM (scp + execute by path; stdin
+# piping through `gcloud ssh --command` is unreliable).
+#
+# Speed: all maps go into ONE `./gradlew run` per side (the engine plays a
+# comma-separated map list sequentially into one replay), so we pay JVM/gradle
+# startup twice per opponent instead of 2*B times. Robot stdout is turned off
+# (-PoutputVerbose=false) since we read instrumentation from the replay.
+MAPLIST="$(echo $MAPS | tr ' ' ',')"
 remote=$(mktemp)
 cat > "$remote" <<REMOTE
 set -uo pipefail
 export JAVA_HOME=\$HOME/jdk8 PATH=\$HOME/jdk8/bin:\$PATH
 cd ~/battlecode22-scaffold
-./gradlew --no-daemon -q build >/dev/null 2>&1 || { echo "RESULT-BUILD-FAILED"; exit 1; }
+./gradlew --no-daemon -q build >/dev/null 2>&1 || { echo "BUILD-FAILED"; exit 1; }
 mkdir -p gauntlet
-for OPP in $OPPONENTS; do
-  for MAP in $MAPS; do
-    for SIDE in A B; do
-      if [ "\$SIDE" = A ]; then TA=$BOT; TB=\$OPP; else TA=\$OPP; TB=$BOT; fi
-      REPLAY=gauntlet/\${OPP}__\${MAP}__bot\${SIDE}.bc22
-      LOG=\$(./gradlew --no-daemon -q run -PteamA=\$TA -PteamB=\$TB -Pmaps=\$MAP \
-              -Preplay=\$REPLAY 2>&1 || true)
-      WIN=\$(printf '%s\n' "\$LOG" | sed -n 's/.*(\([AB]\)) wins.*/\1/p' | tail -1)
-      echo "RESULT \$OPP \$MAP \$SIDE \${WIN:-?}"
+run_side () {  # <opp> <side> <teamA> <teamB>
+  local OPP=\$1 SIDE=\$2 TA=\$3 TB=\$4 MAP=""
+  ./gradlew --no-daemon -q run -PteamA=\$TA -PteamB=\$TB -Pmaps=$MAPLIST \
+      -PoutputVerbose=false -Preplay=gauntlet/\${OPP}__bot\${SIDE}.bc22 2>&1 \
+  | while IFS= read -r line; do
+      case "\$line" in
+        *" vs. "*" on "*) MAP="\${line##* on }" ;;
+        *") wins (round"*)
+          W=\$(printf '%s' "\$line" | sed -n 's/.*(\([AB]\)) wins.*/\1/p')
+          echo "RESULT \$OPP \$MAP \$SIDE \${W:-?}" ;;
+        *"Match Finished"*) : ;;
+      esac
     done
-  done
+}
+for OPP in $OPPONENTS; do
+  run_side "\$OPP" A "$BOT" "\$OPP"
+  run_side "\$OPP" B "\$OPP" "$BOT"
 done
+echo "GAUNTLET-COMPLETE"
 REMOTE
 gcloud compute scp "$remote" "$VM:~/gauntlet_run.sh" --zone="$ZONE" --project="$PROJECT" >/dev/null
 
-echo "  running $(echo $OPPONENTS | wc -w)x$(echo $MAPS | wc -w)x2 games on the VM ..."
+echo "  running $(echo $OPPONENTS | wc -w) opponent(s) x $(echo $MAPS | wc -w) maps x 2 sides on the VM ..."
 gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" --command="bash ~/gauntlet_run.sh" \
-  | tee "$OUT/raw.log" | grep '^RESULT ' | while read -r _ OPP MAP SIDE WIN; do
+  | tee "$OUT/raw.log" | grep --line-buffered '^RESULT ' | while read -r _ OPP MAP SIDE WIN; do
     if [ "$WIN" = "$SIDE" ]; then RES=win; elif [ "$WIN" = "?" ]; then RES=unknown; else RES=loss; fi
     echo "$OPP,$MAP,$SIDE,$WIN,$RES" >> "$OUT/results.csv"
     printf '  %-20s %-16s bot=%s winner=%s -> %s\n' "$OPP" "$MAP" "$SIDE" "$WIN" "$RES"
@@ -98,9 +110,10 @@ if [ "$(wc -l < "$OUT/results.csv")" -le 1 ]; then
   exit 1
 fi
 
-# pull replays of losses
-mapfile -t LOSS_KEYS < <(awk -F, '$5=="loss"{print $1"__"$2"__bot"$3".bc22"}' "$OUT/results.csv")
-for k in "${LOSS_KEYS[@]:-}"; do
+# each side's games are in one multi-match replay (match index = position in the
+# map list, 1-based); pull the replays for any side that had a loss.
+i=1; for m in $MAPS; do echo "$i $m" >> "$OUT/map-index.txt"; i=$((i+1)); done
+awk -F, '$5=="loss"{print $1"__bot"$3".bc22"}' "$OUT/results.csv" | sort -u | while read -r k; do
   [ -n "$k" ] || continue
   gcloud compute scp "$VM:~/battlecode22-scaffold/gauntlet/$k" "$OUT/losses/" \
     --zone="$ZONE" --project="$PROJECT" >/dev/null 2>&1 || true
