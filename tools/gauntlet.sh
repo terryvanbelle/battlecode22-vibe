@@ -21,6 +21,21 @@ ZONE=us-west1-b
 PROJECT=tvanbelle-vibecode
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Talk to the VM with PLAIN ssh/scp using the gcloud-managed key. `gcloud
+# compute ssh` re-pushes SSH keys to instance metadata on every call, which
+# backs up the guest agent and makes the VM briefly unreachable under load.
+SSHK=~/.ssh/google_compute_engine
+SSHO=(-i "$SSHK" -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+      -o ConnectTimeout=20 -o ServerAliveInterval=20 -o ServerAliveCountMax=3 -o LogLevel=ERROR)
+VM_USER="$(whoami)"
+
+vm_ip () { gcloud compute instances describe "$VM" --zone="$ZONE" --project="$PROJECT" \
+             --format='value(networkInterfaces[0].accessConfigs[0].natIP)' 2>/dev/null; }
+gssh () { ssh "${SSHO[@]}" "$VM_USER@$VM_IP" "$1"; }
+gscp () { scp "${SSHO[@]}" "$@"; }        # caller uses $RVM:path
+
+wait_ssh () { for _ in $(seq 1 30); do gssh 'true' 2>/dev/null && return 0; sleep 10; done; return 1; }
+
 BOT="${BOT:-bot}"
 OPPONENTS="${OPPONENTS:-examplefuncsplayer}"
 MAPSET="${MAPSET:-loop}"
@@ -48,16 +63,14 @@ echo "  bot=$BOT  opponents=[$OPPONENTS]  maps=$(echo $MAPS | wc -w)"
 # make sure the VM is up and has our latest source
 state=$(gcloud compute instances describe "$VM" --zone="$ZONE" --project="$PROJECT" --format='value(status)')
 if [ "$state" != "RUNNING" ]; then
+  echo "  starting VM ..."
   gcloud compute instances start "$VM" --zone="$ZONE" --project="$PROJECT" >/dev/null
-  for i in $(seq 1 15); do
-    gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" --command=true 2>/dev/null && break
-    sleep 8
-  done
 fi
-gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" \
-  --command="mkdir -p ~/battlecode22-scaffold/src" >/dev/null
-gcloud compute scp --recurse "$REPO/src/." "$VM:~/battlecode22-scaffold/src/" \
-  --zone="$ZONE" --project="$PROJECT" >/dev/null
+VM_IP="$(vm_ip)"; RVM="$VM_USER@$VM_IP"
+[ -n "$VM_IP" ] || { echo "!! no external IP for $VM" >&2; exit 1; }
+wait_ssh || { echo "!! cannot reach $RVM over ssh" >&2; exit 1; }
+gssh "pkill -9 -f gauntlet_run.sh; pkill -9 -f battlecode.server; pkill -9 -f org.gradle; mkdir -p ~/battlecode22-scaffold/src" >/dev/null 2>&1 || true
+gscp -r "$REPO/src/." "$RVM:battlecode22-scaffold/src/"
 
 # Build a remote script and run it on the VM (scp + execute by path; stdin
 # piping through `gcloud ssh --command` is unreliable).
@@ -83,8 +96,9 @@ run_side () {  # <opp> <side> <teamA> <teamB>
         *" vs. "*" on "*) MAP="\${line##* on }" ;;
         *") wins (round"*)
           W=\$(printf '%s' "\$line" | sed -n 's/.*(\([AB]\)) wins.*/\1/p')
-          echo "RESULT \$OPP \$MAP \$SIDE \${W:-?}" ;;
-        *"Match Finished"*) : ;;
+          RND=\$(printf '%s' "\$line" | sed -n 's/.*wins (round \([0-9]*\)).*/\1/p')
+          echo "RESULT \$OPP \$MAP \$SIDE \${W:-?} \${RND:-?}" ;;
+        *"Reason:"*) echo "REASON \$OPP \$MAP \$SIDE \${line#*Reason: }" ;;
       esac
     done
 }
@@ -94,29 +108,58 @@ for OPP in $OPPONENTS; do
 done
 echo "GAUNTLET-COMPLETE"
 REMOTE
-gcloud compute scp "$remote" "$VM:~/gauntlet_run.sh" --zone="$ZONE" --project="$PROJECT" >/dev/null
+gscp "$remote" "$RVM:gauntlet_run.sh"
 
-echo "  running $(echo $OPPONENTS | wc -w) opponent(s) x $(echo $MAPS | wc -w) maps x 2 sides on the VM ..."
-gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" --command="bash ~/gauntlet_run.sh" \
-  | tee "$OUT/raw.log" | grep --line-buffered '^RESULT ' | while read -r _ OPP MAP SIDE WIN; do
+# Launch the run DETACHED on the VM (a single long-held SSH connection is
+# fragile over ~30 min), writing to ~/gauntlet_run.out; then poll with short
+# SSH calls until the .done sentinel appears.
+gssh "rm -f ~/gauntlet_run.out ~/gauntlet_run.done; setsid bash -c 'bash ~/gauntlet_run.sh > ~/gauntlet_run.out 2>&1; touch ~/gauntlet_run.done' </dev/null >/dev/null 2>&1 &" >/dev/null || true
+gssh "sleep 1; test -f ~/gauntlet_run.out && echo started" >/dev/null || true
+
+echo "  running $(echo $OPPONENTS | wc -w) opponent(s) x $(echo $MAPS | wc -w) maps x 2 sides on the VM (polling every 45s) ..."
+parse_csv () {  # <run.out text>
+  echo "opponent,map,bot_side,winner_side,rounds,bot_result" > "$OUT/results.csv"
+  printf '%s\n' "$1" | grep '^RESULT ' | while read -r _ OPP MAP SIDE WIN RND; do
     if [ "$WIN" = "$SIDE" ]; then RES=win; elif [ "$WIN" = "?" ]; then RES=unknown; else RES=loss; fi
-    echo "$OPP,$MAP,$SIDE,$WIN,$RES" >> "$OUT/results.csv"
-    printf '  %-20s %-16s bot=%s winner=%s -> %s\n' "$OPP" "$MAP" "$SIDE" "$WIN" "$RES"
-  done || true
+    echo "$OPP,$MAP,$SIDE,$WIN,${RND:-?},$RES"
+  done >> "$OUT/results.csv"
+  printf '%s\n' "$1" | grep '^REASON ' | sed 's/^REASON //' > "$OUT/reasons.txt" || true
+}
+deadline=$(( $(date +%s) + 75*60 ))
+seen=0
+while true; do
+  sleep 45
+  snap=$(gssh 'cat ~/gauntlet_run.out 2>/dev/null; echo "@@@"; test -f ~/gauntlet_run.done && echo DONE; pgrep -f gauntlet_run.sh >/dev/null && echo ALIVE') || { printf ' (ssh retry)\n'; continue; }
+  body=${snap%%@@@*}; ctl=${snap#*@@@}
+  printf '%s\n' "$body" > "$OUT/raw.log"
+  n=$(printf '%s\n' "$body" | grep -c '^RESULT ' || true)
+  if [ "$n" -gt "$seen" ]; then
+    printf '%s\n' "$body" | grep '^RESULT ' | tail -n +"$((seen+1))" | while read -r _ OPP MAP SIDE WIN RND; do
+      [ "$WIN" = "$SIDE" ] && r=win || { [ "$WIN" = "?" ] && r=unknown || r=loss; }
+      printf '  %-20s %-16s bot=%s -> %-4s (r%s)\n' "$OPP" "$MAP" "$SIDE" "$r" "${RND:-?}"
+    done
+    seen=$n
+  fi
+  case "$ctl" in *DONE*) echo "  gauntlet complete ($n games)"; parse_csv "$body"; break ;; esac
+  if ! printf '%s\n' "$ctl" | grep -q ALIVE; then
+    echo "!! remote run is not alive and not done -- see $OUT/raw.log" >&2
+    printf '%s\n' "$body" | tail -15 >&2; parse_csv "$body"; break
+  fi
+  [ "$(date +%s)" -gt "$deadline" ] && { echo "!! poll deadline hit" >&2; parse_csv "$body"; break; }
+done
 
 if [ "$(wc -l < "$OUT/results.csv")" -le 1 ]; then
   echo "!! no game results -- see $OUT/raw.log" >&2
-  tail -20 "$OUT/raw.log" >&2 || true
   exit 1
 fi
+grep -q 'BUILD-FAILED' "$OUT/raw.log" && { echo "!! remote build failed" >&2; exit 1; }
 
 # each side's games are in one multi-match replay (match index = position in the
 # map list, 1-based); pull the replays for any side that had a loss.
 i=1; for m in $MAPS; do echo "$i $m" >> "$OUT/map-index.txt"; i=$((i+1)); done
-awk -F, '$5=="loss"{print $1"__bot"$3".bc22"}' "$OUT/results.csv" | sort -u | while read -r k; do
+awk -F, '$6=="loss"{print $1"__bot"$3".bc22"}' "$OUT/results.csv" | sort -u | while read -r k; do
   [ -n "$k" ] || continue
-  gcloud compute scp "$VM:~/battlecode22-scaffold/gauntlet/$k" "$OUT/losses/" \
-    --zone="$ZONE" --project="$PROJECT" >/dev/null 2>&1 || true
+  gscp "$RVM:battlecode22-scaffold/gauntlet/$k" "$OUT/losses/" || true
 done
 
 # summary
@@ -135,7 +178,7 @@ done
   done
   echo
   echo "losses:"
-  awk -F, '$5=="loss"{printf "  %s on %s (bot was %s)\n",$1,$2,$3}' "$OUT/results.csv"
+  awk -F, '$6=="loss"{printf "  %s on %s (bot was %s)\n",$1,$2,$3}' "$OUT/results.csv"
 } | tee "$OUT/summary.txt"
 
 echo
