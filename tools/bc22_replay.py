@@ -306,12 +306,104 @@ def counts_by_type(robots, team):
 # ---------------------------------------------------------------------------
 # main dump
 # ---------------------------------------------------------------------------
+_METRIC_COLS = ["lead", "gold", "miners", "soldiers", "builders", "sages", "labs",
+                "watchtowers", "archons", "archonHP", "attacks", "solCx", "solCy", "solSpread"]
+
+
+def _dump_metrics(m: Match, gh, out, args):
+    """`--metrics`: one CSV row per (selected) round with per-team aggregates.
+
+    Columns per team X in {A,B}: X_lead X_gold X_miners X_soldiers X_builders
+    X_sages X_labs X_watchtowers X_archons X_archonHP X_attacks(cumulative)
+    X_solCx X_solCy (soldier centroid) X_solSpread (mean soldier dist from centroid
+    -- army cohesion). Robot HP = base + Σ CHANGE_HEALTH (buildings shown at full
+    base HP until first corrected -- see README).
+    """
+    BT = S.BodyType
+    btype_hp = {gh.BodyTypeMetadata(i).Type(): gh.BodyTypeMetadata(i).Health()
+                for i in range(gh.BodyTypeMetadataLength())}
+    robots: dict[int, Robot] = {}
+    for rid, team, bt, x, y in m.start_bodies:
+        robots[rid] = Robot(rid, team, bt, x, y, btype_hp.get(bt, 0))
+    tl = {1: 0, 2: 0}
+    tg = {1: 0, 2: 0}
+    atk = {1: 0, 2: 0}
+    lo = args.from_round or 1
+    hi = args.to_round or m.max_rounds
+    print("round,winner," + ",".join(f"A_{c}" for c in _METRIC_COLS)
+          + "," + ",".join(f"B_{c}" for c in _METRIC_COLS), file=out)
+
+    for rnd in m.rounds:
+        rid = rnd.RoundId()
+        for k in range(rnd.TeamIdsLength()):
+            t = rnd.TeamIds(k)
+            tl[t] += rnd.TeamLeadChanges(k)
+            tg[t] += rnd.TeamGoldChanges(k)
+        sb = rnd.SpawnedBodies()
+        for k in range(sb.RobotIdsLength() if sb is not None else 0):
+            i = sb.RobotIds(k)
+            robots[i] = Robot(i, sb.TeamIds(k), sb.Types(k),
+                              sb.Locs().Xs(k) - m.min_x, sb.Locs().Ys(k) - m.min_y,
+                              btype_hp.get(sb.Types(k), 0))
+        ml = rnd.MovedLocs()
+        for k in range(rnd.MovedIdsLength()):
+            r = robots.get(rnd.MovedIds(k))
+            if r:
+                r.x = ml.Xs(k) - m.min_x
+                r.y = ml.Ys(k) - m.min_y
+        for k in range(rnd.ActionsLength()):
+            act = rnd.Actions(k)
+            if act == S.Action.CHANGE_HEALTH:
+                r = robots.get(rnd.ActionIds(k))
+                if r:
+                    r.hp += rnd.ActionTargets(k)
+            elif act == S.Action.ATTACK:
+                a = robots.get(rnd.ActionIds(k))
+                if a:
+                    atk[a.team] += 1
+        for k in range(rnd.DiedIdsLength()):
+            robots.pop(rnd.DiedIds(k), None)
+
+        if rid < lo or rid > hi or ((rid - lo) % args.step != 0 and rid != hi):
+            continue
+
+        row = [str(rid), team_letter(m.footer.Winner())]
+        for tid in (1, 2):
+            c: dict = {}
+            hp = sx = sy = sn = 0
+            for r in robots.values():
+                if r.team != tid:
+                    continue
+                c[r.btype] = c.get(r.btype, 0) + 1
+                if r.btype == BT.ARCHON:
+                    hp += r.hp
+                if r.btype == BT.SOLDIER:
+                    sx += r.x
+                    sy += r.y
+                    sn += 1
+            cx = sx / sn if sn else 0.0
+            cy = sy / sn if sn else 0.0
+            spread = (sum(((r.x - cx) ** 2 + (r.y - cy) ** 2) ** 0.5
+                          for r in robots.values()
+                          if r.team == tid and r.btype == BT.SOLDIER) / sn) if sn else 0.0
+            row += [
+                str(tl[tid]), str(tg[tid]),
+                str(c.get(BT.MINER, 0)), str(c.get(BT.SOLDIER, 0)), str(c.get(BT.BUILDER, 0)),
+                str(c.get(BT.SAGE, 0)), str(c.get(BT.LABORATORY, 0)), str(c.get(BT.WATCHTOWER, 0)),
+                str(c.get(BT.ARCHON, 0)), str(hp), str(atk[tid]),
+                f"{cx:.1f}", f"{cy:.1f}", f"{spread:.1f}",
+            ]
+        print(",".join(row), file=out)
+
+
 def dump_match(m: Match, gh, out, args, match_no, n_matches):
     p = lambda s="": print(s, file=out)
 
     teams = [gh.Teams(i) for i in range(gh.TeamsLength())]
     tname = {t.TeamId(): decode_str(t.Name()) for t in teams}
     tpkg = {t.TeamId(): decode_str(t.PackageName()) for t in teams}
+    if args.metrics:
+        return _dump_metrics(m, gh, out, args)
 
     p("=" * 78)
     p(f"MATCH {match_no}/{n_matches}   map: {m.map_name}   ({m.width} x {m.height})")
@@ -636,6 +728,9 @@ def main(argv=None):
                     help="list every mining op per tile (default: collapse to a per-team count)")
     ap.add_argument("--indicators", action="store_true",
                     help="show robot indicator strings (their debug logs)")
+    ap.add_argument("--metrics", action="store_true",
+                    help="emit a per-round CSV of per-team aggregates (no narrative "
+                         "output); respects --match/--from/--to/--step")
     args = ap.parse_args(argv)
     if args.step < 1:
         ap.error("--step must be >= 1")
@@ -651,7 +746,8 @@ def main(argv=None):
             if not 1 <= args.match <= len(matches):
                 sys.exit(f"--match {args.match} out of range (1..{len(matches)})")
             sel = [args.match - 1]
-        print(f"# {os.path.basename(args.replay)}  -  {len(matches)} match(es)", file=out)
+        if not args.metrics:
+            print(f"# {os.path.basename(args.replay)}  -  {len(matches)} match(es)", file=out)
         for mi in sel:
             dump_match(matches[mi], gh, out, args, mi + 1, len(matches))
     finally:

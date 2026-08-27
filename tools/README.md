@@ -52,6 +52,25 @@ tools/.venv/bin/python tools/bc22_replay.py REPLAY [options]
   --all-actions         one line per mining op (default: per-team count)
   --map-detail          also show the live RUBBLE map every round
   --indicators          show robots' indicator strings (their debug logs)
+  --metrics             emit a per-round CSV of per-team aggregates, no narrative
+```
+
+### `--metrics`
+
+`--metrics` replaces the narrative output with one CSV row per (selected) round:
+
+```
+round,winner,A_lead,A_gold,A_miners,A_soldiers,A_builders,A_sages,A_labs,
+A_watchtowers,A_archons,A_archonHP,A_attacks,A_solCx,A_solCy,A_solSpread,B_...
+```
+
+`A_attacks` is cumulative; `A_solCx/Cy` is the soldier centroid and `A_solSpread`
+the mean soldier distance from it (army cohesion). Respects `--match/--from/--to
+/--step`. Use it to diff the current bot against an opponent and see where a game
+turned:
+
+```
+tools/.venv/bin/python tools/bc22_replay.py game.bc22 --metrics --step 25 | column -t -s,
 ```
 
 Each rendered round shows, by default, the **ROBOTS** board (units over the live
