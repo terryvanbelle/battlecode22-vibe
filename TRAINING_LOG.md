@@ -178,4 +178,32 @@ any unit flags an Archon with enemies near it, Archons clear it when safe.
 **wins at round 154** (was an annihilation *loss* at r485), and also wins side B
 (r299). → back to Step 2, full Gauntlet vs `{examplefuncsplayer, g_iter1, g_iter2}`.
 
-Gauntlet run pending.
+**Gauntlet (step 2/3).** Iteration 3 = **46/60 (76.7%)** ≥ `WinPct` — the
+strongest iteration so far. vs `examplefuncsplayer` 20/20, vs `g_iter1` 16/20
+(recovered from Iteration 2's 5/20), vs `g_iter2` 10/20. **Added as `g_iter3`.**
+Losses cluster on the obstacle-heavy maps (`pillars` 0/4, `valley`, `maze/B`).
+**Step 4:** loss `bot` (B) vs `g_iter2` (A) on `pillars` — annihilated at round 804.
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)
+
+*Hypothesis:* On obstacle-dense maps, the greedy pather (`moveToward` = try the
+goal direction ± up to 2 rotations) cannot get around the large rubble-wall
+blocks, so the army splinters against them and feeds into the enemy's
+concentrated force piecemeal. We end up with ~50 idle, scattered miners and
+never more than ~10 live soldiers while the enemy fields 30–50, and our Archons
+are annihilated by round 800.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | our soldiers ≥2 clusters >8 apart; enemy 1 cluster | yes | yes @ r400 (board) | ✓ |
+| V2 | our live soldiers mid-game | ≤ 15 | 6 @ r500, 10 @ r700 | ✓ |
+| V3 | our miners ÷ our soldiers mid-game | ≥ 3 | 39/6 @ r500 | ✓ |
+| V4 | enemy soldiers ÷ our soldiers mid-game | ≥ 3 | 30/6 @ r500 | ✓ |
+| V5 | our Archons lost by round 800 | ≥ 2 | 2 (3→1) | ✓ |
+| V6 | map is obstacle-dense (high-rubble fraction) | ≥ 20% | ~30% (pillars) | ✓ |
+
+**All six criteria met → hypothesis verified.** Proceed to Step 6.
+
+---
+
+## Iteration 4  —  navigation  (pending)
