@@ -29,15 +29,23 @@ tools/.venv/bin/python tools/bc22_replay.py REPLAY [options]
   --match N             only this match (multi-match files)
   --from R  --to R      restrict the rendered round range
   --step N              render every Nth round (default: every round)
-  --terrain rubble|lead|none   board backdrop for empty squares (default rubble)
-  --no-board            skip the ASCII boards
-  --no-events           skip the event log (board + resources only)
+  --terrain rubble|lead|none   backdrop for empty squares on the ROBOTS board
+                               (default rubble)
+  --no-board            skip the ASCII boards entirely
+  --no-lead-map         show only the ROBOTS board, drop the per-round LEAD map
+  --no-events           skip the event log (boards + resources only)
   --moves               list every individual robot move
   --health              per-robot health deltas each round
   --all-actions         one line per mining op (default: per-team count)
-  --map-detail          also dump the full live lead/gold map each rendered round
+  --map-detail          also show the live RUBBLE map every round
   --indicators          show robots' indicator strings (their debug logs)
 ```
+
+Each rendered round shows, by default, the **ROBOTS** board (units over the live
+rubble) and the live **LEAD** map beside it; the **GOLD** map appears on rounds
+where gold is on the field, and the **RUBBLE** map re-prints whenever a Vortex
+changes it. All are one character per square, so you can watch the lead field
+deplete and regenerate over the course of the game.
 
 Examples:
 
@@ -50,7 +58,7 @@ tools/.venv/bin/python tools/bc22_replay.py matches/foo.bc22 --step 25
 
 # zoom in on a fight with full detail
 tools/.venv/bin/python tools/bc22_replay.py matches/foo.bc22 \
-    --from 300 --to 340 --moves --health --indicators --all-actions
+    --from 300 --to 340 --moves --health --indicators --all-actions --map-detail
 ```
 
 ## Board legend

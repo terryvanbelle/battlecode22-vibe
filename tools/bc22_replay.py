@@ -581,21 +581,24 @@ def dump_match(m: Match, gh, out, args, match_no, n_matches):
                 p(f"  ({rnd.MovedIdsLength()} robots moved; use --moves to list)")
         if not args.no_board:
             p()
+            p(f"  ROBOTS  (A/L/W/M/B/S/G, upper=A lower=B; backdrop = live {args.terrain})")
             p(render_board(m, robots, args.terrain, map_rubble, map_lead))
-        if args.map_detail or (rubble_dirty and not args.no_board):
-            if rubble_dirty:
+            if not args.no_lead_map:
                 p()
-                p("LIVE RUBBLE MAP (after Vortex)   '.' 0-9   ':' 10-33   'o' 34-66   '#' 67-100")
+                p(f"  LEAD  (live: {map_lead_total} Pb on {n_lead_tiles} tiles)"
+                  "   ' ' 0  ',' 1-9  ':' 10-24  '+' 25-49  '#' 50-99  '@' 100+")
+                p(static_map(m, map_lead, lead_glyph))
+            if map_gold_total:
+                p()
+                p(f"  GOLD  (live: {map_gold_total} Au)"
+                  "   ' ' 0  ',' 1-9  ':' 10-24  '+' 25-49  '#' 50+")
+                p(static_map(m, map_gold, lead_glyph))
+            if rubble_dirty or args.map_detail:
+                p()
+                tag = "live, just changed by Vortex" if rubble_dirty else "live"
+                p(f"  RUBBLE  ({tag})   '.' 0-9  ':' 10-33  'o' 34-66  '#' 67-100")
                 p(static_map(m, map_rubble, rubble_glyph))
                 rubble_dirty = False
-            if args.map_detail:
-                p()
-                p("LIVE LEAD MAP   ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50-99   '@' 100+")
-                p(static_map(m, map_lead, lead_glyph))
-                if map_gold_total:
-                    p()
-                    p("LIVE GOLD MAP   ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50+")
-                    p(static_map(m, map_gold, lead_glyph))
 
     p()
     p("=" * 78)
@@ -621,10 +624,12 @@ def main(argv=None):
                     help="render every Nth round (default 1 = every round)")
     ap.add_argument("--terrain", choices=("rubble", "lead", "none"), default="rubble",
                     help="backdrop for empty squares on the per-round board (default rubble)")
-    ap.add_argument("--no-board", action="store_true", help="omit the ASCII board")
+    ap.add_argument("--no-board", action="store_true", help="omit the ASCII boards entirely")
+    ap.add_argument("--no-lead-map", action="store_true",
+                    help="show only the robot board, not the live lead map, each round")
     ap.add_argument("--no-events", action="store_true", help="omit the per-round event log")
     ap.add_argument("--map-detail", action="store_true",
-                    help="also dump the full live lead (and gold) map at each rendered round")
+                    help="also show the live rubble map every round (not just after a Vortex)")
     ap.add_argument("--moves", action="store_true", help="list every individual robot move")
     ap.add_argument("--health", action="store_true", help="list per-robot health changes each round")
     ap.add_argument("--all-actions", action="store_true",
