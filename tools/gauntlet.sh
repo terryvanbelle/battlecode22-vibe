@@ -1,0 +1,130 @@
+#!/usr/bin/env bash
+# Run "the Gauntlet" for the current bot (TRAINING_ALGORITHM.md step 2).
+#
+# For every opponent and every map, play two headless games (current bot as
+# team A, then as team B) on the GCE VM, record win/loss, and copy back the
+# replays of games the current bot LOST.
+#
+# Usage:
+#   tools/gauntlet.sh                       # bot vs OPPONENTS over MAPS (defaults below)
+#   BOT=bot OPPONENTS="examplefuncsplayer g_iter0" MAPS="maze eckleburg" tools/gauntlet.sh
+#   MAPSET=full tools/gauntlet.sh           # use every map in tools/bc22-maps.txt
+#
+# Output (local):
+#   gauntlet/<run-id>/results.csv           opponent,map,bot_side,winner_side,bot_result
+#   gauntlet/<run-id>/summary.txt           win rate overall and per opponent
+#   gauntlet/<run-id>/losses/*.bc22         replays the current bot lost
+set -euo pipefail
+
+VM=battlecode-dev
+ZONE=us-west1-b
+PROJECT=tvanbelle-vibecode
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+BOT="${BOT:-bot}"
+OPPONENTS="${OPPONENTS:-examplefuncsplayer}"
+MAPSET="${MAPSET:-loop}"
+
+# A diverse subset for fast iteration (sizes 20-60, all symmetries).
+LOOP_MAPS="maptestsmall eckleburg intersection colosseum chessboard maze sandwich \
+jellyfish squer pillars highway fortress valley island_hopping"
+
+if [ "${MAPS:-}" ]; then
+  :
+elif [ "$MAPSET" = "full" ]; then
+  MAPS="$(tr '\n' ' ' < "$REPO/tools/bc22-maps.txt")"
+else
+  MAPS="$LOOP_MAPS"
+fi
+
+RUN_ID="$(date +%Y%m%d-%H%M%S)"
+OUT="$REPO/gauntlet/$RUN_ID"
+mkdir -p "$OUT/losses"
+echo "opponent,map,bot_side,winner_side,bot_result" > "$OUT/results.csv"
+
+echo "gauntlet run $RUN_ID"
+echo "  bot=$BOT  opponents=[$OPPONENTS]  maps=$(echo $MAPS | wc -w)"
+
+# make sure the VM is up and has our latest source
+state=$(gcloud compute instances describe "$VM" --zone="$ZONE" --project="$PROJECT" --format='value(status)')
+if [ "$state" != "RUNNING" ]; then
+  gcloud compute instances start "$VM" --zone="$ZONE" --project="$PROJECT" >/dev/null
+  for i in $(seq 1 15); do
+    gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" --command=true 2>/dev/null && break
+    sleep 8
+  done
+fi
+gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" \
+  --command="mkdir -p ~/battlecode22-scaffold/src" >/dev/null
+gcloud compute scp --recurse "$REPO/src/." "$VM:~/battlecode22-scaffold/src/" \
+  --zone="$ZONE" --project="$PROJECT" >/dev/null
+
+# Build a remote script that runs all games and prints one result line each,
+# copy it to the VM, and run it there (stdin piping through `gcloud ssh
+# --command` is unreliable, so we scp + execute by path).
+remote=$(mktemp)
+cat > "$remote" <<REMOTE
+set -uo pipefail
+export JAVA_HOME=\$HOME/jdk8 PATH=\$HOME/jdk8/bin:\$PATH
+cd ~/battlecode22-scaffold
+./gradlew --no-daemon -q build >/dev/null 2>&1 || { echo "RESULT-BUILD-FAILED"; exit 1; }
+mkdir -p gauntlet
+for OPP in $OPPONENTS; do
+  for MAP in $MAPS; do
+    for SIDE in A B; do
+      if [ "\$SIDE" = A ]; then TA=$BOT; TB=\$OPP; else TA=\$OPP; TB=$BOT; fi
+      REPLAY=gauntlet/\${OPP}__\${MAP}__bot\${SIDE}.bc22
+      LOG=\$(./gradlew --no-daemon -q run -PteamA=\$TA -PteamB=\$TB -Pmaps=\$MAP \
+              -Preplay=\$REPLAY 2>&1 || true)
+      WIN=\$(printf '%s\n' "\$LOG" | sed -n 's/.*(\([AB]\)) wins.*/\1/p' | tail -1)
+      echo "RESULT \$OPP \$MAP \$SIDE \${WIN:-?}"
+    done
+  done
+done
+REMOTE
+gcloud compute scp "$remote" "$VM:~/gauntlet_run.sh" --zone="$ZONE" --project="$PROJECT" >/dev/null
+
+echo "  running $(echo $OPPONENTS | wc -w)x$(echo $MAPS | wc -w)x2 games on the VM ..."
+gcloud compute ssh "$VM" --zone="$ZONE" --project="$PROJECT" --command="bash ~/gauntlet_run.sh" \
+  | tee "$OUT/raw.log" | grep '^RESULT ' | while read -r _ OPP MAP SIDE WIN; do
+    if [ "$WIN" = "$SIDE" ]; then RES=win; elif [ "$WIN" = "?" ]; then RES=unknown; else RES=loss; fi
+    echo "$OPP,$MAP,$SIDE,$WIN,$RES" >> "$OUT/results.csv"
+    printf '  %-20s %-16s bot=%s winner=%s -> %s\n' "$OPP" "$MAP" "$SIDE" "$WIN" "$RES"
+  done || true
+
+if [ "$(wc -l < "$OUT/results.csv")" -le 1 ]; then
+  echo "!! no game results -- see $OUT/raw.log" >&2
+  tail -20 "$OUT/raw.log" >&2 || true
+  exit 1
+fi
+
+# pull replays of losses
+mapfile -t LOSS_KEYS < <(awk -F, '$5=="loss"{print $1"__"$2"__bot"$3".bc22"}' "$OUT/results.csv")
+for k in "${LOSS_KEYS[@]:-}"; do
+  [ -n "$k" ] || continue
+  gcloud compute scp "$VM:~/battlecode22-scaffold/gauntlet/$k" "$OUT/losses/" \
+    --zone="$ZONE" --project="$PROJECT" >/dev/null 2>&1 || true
+done
+
+# summary
+{
+  total=$(($(wc -l < "$OUT/results.csv") - 1))
+  wins=$(grep -c ',win$' "$OUT/results.csv" || true)
+  losses=$(grep -c ',loss$' "$OUT/results.csv" || true)
+  unknown=$(grep -c ',unknown$' "$OUT/results.csv" || true)
+  echo "run $RUN_ID   bot=$BOT"
+  echo "overall: $wins/$total wins ($(awk "BEGIN{printf \"%.1f\", $total?100*$wins/$total:0}")%)  losses=$losses unknown=$unknown"
+  echo
+  for OPP in $OPPONENTS; do
+    t=$(grep -c "^$OPP," "$OUT/results.csv" || true)
+    w=$(grep -c "^$OPP,.*,win$" "$OUT/results.csv" || true)
+    printf '  vs %-20s %s/%s (%.0f%%)\n' "$OPP" "$w" "$t" "$(awk "BEGIN{print $t?100*$w/$t:0}")"
+  done
+  echo
+  echo "losses:"
+  awk -F, '$5=="loss"{printf "  %s on %s (bot was %s)\n",$1,$2,$3}' "$OUT/results.csv"
+} | tee "$OUT/summary.txt"
+
+echo
+echo "wrote $OUT/  (results.csv, summary.txt, losses/)"
+rm -f "$remote"

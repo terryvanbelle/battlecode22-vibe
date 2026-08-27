@@ -207,3 +207,6 @@ tools/.venv/
 
 # Claude Code personal project settings
 .claude/settings.local.json
+
+# training-loop artifacts (replays, per-run results)
+/gauntlet
