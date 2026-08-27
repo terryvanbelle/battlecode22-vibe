@@ -221,4 +221,32 @@ idle miners in long games and starved the army. Re-running the losing game
 annihilation at r804). → back to Step 2, full Gauntlet vs
 `{examplefuncsplayer, g_iter1, g_iter2, g_iter3}`.
 
-Gauntlet run pending.
+**Gauntlet (step 2/3).** Iteration 4 = **64/80 (80.0%)** ≥ `WinPct` — strongest
+yet. vs `examplefuncsplayer` 20/20, `g_iter1` 16/20, `g_iter2` **15/20** (up from
+Iteration 3's 10/20), `g_iter3` 13/20. Per-map: everything ≥ 6/8 except
+**`pillars` 3/8** and **`valley` 4/8**. **Added as `g_iter4`.**
+**Step 4:** loss `bot` (A, first-mover) vs `g_iter3` (B) on `pillars` —
+annihilated at round 711 *despite* killing 2 of the enemy's 3 Archons by r370.
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)
+
+*Hypothesis:* the fixed miner cap of 16 (attempt-2's fix) is too low for
+obstacle/large maps — it starves mid-game lead income, so after an even-or-better
+early fight the enemy's *uncapped* economy (33+ miners) rebuilds a bigger army
+and annihilates us. On this game we reduce the enemy from 3 Archons to 1 by
+round 370, then our soldiers collapse 11 → 1 (r210 → r530) while theirs grow
+0 → 25.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | enemy Archons cut to ≤1 while we still have 3, by ~r370 | yes | B 3→1 by r370 | ✓ |
+| V2 | our miners pinned at the cap while enemy's > 2× | yes | 16 vs 33 @ r450 | ✓ |
+| V3 | our lead income ≈ passive (+2/round) mid-game | yes | +2 while enemy +6…+10 | ✓ |
+| V4 | our soldiers collapse while enemy's grow | yes | 11→1 vs 0→25 (r210→r530) | ✓ |
+| V5 | annihilated despite the early Archon-kill lead | yes | r711 | ✓ |
+
+**All five criteria met → hypothesis verified.** Proceed to Step 6.
+
+---
+
+## Iteration 5  —  elastic economy  (pending)
