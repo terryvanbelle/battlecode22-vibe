@@ -291,4 +291,25 @@ loaded*, not dribbled in.
 
 ---
 
-## Iteration 6  —  front-loaded economy  (pending)
+## Iteration 6  —  front-loaded economy
+
+**Tooling.** Added `bc22_replay.py --metrics` — a per-round CSV of per-team
+aggregates (lead, gold, unit counts by type, Archon HP, cumulative attacks,
+soldier centroid + spread). Now used on every evaluation, not just deep-dives.
+
+**Step 6 — Solution.**
+
+*Attempt 1 (rejected).* `miners < min(mapCap, 6 + soldiers)` — economy tracks
+army. Re-running `maptestsmall`/B vs `g_iter4`: **lost faster** (r121 vs r150).
+Undone (6.5), back to 6.1.
+
+*Attempt 2 (accepted).* `--metrics` on the loss showed `g_iter4` (flat cap 16,
+reached ~r20) at **lead 382 / 17 miners by r31** while our time-ramp had us at
+**52 / 10** — our early economy was *worse* than a flat 16. Drop the ramp: build
+straight to `minerCap() = clamp(W*H/45, 16, 34)` (≥ 16 everywhere), then pure
+army. Re-running the losing game: Iteration 6 **wins `maptestsmall`/B vs
+`g_iter4` at round 351** (was r150 annihilation), and flips `maptestsmall`/A too.
+Spot-check: vs `g_iter4` 11/18 (Iteration 5 was 6/20); `valley` vs `g_iter4`
+0/8 → 2/2. → back to Step 2, full Gauntlet vs `{examplefuncsplayer, g_iter1..g_iter5}`.
+
+Gauntlet run pending.
