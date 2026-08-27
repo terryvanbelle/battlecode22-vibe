@@ -249,4 +249,20 @@ round 370, then our soldiers collapse 11 → 1 (r210 → r530) while theirs grow
 
 ---
 
-## Iteration 5  —  elastic economy  (pending)
+## Iteration 5  —  ramped economy
+
+**Step 6 — Solution.**
+
+*Attempt 1 (rejected).* Map-scaled cap (`W*H/36`, 16–40) + "keep building miners
+while banked lead ≥ 120". On lead-rich maps this produced an economy-first
+opening and got rushed — lost `maptestsmall` all four ways at round ~80.
+Undone (6.5), back to 6.1.
+
+*Attempt 2 (accepted).* Miners **ramp with time**: `softCap = min(mapCap,
+8 + round/12)` — ~8 early so the army leads, growing to the map-scaled cap by
+mid-game. Re-running the losing game (`pillars`, bot as A vs `g_iter3`):
+Iteration 5 **wins at round 572** (was annihilation at r711). Also flips `valley`
+vs `g_iter3` from 0/2 to 2/2. → back to Step 2, full Gauntlet vs
+`{examplefuncsplayer, g_iter1..g_iter4}`.
+
+Gauntlet run pending.

@@ -25,6 +25,16 @@ import java.util.Random;
  *         the army traces obstacle edges as one body (see moveToward);
  *     (b) hard miner cap so the build budget goes to the army, not to 50 idle
  *         miners.
+ *
+ * ITERATION 5 (solution to the verified Iteration-4 hypothesis: "the fixed cap
+ *   of 16 starves lead income on larger/obstacle maps -- after killing 2 of 3
+ *   enemy Archons by r370 our soldiers collapse 11->1 while the enemy's uncapped
+ *   economy rebuilds to 25, annihilating us r711 on pillars").
+ *   Attempt 1 (map-scaled cap + "keep mining while lead >= 120") lost fast on
+ *   lead-rich maps (economy-first opening -> rushed r80 on maptestsmall) --
+ *   dropped. Attempt 2: miners ramp over time from ~8 to the map-scaled cap
+ *   (W*H/36, clamped 16..40), so the army leads early and the economy catches
+ *   up mid-game. See minerCap() and runArchon().
  */
 public strictfp class RobotPlayer {
 
@@ -39,7 +49,11 @@ public strictfp class RobotPlayer {
     static final int SA_ENEMY_ARCHON_0 = 20;   // 20..23
     static final int SA_HOME_THREAT = 30;      // packed loc of a threatened Archon, 0 = none
 
-    static final int MINER_CAP = 16;   // registered miners; rest of the build budget is army
+    // ITERATION 5: the fixed cap of 16 (Iteration 4) starved lead income on
+    // larger/obstacle maps -- after an even early fight the enemy's uncapped
+    // economy rebuilt a bigger army. Scale the cap with map area, and add
+    // elasticity: keep building miners past the cap while lead is piling up.
+    static int minerCap() { return Math.max(16, Math.min(40, W * H / 36)); }
 
     static boolean counted = false, publishedStart = false;
     static int W, H;
@@ -157,11 +171,14 @@ public strictfp class RobotPlayer {
             if (near == 0) rc.writeSharedArray(SA_HOME_THREAT, 0);
         }
 
-        // Miner cap: the old "TARGET_MINERS then 1-in-5 forever" rule drifted to
-        // ~50 idle miners in long games and starved the army (Iteration-3 pillars
-        // loss: 49 miners / 6 live soldiers). Hard cap; everything else is army.
+        // Miners ramp over time toward the map-scaled cap: ~8 early (so the
+        // army comes first and we aren't rushed on lush maps like maptestsmall),
+        // growing to the full cap by mid-game (so we aren't out-economied on big
+        // maps like pillars). Attempt 1's "build miners while rich" clause caused
+        // a fatal economy-first opening on lead-rich maps -- dropped.
         int miners = rc.readSharedArray(SA_MINERS);
-        RobotType want = (miners < MINER_CAP) ? RobotType.MINER : RobotType.SOLDIER;
+        int softCap = Math.min(minerCap(), 8 + rc.getRoundNum() / 12);
+        RobotType want = (miners < softCap) ? RobotType.MINER : RobotType.SOLDIER;
         Direction best = null; int bestR = Integer.MAX_VALUE;
         for (Direction d : DIRS) {
             if (!rc.canBuildRobot(want, d)) continue;
