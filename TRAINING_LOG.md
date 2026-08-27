@@ -125,4 +125,57 @@ both B (annihilation, round 1429 — was a round-2000 tiebreak loss) and A
 (annihilation, round 808). → back to Step 2, full Gauntlet for Iteration 2
 against `{examplefuncsplayer, g_iter1}`.
 
+**Gauntlet (step 2/3).** Iteration 2 = **25/40 (62.5%)** — barely ≥ `WinPct`.
+vs `examplefuncsplayer` **20/20**, but vs **`g_iter1` only 5/20**: the coordination
+change is a net *regression* against a real opponent. Passes the gate → added as
+`g_iter2`. Infra: per-game `./gradlew` overloaded the VM (SSH kept dropping);
+switched to one bare `java` per game, 6-way parallel, 8-vCPU VM, 10-map loop set.
+
+**Step 4:** loss `bot` (A, the first-mover side) vs `g_iter1` (B) on `maptestsmall`
+— annihilated at round **485**.
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)
+
+*Hypothesis:* Iteration 2's soldiers never concentrate. Each independently picks
+"nearest known enemy Archon / nearest sensed enemy / nearest symmetric
+candidate", so the army fragments into 2–3 groups heading different ways and
+meets `g_iter1`'s single cohesive blob (all its soldiers march to the mirror of
+their shared spawn point, so they clump) in pieces — losing every engagement.
+No soldier defends home, so raiders wipe our miners (down to **1** by round 300
+vs the enemy's 14) and then the Archon. We build 200+ soldiers but they arrive
+one at a time.
+
+| # | variable | threshold | measured @ r300 | ✓ |
+|---|----------|-----------|-----------------|---|
+| V1 | our miners vs enemy miners | ours ≤ ⅓ theirs | 1 vs 14 | ✓ |
+| V2 | our team lead vs enemy lead | ours ≤ ¼ theirs | 10 vs 3386 | ✓ |
+| V3 | our army split into ≥2 clusters; enemy is 1 | yes | yes (board) | ✓ |
+| V4 | loss by annihilation before round 600 | yes | r485 | ✓ |
+| V5 | our Archon HP monotonically bled from ~r220 | yes | 600→441→…→12→0 | ✓ |
+
+**All five criteria met → hypothesis verified.** Proceed to Step 6.
+
+---
+
+## Iteration 3  —  one shared objective + home defense
+
+**Step 6 — Solution.**
+
+*Attempt 1 (rejected).* Single objective + "regroup when locally outnumbered" +
+per-soldier candidate sweeps + home flag + fleeing miners. Re-running the losing
+game: **lost** `maptestsmall` both sides (r553 / r1070) and `maze` both sides —
+worse than Iteration 2. The "regroup when outnumbered" made soldiers oscillate
+and never commit. **Undone (step 6.5), back to step 6.1.**
+
+*Attempt 2 (accepted).* Keep Iteration 1's soldier COMBAT logic verbatim (it
+wins fights); change ONLY what a soldier does with no enemy in sight — from
+"mirror of my own position" (128 different points) to one army-wide objective:
+threatened friendly Archon → known enemy Archon (fixed slot) → mirror of our
+*first* Archon start (one shared point). Plus miners flee enemy combat units;
+any unit flags an Archon with enemies near it, Archons clear it when safe.
+
+*Step 6.3 — re-run the losing game* (`maptestsmall`, bot as A): Iteration 3
+**wins at round 154** (was an annihilation *loss* at r485), and also wins side B
+(r299). → back to Step 2, full Gauntlet vs `{examplefuncsplayer, g_iter1, g_iter2}`.
+
 Gauntlet run pending.
