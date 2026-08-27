@@ -270,7 +270,7 @@ the early ancestors — `g_iter1` **20/20**, `g_iter2` 19/20 (Iteration 4 was 16
 vs `g_iter1`) — but **regressed vs `g_iter4` to 6/20**. **Added as `g_iter5`.**
 **Step 4:** loss `bot` (B) vs `g_iter4` (A) on `maptestsmall` — annihilated r150.
 
-### Step 5 — Hypothesis (iteration 1 of ≤5)
+### Step 5 — Hypothesis (iteration 1 of ≤5)  [Iteration 5]
 
 *Hypothesis:* the *time*-ramped miner rule interleaves miner and soldier builds
 for the whole game, so at every point both our economy and our army are smaller
@@ -313,3 +313,20 @@ Spot-check: vs `g_iter4` 11/18 (Iteration 5 was 6/20); `valley` vs `g_iter4`
 0/8 → 2/2. → back to Step 2, full Gauntlet vs `{examplefuncsplayer, g_iter1..g_iter5}`.
 
 Gauntlet run pending.
+
+**Gauntlet (step 2/3).** Iteration 6 = **93/120 (78%)** ≥ `WinPct`. Beats every
+ancestor: `g_iter1` 17/20, `g_iter2` 17/20, `g_iter3` 15/20, **`g_iter4` 13/20
+(Iteration 5 was 6/20)**, `g_iter5` 11/20; `examplefuncsplayer` 20/20. Per-map,
+`chessboard`/`maptestsmall` 12/12 and `intersection` 11/12, but `highway` 6/12,
+`valley`/`pillars` 7/12, `sandwich` 8/12. 83 of the gauntlet's decisive games
+ended by annihilation — Iteration 6 mostly out-fights or gets out-fought now,
+few tiebreaks. **Added as `g_iter6`.**
+
+---
+
+_Iterations 1–6 summary: `bot` went from a single wandering Miner to a bot that
+beats every frozen ancestor and sweeps `examplefuncsplayer`. Remaining weak maps
+are the wide/obstacle ones (`highway`, `valley`, `pillars`). Marginal per-
+iteration gains from here are small — the next structural lever is combat micro
+(focus-fire, kiting) to win fights at better unit ratios, or Labs for a gold
+economy._
