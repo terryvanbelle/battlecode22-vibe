@@ -105,4 +105,24 @@ the enemy's actual last Archon; enemy-Archon sightings are never shared.
 
 ---
 
-## Iteration 2  —  coordinated hunt (pending)
+## Iteration 2  —  coordinated hunt
+
+**Step 6 — Solution.**
+
+- Archons publish their start location to the shared array (slots 5–8).
+- Every unit reports sensed enemy Archons to shared slots 20–23, and clears a
+  slot when standing next to that location with nothing there.
+- Soldier target priority: attack weakest enemy in range (Archons first) →
+  else march to the nearest *known* enemy Archon → else advance on the nearest
+  sensed enemy → else sweep the nearest **symmetric image** of one of our
+  Archon starts (rotation / h-flip / v-flip — map symmetry is unknown, so all
+  candidates are hunted; soldiers pick "nearest", which clusters them).
+- Miners also chase and mine gold drops.
+- Instrumentation: `enemyArchonsKnown=` added to the Archon report.
+
+*Step 6.3 — re-run the losing game* (`intersection`): Iteration 2 **wins** as
+both B (annihilation, round 1429 — was a round-2000 tiebreak loss) and A
+(annihilation, round 808). → back to Step 2, full Gauntlet for Iteration 2
+against `{examplefuncsplayer, g_iter1}`.
+
+Gauntlet run pending.
