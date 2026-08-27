@@ -139,7 +139,7 @@ class Match:
         self.symmetry = mp.Symmetry()
         self.seed = mp.RandomSeed()
         self.max_rounds = header.MaxRounds()
-        self.rubble = [mp.Rubble(i) for i in range(mp.RubbleLength())]
+        self.rubble0 = [mp.Rubble(i) for i in range(mp.RubbleLength())]
         self.lead0 = [mp.Lead(i) for i in range(mp.LeadLength())]
         self.anomalies = [
             (mp.AnomalyRounds(i), ANOMALY_NAME.get(mp.Anomalies(i), mp.Anomalies(i)))
@@ -240,19 +240,33 @@ def lead_glyph(v: int) -> str:
     return "@"
 
 
-def terrain_char(m: Match, x: int, y: int, mode: str) -> str:
-    """Backdrop glyph for an unoccupied square on the per-round board."""
-    i = m.idx(x, y)
-    if mode == "none":
-        return "."
-    if mode == "lead":
-        return lead_glyph(m.lead0[i])
-    return rubble_glyph(m.rubble[i])  # mode == "rubble"
+def transform_grid(grid, w, h, mode):
+    """Apply a Vortex terrain transform to a flat (idx = x + y*w) grid.
+    mode: 0 = rotate 90 CW (square maps only), 1 = mirror columns, 2 = mirror rows.
+    Mirrors the battlecode22 engine's flipRubble*/rotateRubble."""
+    if mode == 1:  # flipRubbleHorizontally: x <-> w-1-x
+        return [grid[(w - 1 - (i % w)) + (i // w) * w] for i in range(len(grid))]
+    if mode == 2:  # flipRubbleVertically: y <-> h-1-y
+        return [grid[(i % w) + (h - 1 - (i // w)) * w] for i in range(len(grid))]
+    if mode == 0 and w == h:  # rotateRubble: old (x,y) -> new (y, n-1-x)
+        n = w
+        out = grid[:]
+        for x in range(n):
+            for y in range(n):
+                out[y + (n - 1 - x) * n] = grid[x + y * n]
+        return out
+    return grid  # unknown / non-square rotate: leave unchanged
 
 
-def render_board(m: Match, robots: dict, terrain: str) -> str:
+def render_board(m: Match, robots: dict, terrain: str, rubble, lead) -> str:
+    """Board with live terrain: robots over the current rubble (or lead) grid."""
     w, h = m.width, m.height
-    grid = [[terrain_char(m, x, y, terrain) for x in range(w)] for y in range(h)]
+    if terrain == "none":
+        grid = [["." for _ in range(w)] for _ in range(h)]
+    elif terrain == "lead":
+        grid = [[lead_glyph(lead[x + y * w]) for x in range(w)] for y in range(h)]
+    else:
+        grid = [[rubble_glyph(rubble[x + y * w]) for x in range(w)] for y in range(h)]
     for r in robots.values():
         if 0 <= r.x < w and 0 <= r.y < h:
             g = BODY_GLYPH.get(r.btype, "?")
@@ -269,17 +283,15 @@ def render_board(m: Match, robots: dict, terrain: str) -> str:
 
 
 def static_map(m: Match, values, buckets) -> str:
-    """One-char-per-square dump of a static int grid (rubble or lead)."""
+    """One-char-per-square dump of an int grid (rubble / lead / gold)."""
     w, h = m.width, m.height
-    lines = []
+    tens = "     " + "".join(str((x // 10) % 10) if x % 10 == 0 else " " for x in range(w))
     ones = "     " + "".join(str(x % 10) for x in range(w))
-    lines.append(ones)
+    lines = [tens, ones]
     for y in range(h - 1, -1, -1):
-        row = []
-        for x in range(w):
-            v = values[m.idx(x, y)]
-            row.append(buckets(v))
-        lines.append(f"{y:3d} |" + "".join(row) + "|")
+        row = "".join(buckets(values[m.idx(x, y)]) for x in range(w))
+        lines.append(f"{y:3d} |{row}|")
+    lines.append("     " + "-" * w)
     return "\n".join(lines)
 
 
@@ -330,20 +342,21 @@ def dump_match(m: Match, gh, out, args, match_no, n_matches):
     p("  robots : A/L/W/M/B/S/G  = Archon Lab Watchtower Miner Builder Soldier saGe")
     p("           UPPERCASE = team A, lowercase = team B")
     if args.terrain == "rubble":
-        p("  terrain: rubble  '.' 0-9   ':' 10-33   'o' 34-66   '#' 67-100")
+        p("  terrain: live rubble  '.' 0-9   ':' 10-33   'o' 34-66   '#' 67-100")
     elif args.terrain == "lead":
-        p("  terrain: INITIAL lead  ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50-99   '@' 100+")
+        p("  terrain: live lead  ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50-99   '@' 100+")
     else:
         p("  terrain: '.' everywhere")
-    p("  NOTE: per-tile lead depletion from mining is not recorded in the replay stream;")
-    p("        the INITIAL LEAD MAP below shows the starting lead layout only.")
+    p("  Maps are LIVE: lead is depleted by mining and regenerates +5 Pb on non-empty")
+    p("  tiles every 20 rounds; rubble is reshuffled by the Vortex anomaly. The board")
+    p("  and the per-round 'map:' line reflect the reconstructed state at end of round.")
     p("  y axis points north (up); origin (0,0) is bottom-left.")
     p("  starting resources: 200 Pb / 0 Au per team (paid out inside the round 1 delta).")
     p()
-    p("INITIAL RUBBLE MAP   '.' 0-9   ':' 10-33   'o' 34-66   '#' 67-100")
-    p(static_map(m, m.rubble, rubble_glyph))
+    p("STARTING RUBBLE MAP   '.' 0-9   ':' 10-33   'o' 34-66   '#' 67-100")
+    p(static_map(m, m.rubble0, rubble_glyph))
     p()
-    p("INITIAL LEAD MAP   ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50-99   '@' 100+")
+    p("STARTING LEAD MAP   ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50-99   '@' 100+")
     p(static_map(m, m.lead0, lead_glyph))
     p()
 
@@ -356,8 +369,14 @@ def dump_match(m: Match, gh, out, args, match_no, n_matches):
     for rid, team, bt, x, y in m.start_bodies:
         robots[rid] = Robot(rid, team, bt, x, y, btype_hp.get(bt, 0))
 
-    lead = {1: 0, 2: 0}
-    gold = {1: 0, 2: 0}
+    team_lead = {1: 0, 2: 0}
+    team_gold = {1: 0, 2: 0}
+    map_rubble = m.rubble0[:]        # live grids, mutated each round
+    map_lead = m.lead0[:]
+    map_gold = [0] * len(m.lead0)
+    rubble_dirty = False            # set by a Vortex, cleared once re-printed
+    REGEN_PERIOD = gh.Constants().IncreasePeriod() if gh.Constants() else 20
+    REGEN_AMOUNT = gh.Constants().LeadAdditiveIncease() if gh.Constants() else 5
 
     p("#" * 78)
     p("# ROUND-BY-ROUND")
@@ -377,8 +396,8 @@ def dump_match(m: Match, gh, out, args, match_no, n_matches):
             d_lead[tid] = rnd.TeamLeadChanges(k)
             d_gold[tid] = rnd.TeamGoldChanges(k)
         for tid in (1, 2):
-            lead[tid] += d_lead[tid]
-            gold[tid] += d_gold[tid]
+            team_lead[tid] += d_lead[tid]
+            team_gold[tid] += d_gold[tid]
 
         # spawns
         sb = rnd.SpawnedBodies()
@@ -505,15 +524,55 @@ def dump_match(m: Match, gh, out, args, match_no, n_matches):
                 r = robots.get(rid_)
                 indicator_events.append(f"  \" {r.label() if r else f'#{rid_}'}: {msg}")
 
+        # ---- live map updates (engine order: drops during the round, then
+        # Vortex, then lead regen at end of round) ----
+        lead_before = sum(map_lead)
+        gold_before = sum(map_gold)
+        ldl = rnd.LeadDropLocations()
+        for k in range(rnd.LeadDropValuesLength()):
+            map_lead[ldl.Xs(k) + ldl.Ys(k) * m.width] += rnd.LeadDropValues(k)
+        gdl = rnd.GoldDropLocations()
+        for k in range(rnd.GoldDropValuesLength()):
+            map_gold[gdl.Xs(k) + gdl.Ys(k) * m.width] += rnd.GoldDropValues(k)
+
+        for k in range(rnd.ActionsLength()):
+            if rnd.Actions(k) == S.Action.VORTEX:
+                mode = rnd.ActionTargets(k)
+                map_rubble = transform_grid(map_rubble, m.width, m.height, mode)
+                rubble_dirty = True
+                action_events.append("  !! VORTEX reshuffled the rubble ("
+                                     + {0: "rotate 90 CW", 1: "mirror columns",
+                                        2: "mirror rows"}.get(mode, f"mode {mode}") + ")")
+
+        regen_n = 0
+        if REGEN_PERIOD and rid % REGEN_PERIOD == 0:
+            for i in range(len(map_lead)):
+                if map_lead[i] > 0:
+                    map_lead[i] += REGEN_AMOUNT
+                    regen_n += 1
+
+        map_lead_total = sum(map_lead)
+        map_gold_total = sum(map_gold)
+
         if rid < lo or rid > hi or ((rid - lo) % args.step != 0 and rid != hi):
             continue
 
         p()
         p(f"----- Round {rid}/{m.max_rounds} " + "-" * 40)
         for tid in (1, 2):
-            p(f"  team {team_letter(tid)}: lead {lead[tid]:5d} ({d_lead[tid]:+d})   "
-              f"gold {gold[tid]:4d} ({d_gold[tid]:+d})   "
+            p(f"  team {team_letter(tid)}: lead {team_lead[tid]:5d} ({d_lead[tid]:+d})   "
+              f"gold {team_gold[tid]:4d} ({d_gold[tid]:+d})   "
               f"units: {counts_by_type(robots, tid)}")
+        n_lead_tiles = sum(1 for v in map_lead if v > 0)
+        map_line = (f"  map:  {map_lead_total:6d} Pb ({map_lead_total - lead_before:+d}) "
+                    f"on {n_lead_tiles} tiles")
+        if map_gold_total or gold_before:
+            n_gold_tiles = sum(1 for v in map_gold if v > 0)
+            map_line += (f"   |   {map_gold_total} Au ({map_gold_total - gold_before:+d}) "
+                         f"on {n_gold_tiles} tiles")
+        if regen_n:
+            map_line += f"   [+{REGEN_AMOUNT} Pb regen x{regen_n} tiles]"
+        p(map_line)
         if not args.no_events:
             for grp in (spawn_events, death_events, action_events, move_events, indicator_events):
                 for line in grp:
@@ -522,13 +581,29 @@ def dump_match(m: Match, gh, out, args, match_no, n_matches):
                 p(f"  ({rnd.MovedIdsLength()} robots moved; use --moves to list)")
         if not args.no_board:
             p()
-            p(render_board(m, robots, args.terrain))
+            p(render_board(m, robots, args.terrain, map_rubble, map_lead))
+        if args.map_detail or (rubble_dirty and not args.no_board):
+            if rubble_dirty:
+                p()
+                p("LIVE RUBBLE MAP (after Vortex)   '.' 0-9   ':' 10-33   'o' 34-66   '#' 67-100")
+                p(static_map(m, map_rubble, rubble_glyph))
+                rubble_dirty = False
+            if args.map_detail:
+                p()
+                p("LIVE LEAD MAP   ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50-99   '@' 100+")
+                p(static_map(m, map_lead, lead_glyph))
+                if map_gold_total:
+                    p()
+                    p("LIVE GOLD MAP   ' ' 0   ',' 1-9   ':' 10-24   '+' 25-49   '#' 50+")
+                    p(static_map(m, map_gold, lead_glyph))
 
     p()
     p("=" * 78)
     p(f"FINAL: team {team_letter(m.footer.Winner())} ({tname.get(m.footer.Winner(),'?')}) "
       f"wins after {m.footer.TotalRounds()} rounds")
-    p(f"  team A lead {lead[1]}  gold {gold[1]}   |   team B lead {lead[2]}  gold {gold[2]}")
+    p(f"  team A stockpile: {team_lead[1]} Pb / {team_gold[1]} Au   |   "
+      f"team B stockpile: {team_lead[2]} Pb / {team_gold[2]} Au")
+    p(f"  lead left on map: {sum(map_lead)} Pb on {sum(1 for v in map_lead if v > 0)} tiles")
     p("=" * 78)
 
 
@@ -548,6 +623,8 @@ def main(argv=None):
                     help="backdrop for empty squares on the per-round board (default rubble)")
     ap.add_argument("--no-board", action="store_true", help="omit the ASCII board")
     ap.add_argument("--no-events", action="store_true", help="omit the per-round event log")
+    ap.add_argument("--map-detail", action="store_true",
+                    help="also dump the full live lead (and gold) map at each rendered round")
     ap.add_argument("--moves", action="store_true", help="list every individual robot move")
     ap.add_argument("--health", action="store_true", help="list per-robot health changes each round")
     ap.add_argument("--all-actions", action="store_true",
