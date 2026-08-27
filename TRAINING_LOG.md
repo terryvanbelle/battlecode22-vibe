@@ -206,4 +206,19 @@ are annihilated by round 800.
 
 ---
 
-## Iteration 4  —  navigation  (pending)
+## Iteration 4  —  navigation + miner cap
+
+**Step 6 — Solution.**
+
+*Attempt 1 (rejected).* 8-direction scored pather only (rubble avoidance +
+heading momentum). Re-running `pillars`/B: improved (annihilation r804 → r1481)
+but **still lost**. Undone (step 6.5), back to step 6.1.
+
+*Attempt 2 (accepted).* Keep the scored pather **and** hard-cap registered
+miners at 16 — the old "TARGET_MINERS then 1-in-5 forever" rule drifted to ~50
+idle miners in long games and starved the army. Re-running the losing game
+(`pillars`, bot as B vs `g_iter2`): Iteration 4 **wins at round 708** (was
+annihilation at r804). → back to Step 2, full Gauntlet vs
+`{examplefuncsplayer, g_iter1, g_iter2, g_iter3}`.
+
+Gauntlet run pending.

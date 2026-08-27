@@ -10,20 +10,21 @@ import java.util.Random;
  * Each accepted iteration is snapshotted into src/<name>/ and added to the
  * opponent set; git history is the "undo" mechanism for rejected changes.
  *
- * ITERATION 3  (solution to the verified Iteration-2 hypothesis:
- *   "soldiers fragment -- each picks its own nearest objective -- and meet the
- *    enemy's cohesive blob in pieces; no home defense, so raiders wipe the
- *    miners then the Archon -- annihilated r485").
+ * ITERATION 3: keep Iteration 1's soldier COMBAT logic verbatim; change only
+ *   what a soldier does with no enemy in sight -- from "mirror of my own
+ *   position" to ONE army-wide objective (threatened Archon > known enemy
+ *   Archon > mirror of our first Archon start). Miners flee combat units;
+ *   Archons track a home-threat flag.
  *
- * Approach: keep Iteration 1's soldier COMBAT logic verbatim (it wins fights),
- * and change only what a soldier does with no enemy in sight -- from "mirror of
- * my own position" (128 different points) to ONE army-wide objective:
- *     a threatened friendly Archon  >  a known enemy Archon (fixed slot)  >
- *     the mirror of our first Archon's start (one shared point).
- * Plus: miners flee enemy combat units; any unit flags an Archon with enemies
- * near it and Archons clear the flag when safe.
- * (Iteration 2's extra hedging -- "regroup when locally outnumbered", per-soldier
- *  candidate sweeps -- is dropped; it made the bot hesitant and lost the mirror.)
+ * ITERATION 4 (solution to the verified Iteration-3 hypothesis: "greedy pather
+ *   can't get around the big rubble-wall blocks on obstacle-dense maps, so the
+ *   army splinters and is destroyed piecemeal -- 50 idle miners, ~10 live
+ *   soldiers, Archons annihilated r804 on pillars").
+ *   Attempt 1 (navigation only) improved but still lost pillars/B; attempt 2:
+ *     (a) 8-direction scored pather -- rubble avoidance + heading momentum, so
+ *         the army traces obstacle edges as one body (see moveToward);
+ *     (b) hard miner cap so the build budget goes to the army, not to 50 idle
+ *         miners.
  */
 public strictfp class RobotPlayer {
 
@@ -38,7 +39,7 @@ public strictfp class RobotPlayer {
     static final int SA_ENEMY_ARCHON_0 = 20;   // 20..23
     static final int SA_HOME_THREAT = 30;      // packed loc of a threatened Archon, 0 = none
 
-    static final int TARGET_MINERS = 10;
+    static final int MINER_CAP = 16;   // registered miners; rest of the build budget is army
 
     static boolean counted = false, publishedStart = false;
     static int W, H;
@@ -156,9 +157,11 @@ public strictfp class RobotPlayer {
             if (near == 0) rc.writeSharedArray(SA_HOME_THREAT, 0);
         }
 
+        // Miner cap: the old "TARGET_MINERS then 1-in-5 forever" rule drifted to
+        // ~50 idle miners in long games and starved the army (Iteration-3 pillars
+        // loss: 49 miners / 6 live soldiers). Hard cap; everything else is army.
         int miners = rc.readSharedArray(SA_MINERS);
-        RobotType want = (miners < TARGET_MINERS || rng.nextInt(5) == 0)
-                       ? RobotType.MINER : RobotType.SOLDIER;
+        RobotType want = (miners < MINER_CAP) ? RobotType.MINER : RobotType.SOLDIER;
         Direction best = null; int bestR = Integer.MAX_VALUE;
         for (Direction d : DIRS) {
             if (!rc.canBuildRobot(want, d)) continue;
@@ -226,13 +229,33 @@ public strictfp class RobotPlayer {
     }
 
     // --------------------------------------------------------------- movement
+    static Direction lastDir = null;   // per-robot momentum, so we trace obstacle
+                                       // edges instead of oscillating against them
+
+    /**
+     * ITERATION 4: greedy "goal direction +/- 2 rotations" could not get around
+     * the big rubble-wall blocks on obstacle-dense maps (pillars, valley), so
+     * the army splintered against them. Score all 8 movable directions by
+     * progress toward the goal, penalise rubble, and reward continuing in (or
+     * near) the last heading -- this slides the army along walls as one body.
+     */
     static void moveToward(RobotController rc, MapLocation goal) throws GameActionException {
         if (!rc.isMovementReady() || goal == null) return;
-        Direction want = rc.getLocation().directionTo(goal);
-        if (want == Direction.CENTER) return;
-        Direction[] t = { want, want.rotateLeft(), want.rotateRight(),
-                          want.rotateLeft().rotateLeft(), want.rotateRight().rotateRight() };
-        for (Direction d : t) if (rc.canMove(d)) { rc.move(d); return; }
+        MapLocation me = rc.getLocation();
+        if (me.equals(goal)) return;
+        Direction best = null;
+        double bestScore = -1e18;
+        for (Direction d : DIRS) {
+            if (!rc.canMove(d)) continue;
+            MapLocation nxt = me.add(d);
+            double score = -Math.sqrt(nxt.distanceSquaredTo(goal));   // nearer is better
+            score -= rc.senseRubble(nxt) * 0.02;                      // dislike rubble
+            if (d == lastDir) score += 0.6;
+            else if (lastDir != null && (d == lastDir.rotateLeft() || d == lastDir.rotateRight()))
+                score += 0.3;
+            if (score > bestScore) { bestScore = score; best = d; }
+        }
+        if (best != null) { rc.move(best); lastDir = best; }
     }
     static void moveExplore(RobotController rc) throws GameActionException {
         if (!rc.isMovementReady()) return;
