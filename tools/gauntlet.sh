@@ -37,11 +37,11 @@ wait_ssh () { for _ in $(seq 1 40); do gssh true 2>/dev/null && return 0; sleep 
 
 BOT="${BOT:-bot}"
 OPPONENTS="${OPPONENTS:-examplefuncsplayer}"
-MAXJOBS="${MAXJOBS:-3}"          # concurrent games on the VM (4 vCPU)
+MAXJOBS="${MAXJOBS:-6}"          # concurrent games on the VM (8 vCPU)
 MAPSET="${MAPSET:-loop}"
 
-LOOP_MAPS="maptestsmall eckleburg intersection colosseum chessboard maze sandwich \
-jellyfish squer pillars highway fortress valley island_hopping"
+LOOP_MAPS="maptestsmall intersection maze sandwich chessboard jellyfish \
+squer highway valley pillars"
 if [ "${MAPS:-}" ]; then :
 elif [ "$MAPSET" = "full" ]; then MAPS="$(tr '\n' ' ' < "$REPO/tools/bc22-maps.txt")"
 else MAPS="$LOOP_MAPS"; fi
@@ -76,7 +76,7 @@ game () {  # <opp> <map> <side>
   local OPP=\$1 MAP=\$2 SIDE=\$3 TA TB
   if [ "\$SIDE" = A ]; then TA=$BOT; TB=\$OPP; else TA=\$OPP; TB=$BOT; fi
   local REPLAY=gauntlet/\${OPP}__\${MAP}__bot\${SIDE}.bc22 LOG W R RE
-  LOG=\$(java -Xmx1g -Dbc.server.mode=headless -Dbc.server.map-path=maps \
+  LOG=\$(java -Xmx2g -Dbc.server.mode=headless -Dbc.server.map-path=maps \
     -Dbc.server.robot-player-to-system-out=false -Dbc.server.debug=false \
     -Dbc.engine.debug-methods=false -Dbc.engine.enable-profiler=false -Dbc.engine.show-indicators=true \
     -Dbc.game.team-a="\$TA" -Dbc.game.team-b="\$TB" \
