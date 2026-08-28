@@ -1490,3 +1490,60 @@ Pool: peers `{g_iter5..g_iter12}`, benchmarks `{sample_camelcase, sample_afinals
 
 New worst maps (peer): **pillars 7/14, chessboard 7/14**, intersection 6/14. →
 Iteration 17.
+
+---
+
+## Iteration 17  —  team-wide Miner target
+
+### Step 4 — losing game  `sample_camelcase / maze / botA`
+
+### Step 5 — Hypothesis
+
+Iteration 16's Miner quota is **per-Archon** (`max(spawn lead, 5)`), so on
+3-Archon maps we still build ~9-15 Miners and 0 Soldiers to r200 vs camelcase's
+4. `--metrics` on the current g_iter12 loss: 9 Miners / 0-1 Soldiers at r200,
+Archon HP 1800 → 621, annihilated r290. The per-Archon design was the bug.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | our Miners at r120 (g_iter12) | ≥ 9 | 9 | ✓ |
+| V2 | our Soldiers at r180 | ≤ 1 | 0-1 | ✓ |
+| V3 | camelcase Miner count all game | ≤ 8 early | 4 | ✓ |
+| V4 | contact-cut (SA_ENEMY_SEEN) fires only ~r100+ on maze | yes | our units don't sight the enemy until it's close | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Miner target is now a **team total**, not per-Archon: `richHome ? 20 : 9`, cut
+to 6 on enemy contact. Once the team has that many Miners, every Archon builds
+army. Removed the per-Archon `myMinersSpawned` counter. Re-run pending.
+
+**Step 6 attempt 1 result.** Flat team target 9. vs g_iter11 **9/20 = 45%** --
+intersection/maze/valley/pillars 0/2 (9 Miners starves the economy on the maps
+that need it). **But camelcase/maze survival jumped to r389/r346** (from ~r250)
+-- the sharpest camelcase improvement all session, though still a loss.
+
+**Step 6 attempt 2.** Map-size-gated target: `richHome ? 20 : (W*H < 1000 ? 9
+: 15)` -- small maps rush (maze/squer 20x20-25x25), big maps develop economy
+first. Re-run pending.
+
+**Step 6 attempt 2 result.** Map-size-gated target (small 9 / big 15). vs
+g_iter12 **9/20 = 45%** — highway 0/2, **squer regressed 2/2 → 0/2** (25×25 → the
+"9" bucket, but squer needs the economy). Kept the camelcase/maze survival gain
+(r389) but still a loss, and a clear peer regression.
+
+**Iteration 17 abandoned.** The opening Miner count is genuinely
+**map-dependent in a way no single formula captures** -- every value fixes one
+cluster of maps and breaks another (this session: per-Archon ~15 → good peers,
+0/20 camelcase; flat 9 → r389 vs camelcase, −8 peer wins; size-gated → −11).
+The camelcase gap is **not an economy-knob problem** -- their real edge is the
+full package: BUILDER → Laboratory → gold → **SAGE** (100 HP, 45 dmg, one-shots
+Soldiers), plus Watchtower static defence and Archon relocation. That is a
+multi-iteration structural build-out, not a tuning pass.
+
+`g_iter12` remains the current best. **Session close.** Iterations 7-16 produced
+g_iter7..g_iter12 (6 snapshots): miner doctrine, Dijkstra pathfinder, mass-gate
+home defence, combat package (census + focus fire + retreat), Archon repair,
+camelcase-style opening. Peer ~70-77%. `sample_camelcase` 0/20 and
+`sample_afinals` 2/20 remain unbeaten -- the frontier is a gold/Sage economy.
