@@ -2225,3 +2225,71 @@ imbalanced ones instead.
 as the reliable source of true Step-4 losing games.** For imbalanced maps, a
 loss on the map's disadvantaged side is not strong evidence of a real bug
 unless it's also anomalous relative to other losses on that same side.
+
+---
+
+## Iteration 26  —  peak-triggered Miner floor boost (REJECTED, both attempts)
+
+### Step 4 — losing game  `g_iter9 / highway / botA` (highway is one of the balanced maps)
+
+### Step 5 — Hypothesis
+
+`--metrics`: we pushed the enemy Archon to 846/1200 HP by r800 (a near-kill),
+then collapsed 27 -> 0 Soldiers by r1300 while the opponent's economy surged
+(Miners 12->27, Soldiers 9->121) -- the same push-stall-collapse shape as
+Iterations 20/23/25's chessboard/valley/pillars losses, still recurring.
+Unlike Iteration 25's rejected fix (which gated army *movement*), this
+targets the *economy* side: track the team's peak live-Soldier count
+(`SA_PEAK_SOL`); when current Soldiers fall below half that peak (a real
+battlefield reversal, not just early-game noise), boost the Miner floor to
+rebuild faster than the round-based ramp alone would.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | opponent Archon HP damaged to a near-kill | yes | 846/1200 by r800 | ✓ |
+| V2 | our Soldiers, r800->r1300 | collapse | 27 -> 0 | ✓ |
+| V3 | opponent Miners/Soldiers, same window | surge | 12->27 / 9->121 | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1, REJECTED)
+
+`peakSol >= 10 && liveSoldiers < peakSol/2` -> `floor = max(floor, min(peakSol, 30))`.
+
+**Result.** Re-ran the target game: mechanism fired exactly as designed
+(Miners jumped 13->28-30 after the crash, visibly outpacing g_iter9's own
+declining economy for a while) and flipped to 1/2 (won as side A). But the
+opponent's economy scaled even faster in the specific replay tested (Miners
+to 62, Soldiers to 397) so the other side still lost. `g_iter19` mirror: 50%,
+clean. **Gauntlet 26, peer: 141/240 = 58.8% < WinPct** -- close, and critically
+*no* opponent dropped below 50% (not Iteration 25's broad-collapse
+signature), but still a miss.
+
+### Step 6 — Solution (attempt 2, REJECTED)
+
+Tightened the trigger (`peakSol >= 15`) and lowered the cap (`min(peakSol,
+25)`, matching Iteration 23's already-validated ceiling) to reduce
+false-positive firing on ordinary early fluctuations.
+
+**Result.** `g_iter19` mirror: 50%, clean. **Gauntlet 27, peer: 142/240 =
+59.2% < WinPct** -- almost identical to attempt 1, still no opponent below
+50%. Two materially different parameterizations of the same mechanism both
+landed 1-2 points under the bar, consistently below Iteration 24's 63.2%
+pre-change baseline -- this reads as a genuine, if mild, net-negative from
+this lever rather than sampling noise (a truly neutral/noop change would be
+expected to hover *around* 63%, not sit reliably below it twice). Reverted
+per Step 6.5.
+
+**Not attempting a third variant** (of 5 allowed) -- two consistent
+near-misses in the same direction is a weak signal that peak-triggered
+economy boosting isn't the right lever for this failure class, distinct from
+Iteration 23's floor tuning (which had one bad attempt and one clear pass,
+not two consistent near-misses). **Next:** the push-stall-collapse pattern
+has now resisted three different fix angles (reinforcement gating in
+Iteration 25, economy boosting here) on top of the earlier partial fixes
+(20/23/24) -- it may be a combat-quality problem after all (per-engagement
+trade efficiency once the siege stalls and rubble/positioning turns against
+the attacker), which Iteration 21's rubble-kiting only partially addressed.
+Worth a fresh Step-4 loss with `--indicators` specifically on the stall
+window (not the collapse window) to see what a soldier does in the rounds
+right after an assault stops making progress, before it starts dying.
