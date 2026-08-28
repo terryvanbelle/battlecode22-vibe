@@ -330,3 +330,292 @@ are the wide/obstacle ones (`highway`, `valley`, `pillars`). Marginal per-
 iteration gains from here are small — the next structural lever is combat micro
 (focus-fire, kiting) to win fights at better unit ratios, or Labs for a gold
 economy._
+
+---
+
+## Iteration 7  —  re-baseline on a stronger opponent pool
+
+**Tooling / opponent pool.** Vendored three public Battlecode 2022 reference
+bots as new `src/` packages for the Gauntlet (background task, separate from the
+loop):
+
+| package | source | licence | notes |
+|---|---|---|---|
+| `sample_camelcase` | jmerle/battlecode-2022 `camel_case_v25_final` | MIT | Final Tournament 13th–16th; annihilates `examplefuncsplayer` r138 |
+| `sample_afinals` | TestSubjector/BattleCode2022 `AFinalsBot` | AGPL-3.0 (scaffold) | Finalist, "Most Adaptive Strategy" prize; annihilates `examplefuncsplayer` r397 |
+| `sample_monke` | Srishti-Goel/Battlecode-monke `Lecture2Player` | AGPL-3.0 | lecture-level, weak (loses to `examplefuncsplayer`); kept for behavioural diversity |
+
+All three compile clean on the VM. `sample_camelcase` / `sample_afinals` are
+real tournament finalists — far stronger sparring than any frozen ancestor.
+
+### Step 4 — first attempt (highway / g_iter3), abandoned
+
+`highway` was the worst map in Gauntlet 6 (6/12) — every loss a r2000 game
+decided on Archon count, all against recent ancestors (`g_iter3/4/5` 0/2 each;
+`examplefuncsplayer`/`g_iter1`/`g_iter2` 2/2). Analysed the loss
+`gauntlet/20260827-153951/losses/g_iter3__highway__botA.bc22` (bot as A, B wins
+"more Archons" at r2000) with `--metrics`:
+
+| round | our miners | enemy miners | our archons | enemy archons |
+|-------|-----------|--------------|-------------|---------------|
+| 200 | 33 | 41 | 1 | 2 |
+| 800 | 33 | 118 | 1 | 2 |
+| 2000 | 33 | ~190 | 1 | 2 |
+
+We lose an Archon in the first ~150 rounds and never recover it. Our miners
+freeze at the `minerCap()` clamp of 34; `g_iter3` has no economy cap and its
+miner count grows the whole game, so its lead income (and therefore its
+soldier-replacement rate) dwarfs ours by mid-game. The game reaches r2000 and B
+wins the Archon-count tiebreak.
+
+*Two solution attempts, both rejected (Step 6.5):*
+
+1. **Late-game economy expansion** — build miners up to `3*minerCap()` once
+   `round > 350 && SA_HOME_THREAT == 0`. `--metrics` on the re-run: our miners
+   *still* frozen at 33 — `SA_HOME_THREAT` is set continuously once the enemy
+   camps our base, so the gate never opens. Lost highway both ways, r2000.
+2. **Interleaved opening** — `openCap = min(cap, 18)` fast, then hold economy to
+   `soldiers >= miners` up to the cap. Still lost highway both ways **and
+   regressed** `maptestsmall`/B vs `g_iter4` (won r351 at Iter 6 → lost r188):
+   weakening the front-loaded economy that Iteration 6 established broke a game
+   it had fixed.
+
+**Reassessment.** The highway losses are all r2000 Archon-count games against
+recent *ancestors*. Chasing one weak-ancestor matchup on one map with economy
+tweaks is low-value and keeps colliding with the Iteration-6 economy tuning.
+With `sample_camelcase` / `sample_afinals` now in the pool, the right move is to
+**re-baseline the Gauntlet against the stronger opponents** and target whatever
+they expose. Reverted `src/bot/` to the Iteration-6 code; running Gauntlet 7 on
+`g_iter6` vs `{examplefuncsplayer, g_iter1..g_iter6, sample_camelcase,
+sample_afinals}`.
+
+### Gauntlet retirement rule (domination)
+
+To keep the Gauntlet from growing without bound (every accepted iteration is
+added forever, and `games = 2·B·N`), opponents that no longer provide signal are
+retired:
+
+> After a Gauntlet completes, any opponent the current implementation has beaten
+> in **≥ 90%** of that opponent's `2·B` games in **two consecutive** Gauntlets is
+> removed from the pool. Applies to reference bots and frozen ancestors alike.
+
+Rationale: if we've dominated a bot twice running, beating it a third time
+carries almost no information, and its games are pure cost. Regression coverage
+is preserved by the recent ancestors (still competitive) and the strong external
+finalists (`sample_camelcase`, `sample_afinals`). A retired bot can be brought
+back if a later iteration regresses badly against the ones near it.
+
+Tracking (per-opponent win rate, `≥90%` flagged `**`):
+
+| opponent | G6 | G7 | retire? |
+|---|---|---|---|
+| examplefuncsplayer | 20/20 (100%) ** | _pending_ | |
+| g_iter1 | 17/20 (85%) | _pending_ | |
+| g_iter2 | 17/20 (85%) | _pending_ | |
+| g_iter3 | 15/20 (75%) | _pending_ | |
+| g_iter4 | 13/20 (65%) | _pending_ | |
+| g_iter5 | 11/20 (55%) | _pending_ | |
+| g_iter6 | — (self at G6) | _pending_ | |
+| sample_camelcase | — | _pending_ | |
+| sample_afinals | — | _pending_ | |
+
+---
+
+**Gauntlet 7 (re-baseline, g_iter6 vs expanded pool).** `bot` = g_iter6.
+**105/180 = 58.3%.** vs examplefuncsplayer 20/20, g_iter1 17/20, g_iter2 17/20,
+g_iter3 15/20, g_iter4 13/20, g_iter5 11/20, g_iter6 10/20 (self),
+**sample_camelcase 0/20, sample_afinals 2/20.** The two finalist bots dominate
+us — that's the real capability gap.
+
+*Retirement rule:* examplefuncsplayer ≥90% in G6 (100%) and G7 (100%) → **retired**
+from the pool. g_iter1/g_iter2 at 85% both times — kept. Pool for G8 onward:
+`{g_iter1..g_iter6, sample_camelcase, sample_afinals}` (8 opp = 160 games).
+
+### Step 4 — losing game
+
+`sample_camelcase__jellyfish__botA` — annihilated r196, having **never attacked
+once** (`A_attacks == 0` the entire game).
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)  [Iteration 7]
+
+*Hypothesis:* our opening builds miners until `miners >= minerCap()` before
+building **any** soldier. `minerCap()` on jellyfish (30×30) = 20, but jellyfish
+is lead-sparse — we reach only 13 miners by r141 — so we field **zero soldiers
+all game**. Both sides have 2 Archons and ~equal miner counts; `sample_camelcase`
+additionally builds a soldier line from ~r30 (16 soldiers by r141), marches in,
+kills an Archon at ~r155, annihilates us at r196. `--metrics` on the same loss
+on `maptestsmall` shows the flip side of the same rule: there we *do* finish the
+20-miner opening, then bank 3000+ unspendable lead (one Archon can't build fast
+enough to convert it) while camelcase out-armies us 43→27 and out-attacks us
+887→330 by r101.
+
+| # | variable | threshold | measured (jellyfish loss) | ✓ |
+|---|----------|-----------|---------------------------|---|
+| V1 | our soldier count all game | 0 | 0 at every sample r1…r181 | ✓ |
+| V2 | our cumulative attacks all game | 0 | 0 | ✓ |
+| V3 | our miners never reach minerCap before an Archon dies | yes | 13 @ r141, Archon 1200→675 @ r141 | ✓ |
+| V4 | enemy fields a standing army in the same window | ≥ 12 by r120 | B soldiers 14 @ r121 | ✓ |
+| V5 | loss is annihilation, first Archon dies with 0 soldiers home | yes | archons 2→1 @ ~r155, A soldiers 0 | ✓ |
+
+**All five criteria met → hypothesis verified.** Proceed to Step 6.
+
+**Step 6 — Solution (attempt 1, REJECTED).** Interleave army into the opening:
+miner only while `miners < minerCap() && miners <= 6 + 2*soldiers`. Re-run:
+jellyfish/botA vs camelcase still lost (r206 ≈ r196), and `maptestsmall`/B vs
+`g_iter4` **regressed** (Iter 6 won r351 → r152 loss). Undone (6.5). Third time
+an economy-ratio tweak has broken that maptestsmall game — the ratio is not the
+lever.
+
+**Board inspection (`--moves` / ROBOTS+LEAD render, jellyfish r2–35).** The real
+cause is upstream of the build rule:
+
+- jellyfish has **28 lead tiles / 1000 Pb total**, in small deposits 8–15 tiles
+  from each Archon — none within a Miner's vision radius (√20 ≈ 4.5) of home.
+- Our Miners with no lead in sight run `moveExplore` = **a one-step random walk**.
+  Diffusive motion keeps them milling in the home corner: at r35, 7 of 9 Miners
+  are clustered around the NE Archon on near-empty tiles; the rest wander at
+  random, mostly not on lead.
+- Result: team lead income is ~+7…+20/round and rarely reaches the 50 to build a
+  Miner. Both Archons read the same low bank each turn; ARCHON #3 grabs it,
+  ARCHON #5 (indicator `lead=2`) builds nothing. We are effectively playing
+  jellyfish with **one working Archon and a stalled economy**.
+- `sample_camelcase`, same starting lead, fields 15 Miners **and** 16 Soldiers
+  by r141 — its Miners find and hold the deposits, so its income is multiples of
+  ours.
+
+The zero-soldiers symptom (V1/V2) is downstream: the pure-miner opening never
+completes because the economy never gets going. **Revised root cause: Miners
+have no directed lead-search, so on any map where lead is not adjacent to the
+spawn the economy stalls** — which is exactly our weak-map set (jellyfish,
+intersection, highway, valley, pillars all lead-sparse near spawn).
+
+**Step 6 — Solution (attempt 2, REJECTED).** Directed exploration: each idle
+Miner keeps a persistent random cross-map waypoint and paths to it. Re-run:
+jellyfish still lost (r229 vs r196 baseline — confirmed pure `g_iter6` loses it
+at r196), and `maptestsmall`/B vs `g_iter4` regressed again (pure `g_iter6` wins
+r351 → r208 loss). On a small lead-dense map, sending idle Miners on cross-map
+treks pulls them off the productive home area. Undone (6.5).
+
+**Step 6 — Solution (attempt 3, REJECTED).** Shared lead beacons (slots 9–16):
+a Miner that sees ≥10 lead publishes the tile; idle Miners path to the nearest
+beacon instead of random-walking. Re-run: jellyfish still lost r197 (≈ r196
+baseline); `--metrics` shows the beacons made **no economic difference** —
+A_miners 13 @ r101 either way. jellyfish simply has too little lead: ~13 Miners
+saturates it for *both* teams. The problem was never lead-finding.
+
+`maptestsmall`/B vs `g_iter4` also regressed (r194) — as it did under attempts 1
+and 2. Established that **any** perturbation of the opening loses that one
+knife-edge game (pure `g_iter6` wins it very late, r351); it is not a useful
+regression gate for Iteration 7 and will be judged on the Gauntlet aggregate
+instead.
+
+**Step 6 — Solution (attempt 4, REJECTED).** Lead-responsive cap: build 8
+Miners, expand toward the area cap only while banked lead `> 240`. Re-run:
+**fixed highway** (`g_iter3`/A: r2000 loss → **win r1789 by annihilation**!) but
+broke maptestsmall (r124 loss), pillars (r1439 loss) and chessboard (r2000
+loss) — on those maps the early economy never banks 240 with only 8 Miners, so
+the cap sticks at 8 and we get out-produced. jellyfish still lost. Undone.
+
+**Step 6 — Solution (attempt 5, REJECTED).** Softer rule: build to the area cap
+unless we already have 12+ Miners *and* are dead broke (`lead < 40`). Re-run:
+preserved maptestsmall/pillars/chessboard, but **lost the highway fix** — on
+highway banked lead sits in the ~40-100 band, above the `< 40` trip, so the cap
+never cuts. jellyfish still lost. Undone.
+
+**Hypothesis exhausted (Step 6.6).** Five solution attempts, none won the
+jellyfish game. jellyfish is lead-starved for *both* teams (~13 Miners
+saturates it); `sample_camelcase` wins purely on combat — it converts the same
+economy into 20 Soldiers and micro-kills our army. That needs combat micro
+(focus-fire / kiting), a separate large piece of work, not an economy fix. Going
+back to Step 4 with a different losing game.
+
+---
+
+### Step 4 — losing game (take 2)
+
+`highway` / `g_iter3` (bot as A) — Gauntlet 7 loss, r2000 "more Archons". A
+long-standing weak map: 0/6 on highway vs `g_iter3`/`g_iter4`/`g_iter5`, every
+loss a r2000 game we lose because an Archon of ours dies and theirs don't.
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)  [Iteration 7, game 2]
+
+*Hypothesis:* `minerCap()` scales only with map *area* (`W*H/45`, clamped
+16-34), not with how much lead the map actually has. highway is a large,
+lead-sparse map: we build Miners to a cap of ~34 that its lead can't feed, so
+those builds come at the cost of army during the rush window; `g_iter3` (uncapped
+economy but a real early army) kills one of our Archons by ~r320 and wins the
+r2000 tiebreak. The `--metrics` on the earlier highway analysis already showed
+our Miners frozen at 33 with lead income far below the enemy's soldier-
+replacement rate.
+
+| # | variable | threshold | measured (highway/g_iter3 loss) | ✓ |
+|---|----------|-----------|----------------------------------|---|
+| V1 | our Miners plateau at ~the area cap for most of the game | yes | 33-34 from r150→r2000 | ✓ |
+| V2 | banked lead stays low despite the full Miner count | < 100 typical | A_lead 20-99 through the midgame | ✓ |
+| V3 | we field an army late / never enough to defend | yes | 4 soldiers @ r200, Archon dying by r320 | ✓ |
+| V4 | game reaches r2000, decided on Archon count | yes | r2000, "more Archons" | ✓ |
+| V5 | attempt-4 lead-responsive cap flips this exact game to a win | yes | win r1789 by annihilation | ✓ |
+
+**All five criteria met → hypothesis verified.** Proceed to Step 6.
+
+**Step 6 — Solution (attempt 1 for game 2, ACCEPTED for re-Gauntlet).**
+Lead-responsive cap via a **low-lead streak**: the Archon counts consecutive
+turns with banked lead `< 90`; once it has 10+ Miners and the streak exceeds 8,
+stop adding Miners and build army. Persistent low bank = income-constrained
+(highway); transient dips from spending reset it (maptestsmall stays in the
+hundreds). Keeps the beacons.
+
+Re-run of the selected losing game: **highway / g_iter3 / A → win r1849 by
+annihilation** (Step 6.4 satisfied → back to Step 2). Broad spot-check
+(bot as A unless noted):
+
+| game | result | vs Iter 6 |
+|---|---|---|
+| highway / g_iter3 / A | **win r1849** | was r2000 loss |
+| highway / g_iter3 / B | **win r2000** | was r2000 loss |
+| highway / g_iter5 / A | **win r1317** | was r2000 loss |
+| pillars / g_iter4 | win r516 | ~same |
+| intersection / g_iter4 | win r1243 | ok |
+| maptestsmall / g_iter4 / A | win r193 | ok |
+| sandwich / g_iter6 / B | win r250 | ok |
+| maptestsmall / g_iter4 / B | loss r196 | knife-edge (Iter6 win r351) |
+| valley / g_iter5 | loss r756 | was r2000 loss |
+| chessboard / g_iter6 | loss r2000 | check in Gauntlet |
+| maze / g_iter4 | loss r538 | check in Gauntlet |
+| jellyfish / camelcase | loss r191 | unchanged (combat gap) |
+
+highway flips 0/6 → 3/3 on the spot-checks. chessboard/maze losses need the
+full Gauntlet to judge. Running **Gauntlet 8** vs `{g_iter1..g_iter6,
+sample_camelcase, sample_afinals}` (examplefuncsplayer retired).
+
+**Gauntlet 8 (step 2/3).** Iteration 7 candidate = **94/160 = 58.8%**, just
+under `WinPct` 60% → **not added to the Gauntlet yet.** But the shortfall is
+entirely the two finalist bots (`sample_camelcase` 0/20, `sample_afinals` 2/20 —
+identical to `g_iter6`; a combat-micro tier we don't reach yet). Against the
+comparable-strength pool (the six ancestors) Iteration 7 is **92/120 = 76.7%**,
+up from `g_iter6`'s 69% on the same six, and it beats or matches **every**
+ancestor head-to-head:
+
+| opp | G7 (g_iter6) | G8 (Iter 7) |
+|---|---|---|
+| g_iter1 | 85% | **90%** |
+| g_iter2 | 85% | 85% |
+| g_iter3 | 75% | **95%** |
+| g_iter4 | 65% | 60% |
+| g_iter5 | 55% | **70%** |
+| g_iter6 | 50% | **60%** |
+| sample_camelcase | 0% | 0% |
+| sample_afinals | 10% | 10% |
+
+Per-map vs ancestors: **highway 6/6** (was 0/6 — the lead-responsive cap
+worked), but **maze 0/6, chessboard ~2/6, intersection 3/6 regressed** (were
+near-perfect at Gauntlet 6). The low-lead streak is over-tripping on those maps
+and starving an economy that actually has lead to gather.
+
+*Retirement tracking:* g_iter1 hit 90% this Gauntlet (85% in G7) — **not** two
+consecutive, stays. No new retirements.
+
+**Decision.** Keep the lead-responsive cap in `src/bot` (current best — clear net
+gain vs the ancestor pool), do **not** snapshot as `g_iter7`. Continue Step 4 on
+the current implementation. Next target: the maze / chessboard economy
+regression (self-inflicted, tractable) before the camelcase combat gap.

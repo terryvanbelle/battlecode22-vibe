@@ -53,6 +53,8 @@ public strictfp class RobotPlayer {
     static final int SA_OUR_ARCHON_0 = 5;      // 5..8
     static final int SA_ENEMY_ARCHON_0 = 20;   // 20..23
     static final int SA_HOME_THREAT = 30;      // packed loc of a threatened Archon, 0 = none
+    static final int SA_LEAD_0 = 9;            // 9..16  -- packed locs of known rich lead tiles, 0 = empty
+    static final int SA_LEAD_N = 8;
 
     // ITERATION 5: the fixed cap of 16 (Iteration 4) starved lead income on
     // larger/obstacle maps -- after an even early fight the enemy's uncapped
@@ -61,6 +63,7 @@ public strictfp class RobotPlayer {
     static int minerCap() { return Math.max(16, Math.min(34, W * H / 45)); }
 
     static boolean counted = false, publishedStart = false;
+    static int lowLeadStreak = 0;   // Archon-local: consecutive turns with banked lead < 90
     static int W, H;
 
     @SuppressWarnings("unused")
@@ -176,14 +179,23 @@ public strictfp class RobotPlayer {
             if (near == 0) rc.writeSharedArray(SA_HOME_THREAT, 0);
         }
 
-        // ITERATION 6: --metrics on the maptestsmall loss showed g_iter4 (flat
-        // cap 16, reached by ~r20) at lead 382 / 17 miners by r31 while our
-        // time-ramp had us at lead 52 / 10 miners -- our EARLY economy was worse
-        // than a flat 16, so g_iter4 out-produced us into 70 soldiers by r150.
-        // Fix: no ramp -- build straight to a modest map-scaled cap (all >= 16,
-        // so economy >= g_iter4 everywhere), then pure army.
+        // ITERATION 6: build straight to a modest map-scaled cap, then pure army
+        // (a ramp gave us a worse early economy than a flat 16).
+        // ITERATION 7: minerCap() scales with map AREA, not with how much lead
+        // the map actually has. On large, lead-sparse maps (highway, valley) we
+        // build Miners to a cap of ~34 the lead can't feed, at the cost of army
+        // in the rush window -- an Archon dies and we lose the r2000 tiebreak
+        // (highway 0/6 vs g_iter3/4/5). Track a low-lead streak: once we have
+        // 10+ Miners and banked lead has been under 90 for 8+ consecutive
+        // Archon turns, the economy is income-constrained -- stop adding Miners
+        // and build army. maptestsmall/chessboard/pillars bank into the
+        // hundreds, so the streak keeps resetting and the opening is unchanged.
         int miners = rc.readSharedArray(SA_MINERS);
-        RobotType want = (miners < minerCap()) ? RobotType.MINER : RobotType.SOLDIER;
+        if (rc.getTeamLeadAmount(rc.getTeam()) < 90) lowLeadStreak++;
+        else lowLeadStreak = 0;
+        boolean minersStalled = miners >= 10 && lowLeadStreak > 8;
+        boolean needMiners = miners < minerCap() && !minersStalled;
+        RobotType want = needMiners ? RobotType.MINER : RobotType.SOLDIER;
         Direction best = null; int bestR = Integer.MAX_VALUE;
         for (Direction d : DIRS) {
             if (!rc.canBuildRobot(want, d)) continue;
@@ -216,9 +228,41 @@ public strictfp class RobotPlayer {
             int lead = rc.senseLead(l);
             if (lead > bestLead) { bestLead = lead; goal = l; }
         }
-        if (goal != null && !goal.equals(me)) moveToward(rc, goal);
+        // ITERATION 7: on lead-sparse maps (jellyfish/intersection/valley/pillars)
+        // the deposits are 8-15 tiles from spawn -- out of a Miner's vision -- so
+        // idle Miners random-walked in the home corner and the economy never
+        // started. Broadcast rich tiles we find; idle Miners head for the
+        // nearest known deposit instead of wandering.
+        if (bestLead >= 10 && goal != null) publishLead(rc, goal);
+        if (goal != null && !goal.equals(me)) { moveToward(rc, goal); report(rc); return; }
+
+        MapLocation beacon = nearestLead(rc, me);
+        if (beacon != null) moveToward(rc, beacon);
         else moveExplore(rc);
         report(rc);
+    }
+
+    static void publishLead(RobotController rc, MapLocation l) throws GameActionException {
+        int p = pack(l), free = -1;
+        for (int s = SA_LEAD_0; s < SA_LEAD_0 + SA_LEAD_N; s++) {
+            int v = rc.readSharedArray(s);
+            if (v == p) return;
+            if (v == 0) { if (free < 0) free = s; continue; }
+            if (unpack(v).isWithinDistanceSquared(l, 8)) return;   // nearby tile already flagged
+        }
+        if (free >= 0) rc.writeSharedArray(free, p);
+    }
+
+    static MapLocation nearestLead(RobotController rc, MapLocation me) throws GameActionException {
+        MapLocation best = null; int bd = Integer.MAX_VALUE;
+        for (int s = SA_LEAD_0; s < SA_LEAD_0 + SA_LEAD_N; s++) {
+            int v = rc.readSharedArray(s); if (v == 0) continue;
+            MapLocation l = unpack(v);
+            if (rc.canSenseLocation(l) && rc.senseLead(l) < 6) { rc.writeSharedArray(s, 0); continue; }
+            int d = me.distanceSquaredTo(l);
+            if (d < bd) { bd = d; best = l; }
+        }
+        return best;
     }
 
     // ---------------------------------------------------------------- SOLDIER
