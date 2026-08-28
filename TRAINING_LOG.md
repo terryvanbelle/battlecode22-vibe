@@ -1035,3 +1035,56 @@ consecutive. No benchmark ≥30%. Pool: peers `{g_iter2..g_iter9}`, benchmarks
 New worst maps (peer): **maptestsmall 8/16** (the 1-Archon rush map — long-
 standing), pillars 7/16, valley/maze/chessboard 5/16. → Iteration 10 targets
 maptestsmall.
+
+---
+
+## Iteration 10  —  don't mass on the Archon
+
+### Step 4 — losing game  `g_iter8 / maptestsmall / botB` (we = B, annihilated r206)
+
+### Step 5 — Hypothesis
+
+maptestsmall is 30×30, **1 Archon**, wall-to-wall lead. `--metrics` on the loss:
+through r60 both sides are *identical* (23 Miners, ~15 Soldiers, ~940 lead). From
+r60 on, the opponent's Soldiers ramp 16 → 28 → 42 → 67 while ours plateau at
+~18-22 — on the **same** ~5000 banked lead, which we never spend. Cause: our
+Iteration-9 mass-gate makes Soldiers gather near home during r60-250; on a tiny
+map they cluster around our lone Archon and **wall in all 8 of its build tiles**,
+so `canBuildRobot` fails every direction and production stops. The opponent
+(no mass-gate) sends Soldiers straight out, keeps its Archon clear, and
+out-produces us to annihilation.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | economies identical through r60 | yes | both 23 Miners / ~940 lead @ r61 | ✓ |
+| V2 | enemy Soldiers ÷ ours by r140 | ≥ 2 | 50 / 22 | ✓ |
+| V3 | we sit on thousands of unspent lead | yes | 4124 banked @ r141, Soldiers not growing | ✓ |
+| V4 | 1-Archon map (build-throughput bound + single choke point) | yes | 1 Archon | ✓ |
+| V5 | our Soldier count flat/declining r80-200 while enemy's climbs | yes | 22 → 18 vs 28 → 67 | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Massing Soldiers gather at a **rally point ~6 tiles out** from the nearest home
+Archon toward the objective, instead of freezing in place — clears the Archon's
+build tiles while keeping the army concentrated and forward-positioned. Re-run of
+the maptestsmall loss + g_iter9 regression set pending.
+
+**Step 6 — Iteration 10 attempts.**
+
+1. Massing Soldiers gather at a rally point ~6 tiles out instead of freezing.
+   vs g_iter9 **8/16 = neutral**; maptestsmall/B still lost r209.
+2. + mass-gate disabled on small maps (`W*H <= 1400`) + `richHome` cap only with
+   ≥2 Archons. **Worse (7/16)** — cap 10 on maptestsmall lost the *A* side we had
+   been winning (r210 → r301 loss), i.e. maptestsmall genuinely wants the big
+   economy. Both changes reverted.
+
+**Iteration 10 abandoned.** maptestsmall/B (second player on the 30×30 1-Archon
+map) is a persistent hole — lost by every recent iteration, r128-210. The strong
+bots (`sample_afinals` wins both sides by annihilation r87-96) beat it with pure
+early aggression, which is the opposite of our `richHome` economy; but cutting
+the economy loses the *A* side. Needs a maptestsmall-shaped opening (fast Miners
+to a modest count, then hard rush) that doesn't cost the other maps — deferred.
+
+`g_iter9` stands as current best.
