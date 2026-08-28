@@ -1213,3 +1213,55 @@ benchmark ≥30%. Pool: peers `{g_iter2, g_iter4..g_iter10}`, benchmarks
 `{sample_camelcase, sample_afinals}`.
 
 → Iteration 13 targets maze.
+
+---
+
+## Iteration 13  —  army-forward economy
+
+### Step 4 — losing game  `g_iter9 / maze / botA` (annihilated r721; also lost g_iter4/5/6 both sides)
+
+### Step 5 — Hypothesis
+
+Iteration 12's census made the build rule "maintain exactly `minerCap` Miners
+forever". On maze (3 Archons, cap 14) `--metrics` shows we sit at **12-14
+Miners / 2-5 Soldiers** through the whole midgame while the opponent -- with
+the same slow ~180-round Miner opening -- lets its economy drift (16 → 10
+Miners) and ramps Soldiers 2 → 7 → 11 → 14. We lose 2 Archons by r480 and are
+annihilated; the opponent keeps 3. The economy is never the constraint (we bank
+40-90 lead); the army is.
+
+| # | variable | threshold | measured (maze/g_iter9) | ✓ |
+|---|----------|-----------|--------------------------|---|
+| V1 | our Soldiers through r300 | ≤ 8 | 0 to r181, 8 by r301 | ✓ |
+| V2 | our Miners held at ~cap all midgame | yes | 11-14 from r120 to r480 | ✓ |
+| V3 | enemy Soldiers ÷ ours mid-game | ≥ 2 | g_iter4: 14 / 3 by r480 | ✓ |
+| V4 | we lose Archons the enemy keeps | yes | 3 → 1 by r480 vs their 3 | ✓ |
+| V5 | we are not lead-starved | yes | 40-90 banked throughout | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Race Miners to the cap only through the opening (`round < 140`); after that hold
+an 8-Miner raid-replacement floor and put every other build into the army.
+`needMiners = miners < 8 || (miners < minerCap() && round < 140)`. Re-run of the
+maze loss + g_iter10 regression set pending.
+
+**Step 6 attempt 1 result.** `needMiners = miners < 8 || (miners < minerCap()
+&& round < 140)`. vs g_iter10 **8/20 = 40%** — a clear regression (the A-side
+sweep collapsed; g_iter10-as-B now beats us on most maps). maze still 0/2.
+Cutting the Miner economy hurts everywhere; Iteration 12's full economy was
+better. Reverted.
+
+**Iteration 13 abandoned (attempt 1).** Re-reading the maze loss: it is **not**
+an economy problem. `--metrics` shows our Soldier count *collapses* r270-470
+(5 → 0) with `solSpread` frequently 0.0 — our army is **stacked on a single
+tile near a home Archon**, not fighting. The mass-gate (gather near home) +
+retreat-to-heal (fall back when hurt) together produce a passive death-ball on
+small maps (maze is 20×20): Soldiers mass, take a little damage, retreat to heal,
+re-mass — and never push out to engage the enemy army, which grinds our Archons
+down from range. The fix belongs in Soldier movement (a clumped, un-threatened
+army should *advance*, not hold), not the build rule — deferred to a focused
+Soldier-behaviour iteration.
+
+`g_iter10` remains the current best.
