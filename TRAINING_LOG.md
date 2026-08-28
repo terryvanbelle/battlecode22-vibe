@@ -1351,3 +1351,68 @@ benchmarks `{sample_camelcase, sample_afinals}`.
 
 New worst maps (peer): **squer 7/16**, highway 6/16, valley 5/16. → Iteration 15
 targets squer.
+
+---
+
+## Iteration 15  —  don't heal mid-fight
+
+### Step 4 — losing game  `g_iter10 / squer / botA` (annihilated r378)
+
+### Step 5 — Hypothesis
+
+squer (25×25, 2 Archons) opening is *identical* to g_iter10's through r120
+(12 Miners, 0 Soldiers). In the r240-360 fight our Soldier count stalls at 4
+while g_iter10's holds at 6, they out-attack us 556/351, we lose an Archon
+(2 → 1) and are annihilated; they keep both Archons. The difference is
+Iteration 14's Archon repair: **our Archon heals wounded Soldiers mid-fight
+instead of building new ones**, so we fall behind on Soldier *count* in a
+fast attrition fight. g_iter10 (no repair) just builds and wins.
+
+| # | variable | threshold | measured (squer/g_iter10) | ✓ |
+|---|----------|-----------|----------------------------|---|
+| V1 | openings identical through r120 | yes | both 12 Miners / 0 Soldiers | ✓ |
+| V2 | our Soldier count vs theirs in the r280-360 fight | ours < theirs | 4 vs 6, then 1 vs 6 | ✓ |
+| V3 | enemy cumulative attacks ÷ ours mid-fight | ≥ 1.4 | 556 / 351 | ✓ |
+| V4 | we lose an Archon they keep | yes | 2 → 1 vs 2 | ✓ |
+| V5 | the only diff from g_iter10 is Archon repair | yes | code | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Archon repairs only when **no enemy combat unit / Archon is in its vision** --
+during a fight it builds the army instead (matches `sample_camelcase`, which
+does `tryBuildRobot(SOLDIER)` when an attack target is visible and repairs only
+otherwise). Re-run of the squer loss + g_iter11 regression set pending.
+
+**Step 6 attempt 1 (REJECTED).** Archon repairs only when no enemy in vision.
+vs g_iter11 **8/20** — regression (pillars 0/2, army commits later on most maps).
+The mid-fight heal is net-helpful; removing it hurts. Reverted.
+
+**Step 6 attempt 2.** Re-reading the squer loss: our Soldiers crawl to 4 while
+the opponent holds 6. squer is 25x25 -- the **mass-gate** makes our small army
+wait for 3 friends and never commits in force. Skip the mass-gate under
+`W*H <= 900` (squer, maze, maptestsmall); keep it on the big open maps it was
+built for. Re-run pending.
+
+**Step 6 attempt 2 result.** Mass-gate off under `W*H <= 900`. vs g_iter11
+**9/20** — and **squer got worse (0/2)**. Many games ended at the *identical*
+round for both sides (intersection 562/562, valley 1333/1333, pillars 580/580):
+bot ≈ g_iter11 and the mass-gate change only touches squer, where it hurt.
+
+**Iteration 15 abandoned.** squer's 7/16 peer losses are ≈ coin-flip: bot and
+recent ancestors are near-mirror-matches on that 25×25 rotational map and the
+first mover wins. Neither the repair-timing nor the mass-gate is the lever.
+Not a productive Step-4 target.
+
+`g_iter11` remains the current best. **Next: the benchmark gap.** camelcase has
+been 0/20 for the whole session. Its concrete, portable advantages over us
+(from reading `src/sample_camelcase/robot/building/Archon.java`):
+- **3:1:1 SOLDIER:MINER:BUILDER spawn cycle** after the opening (vs our ~all-
+  Soldier-after-cap). Far more army throughput.
+- **Miner count = `max(lead tiles sensed at spawn, 5)`** -- a per-Archon cap,
+  low. (We tried this in Iter 10; camelcase makes it the primary mechanism.)
+- **Archons transform to PORTABLE and relocate** to low-rubble ground for faster
+  builds and safety. (I was wrong earlier that Archons can't move.)
+Iteration 16 should port one of these -- most likely the Archon relocation, or
+the spawn-ratio shift toward more army.
