@@ -1893,3 +1893,73 @@ small raiding party that targets miners away from the Archon rather than the
 Archon itself -- the g_iter6/chessboard raid at r420-480 (Iteration 20) was
 exactly 2-3 raiders, right at that threshold's edge, and killed miners
 unopposed with no visible defensive response in the event log.
+
+---
+
+## Iteration 22  —  raided Miners cry for help
+
+### Step 4 — losing game  `g_iter6 / chessboard / botB` (same replay as Iteration 20's raid analysis)
+
+### Step 5 — Hypothesis
+
+`checkHomeThreat` only scans a ~5.4-tile radius (dist² ≤ 29) around a *known
+Archon location* -- it has no way to see a raid on Miners mining 8-15+ tiles
+out (Iteration 7's own note on lead-sparse maps). The Iteration 20 raid (2-3
+enemy Soldiers, r420-480) was outside that radius the whole time: `--events`
+showed zero friendly-Soldier attacks defending the Miners, and `armyObjective`
+never had anything but the static mirror-point or (once sighted) an enemy
+Archon to offer -- there was no shared-array signal a raid was even
+happening. Miners already detect a local threat and flee (existing code); the
+gap is that this information dies with the fleeing Miner instead of alerting
+the army.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | friendly-Soldier attacks defending Miners during the r420-480 raid | 0 | 0 (event log) | ✓ |
+| V2 | `SA_HOME_THREAT` set at any point during the raid | 0 (never fires) | confirmed via code read: raid location is >29 dist² from the tracked Archon | ✓ |
+| V3 | Miner already has local threat-detection to hook into | yes | `runMiner`'s existing `threat != null` branch | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+New shared slots `SA_ECON_THREAT`/`SA_ECON_RND`: a Miner that detects a local
+threat broadcasts its own location + round (in addition to fleeing, unchanged).
+`armyObjective()` honors it for 40 rounds, ranked just below `SA_HOME_THREAT`
+and above sighted-enemy-Archon locations. Also folded into the Iteration 9
+mass-gate's `known` check, so responding to a live raid isn't treated as a
+speculative advance. Re-run pending.
+
+**Step 6 attempt 1 result.** Re-ran `g_iter6/chessboard`: 0/2 this time (was
+1/2) -- but `--metrics` on the loss shows the raid itself is measurably less
+damaging: Miners drop 10 -> 5 this run (was 10 -> 2), and recover to 8 by r560
+instead of sitting at the floor for 1500 rounds. `--indicators` on the raid
+window (r415-445) confirms the mechanism fires (soldiers responding via
+"objective"/"reinforce"). The win/loss flip is noise from one small sample
+diverging on RNG (as Iteration 21 already found for this same matchup); the
+underlying mechanism verifiably worked as designed. `g_iter16` mirror sanity
+check: 11/20 = 55%, clean.
+
+-> Step 2, **Gauntlet 21** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 21 (step 2/3).** Peer: **129/200 = 64.5% ≥ WinPct** -> **added as
+`g_iter17`.** Per-ancestor: g_iter8 95%, g_iter9 70%, g_iter11 65%, g_iter14
+65%, g_iter6 60%, g_iter12 60%, g_iter13 60%, g_iter15 60%, g_iter10 55%,
+g_iter16 55%. Per-map (peer, 20 games each): jellyfish/squer 18/20 best;
+**chessboard 7/20, valley 8/20** still clearly worst -- the raid-defense fix
+measurably softened the specific raid it was built from but hasn't flipped
+the map's overall win rate yet. Benchmarks unchanged: `sample_camelcase`
+0/20, `sample_afinals` 2/20.
+
+*Retirement:* `g_iter8` 95% this Gauntlet but only 80% last (G20) -- not
+consecutive, no change. Pool: peers `{g_iter6, g_iter8..g_iter17}`,
+benchmarks `{sample_camelcase, sample_afinals}`.
+
+**Next:** chessboard/valley are large/open maps where games commonly run to
+the r2000 timeout -- three iterations running (20, 21, 22) have chipped at
+different facets of these losses (economy floor, attack cadence, raid
+response) without flipping the map outright. Worth a fresh Step-4 loss
+specifically on one of these two maps under the current code (g_iter17)
+rather than continuing to re-mine the same Iteration-20 replay, since each
+fix so far was verified against a snapshot several iterations stale by the
+time it landed.
