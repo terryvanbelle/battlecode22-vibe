@@ -2632,3 +2632,42 @@ the real problem is the sheer *count* by the time our army arrives. Worth
 checking whether an earlier, more aggressive push (before Sage count builds
 past ~20-30) fares better than the current patient buildup this session's
 economy-tuning has favored.
+
+---
+
+## Iteration 33  —  narrow extreme-distance reinforcement gate (REJECTED, marginal)
+
+### Step 4/5
+
+`sample_afinals/highway` again: 64% of A-Soldier-turns in "reinforce" state
+across a 200-round window with troop superiority. Checked whether the target
+itself was unstable (would explain wasted travel) via `--indicators`: three
+distinct focus points in a 10-round sample, dominated 75% by one -- stable,
+not flickering. Genuine cross-map travel-distance problem, not a targeting
+bug. Considered full Archon relocation (a real camelcase mechanic never
+attempted this session) but held back due to uncertainty about Battlecode's
+exact PORTABLE/TURRET mode-gating rules for building -- see the user's
+correction below.
+
+### Step 6 — Solution
+
+Retried Iteration 25's rejected idea (mass-gate solo reinforcement) with a
+far narrower trigger: >30 tiles (dist² 900) instead of the original ~5 tiles
+(dist² 25) that caught nearly all reinforcement and caused a broad
+regression. `g_iter25` mirror: 45%, within normal noise.
+
+-> Step 2, **Gauntlet 34** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 34 (step 2/3).** Peer: **203/340 = 59.7% < WinPct** -- a marginal
+miss (0.3 points), same standard applied to Iteration 26's 58.8%/59.2%
+misses. No opponent below 40% (g_iter21, the same recurring lateral-softness
+point as Iterations 29-32) -- not Iteration 25's broad-collapse signature,
+just the pre-existing lateral pattern tipping the overall average under 60%
+this time. Reverted per Step 6.5.
+
+**User feedback mid-session:** "Don't worry so much when you try a big idea.
+It's ok to try something that's high risk and fail... we're never going to
+defeat camelcase by being cautiously incremental." Saved as a standing
+preference (memory: `embrace-high-risk-iterations`). Directly applies to the
+Archon-relocation idea shelved above -- picking that up next instead of
+another narrow tweak.
