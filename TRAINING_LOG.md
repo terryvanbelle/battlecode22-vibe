@@ -1963,3 +1963,84 @@ specifically on one of these two maps under the current code (g_iter17)
 rather than continuing to re-mine the same Iteration-20 replay, since each
 fix so far was verified against a snapshot several iterations stale by the
 time it landed.
+
+---
+
+## Iteration 23  —  steepen the long-game Miner floor (with a rejected first attempt)
+
+### Step 4 — losing game  `g_iter6 / valley / botB` (fresh loss under g_iter17)
+
+Followed Iteration 22's "next" pointer -- a fresh loss on `valley`, not a
+re-mine of the stale Iteration 20 replay. Unlike the chessboard raid, this one
+has no dramatic Miner crash: a steady, structural economy gap instead.
+
+### Step 5 — Hypothesis
+
+`--metrics`: our team Miners settle at **15** by r100 (matches the non-
+`richHome` per-Archon fallback `max(leadTiles,5)` x 3 Archons on this map) and
+*decline* to 8-10 by r700-800 while `g_iter6` holds 20-30 the whole game --
+55 Soldiers to our 0 by r800, Archon HP crashing from full to 849 right after.
+The Iteration 20 floor (`6 + round/200`, cap 20) is provably too slow here:
+at r700 it's only 9-10, always <= our actual (declining) count, so it never
+fires -- and the game is already decided by r800, long before the ramp would
+reach anything meaningful.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | our team Miners, r100 -> r800 | flat or declining | 15 -> 8 | ✓ |
+| V2 | g_iter6 Miners, same window | stays well above ours | 19-30 throughout | ✓ |
+| V3 | floor value at r700-800 vs our actual count | floor <= actual (never fires) | 9-10 <= 10, 8 | ✓ |
+| V4 | g_iter6 Soldiers, r600 -> r800 | explosive growth | 13 -> 55 | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1, REJECTED)
+
+Steepen the ramp to `6 + round/50`, cap 30 (g_iter6's old map-scaled cap
+topped out at 34). Re-run pending.
+
+**Step 6 attempt 1 result.** Re-ran `g_iter6/valley`: economy held much better
+(17 Miners at r700, was 8-10) but still lost both games -- more mining doesn't
+reduce the *opponent's* independently-compounding army, and our Soldier count
+still crashed to 0 by r800 regardless. Proceeded to the standard pipeline
+anyway (mirror clean, 11/20) since the change could still be net-positive
+elsewhere. **Gauntlet 22, peer: 125/220 = 56.8% < WinPct -- REJECTED.**
+g_iter14/15/16 dropped to 40-45% (were 55-65% in G21) -- a real regression:
+diverting build turns to extra Miners has a genuine opportunity cost in games
+already winnable on combat alone, and the aggressive ramp paid that cost
+everywhere, not just where it was needed. Reverted per Step 6.5 (`git
+checkout`).
+
+### Step 6 — Solution (attempt 2)
+
+Split the difference: `6 + round/100`, cap 25. Re-run pending.
+
+**Step 6 attempt 2 result.** `g_iter17` mirror: 10/20 = 50%, clean.
+
+-> Step 2, **Gauntlet 23** (snapshot candidate -- benchmarks included; the
+rejected attempt's Gauntlet 22 numbers don't count toward retirement, since
+that code was reverted and never became the accepted lineage).
+
+**Gauntlet 23 (step 2/3).** Peer: **141/220 = 64.1% ≥ WinPct** -> **added as
+`g_iter18`.** Per-ancestor: g_iter8 90%, g_iter13 70%, g_iter6/g_iter9/g_iter11/
+g_iter12/g_iter14 65%, g_iter15/g_iter16 60%, g_iter10/g_iter17 50% -- and
+critically, **no regression** against g_iter14/15/16 this time (60-65%, back
+to G21 levels). Per-map (peer, 22 games each): **valley 9/22** still worst,
+but **chessboard improved to 10/22** (was 7/20 in G21). Benchmarks unchanged:
+`sample_camelcase` 0/20, `sample_afinals` 2/20.
+
+*Retirement:* `g_iter8` 95% (G21, accepted-lineage) **and** 90% (G23,
+accepted-lineage) -- two consecutive ≥90% on the accepted-iteration sequence
+(G22 excluded, rejected) -> **retired.** Pool: peers `{g_iter6, g_iter9..g_iter18}`,
+benchmarks `{sample_camelcase, sample_afinals}`.
+
+**Next:** valley is now the clear single worst peer map. This session has now
+tried economy-floor fixes (20, 23), attack-cadence (21), and raid-response
+(22) against this family of large-map, long-game losses -- each helped
+somewhat but none flipped the class outright, and attempt 1 here showed
+economy tuning has a real ceiling (helping the loss can regress wins
+elsewhere). Worth checking whether the remaining gap on these big maps is
+positional/pathing (Dijkstra20's within-vision horizon on very large maps) or
+simply that our combat-strength-per-Soldier is still behind at parity numbers
+-- a fresh V1/V2-style attack-rate comparison (per Iteration 21's method) on a
+valley loss, since that measurement hasn't been done on this specific map.
