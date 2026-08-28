@@ -1644,3 +1644,81 @@ fraction of the army is in transit at any moment during a live engagement
 instead of reinforcing it piecemeal-in. Worth re-measuring the
 heal/attack/objective split against the new HP<=10 threshold on a fresh loss
 before deciding the next hypothesis.
+
+---
+
+## Iteration 19  —  reinforce the live fight (SA_FOCUS) instead of a static objective
+
+### Step 4 — losing game  `sample_camelcase / maptestsmall / botA` (annihilated r188, re-run under g_iter13)
+
+Same game as Iteration 18, per its own "next" pointer -- re-measured fresh
+under the new HP<=10 retreat threshold rather than assumed.
+
+### Step 5 — Hypothesis
+
+`--indicators` on 562 sampled A-Soldier-turns, r120-160 (the live-engagement
+window, confirmed live by 52 non-zero "focus" turns in the sample): **62%
+"objective"** (marching to the static `armyObjective` guess, no enemy in
+sight), 26% "advance" (chasing a sighted target not yet in range), only **9%
+"focus"** (actually attacking) -- "heal" dropped to 2.5% (the Iteration 18 fix
+worked as intended). `runSoldier`'s no-target branch reads `armyObjective(rc)`
+directly and never consults `SA_FOCUS`, the shared focus-fire location that
+engaged soldiers already broadcast every round (Iteration 12) -- so a soldier
+with nothing in its own vision has no way to learn a fight is already
+underway nearby and just keeps marching toward a stale guess-point instead of
+reinforcing it.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | A-soldier-turns in "objective" state, r120-160 sample | ≥ 50% | 62% (349/562) | ✓ |
+| V2 | A-soldier-turns actually attacking ("focus"), same sample | ≤ 15% | 9% (52/562) | ✓ |
+| V3 | SA_FOCUS is live (non-zero) during the window | yes | confirmed by the 52 "focus" turns | ✓ |
+| V4 | "heal" turns, same sample (post-Iteration-18 sanity check) | ≤ 5% | 2.5% (14/562) | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+In `runSoldier`'s no-target branch: read `SA_FOCUS` first; if non-zero, march
+there (skip the Iteration-9 mass-gate below -- reinforcing a *known* live
+fight isn't the speculative advance that gate was built for). Fall through to
+the old static `armyObjective` only when no fight is in progress. Re-run
+pending.
+
+**Step 6 attempt 1 result.** `sample_camelcase/maptestsmall`: still a loss both
+sides, survival improved again, r188/197 -> **r235/250**. `g_iter13` mirror
+sanity check: 11/20 = 55%, no regression signal.
+
+-> Step 2, **Gauntlet 18** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 18 (step 2/3).** Peer: **103/160 = 64.4% ≥ WinPct** -> **added as
+`g_iter14`.** Per-ancestor: g_iter7 90%, g_iter6 80%, g_iter11 70%, g_iter9
+65%, g_iter13 55%, g_iter8 55%, g_iter10 50%, g_iter12 50%. Per-map (peer,
+16 games each): **chessboard 7/16, highway 8/16** worst; intersection/pillars/
+valley 9/16; maze/maptestsmall 11/16; squer 12/16; jellyfish 13/16; sandwich
+14/16 best -- chessboard and highway are now the clear weak points (were mid-
+pack in G17). Benchmarks unchanged: `sample_camelcase` 0/20, `sample_afinals`
+2/20. camelcase survival was **mixed, not a broad win**, on a per-map replay
+compare against the G17 benchmark run: maptestsmall clearly better (188/197 ->
+235/250) but intersection (288/399 -> 231/270), sandwich (230/219 -> 182/226),
+and highway (560/663 -> 493/550) all got *shorter* -- reinforcing a fight
+faster can also mean feeding soldiers into a losing fight faster when the
+opponent's per-engagement kill efficiency is still better than ours, which
+SA_FOCUS reinforcement does nothing to address. The structural camelcase gap
+is still the kill-ratio asymmetry documented in Iteration 18's Step 5, not the
+arrival-time problem this iteration fixed.
+
+*Retirement:* no opponent reached two-consecutive ≥90% this Gauntlet (g_iter7
+90% in G18 only, 85% in G17). No changes. Pool: peers `{g_iter6..g_iter14}`,
+benchmarks `{sample_camelcase, sample_afinals}`.
+
+**Next:** chessboard/highway are the new worst peer maps and haven't been a
+Step-4 target since early iterations -- worth a fresh loss analysis there
+rather than continuing to mine camelcase, which has now absorbed two
+iterations (18, 19) of army-behavior fixes without a single round won. The
+per-engagement kill-ratio asymmetry against camelcase (documented Iteration
+18) remains unaddressed and is likely the higher-value target once a
+peer-side loss is worked through -- candidates: matching camelcase's
+kite-only-on-cooldown attack pattern (`tryAttack`/`tryMoveToSafety` sequencing
+in `Soldier.java`) instead of our current "attack if in range, else advance"
+loop, which never repositions for a better trade.
