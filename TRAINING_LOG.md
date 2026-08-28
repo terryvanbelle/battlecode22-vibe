@@ -2293,3 +2293,56 @@ the attacker), which Iteration 21's rubble-kiting only partially addressed.
 Worth a fresh Step-4 loss with `--indicators` specifically on the stall
 window (not the collapse window) to see what a soldier does in the rounds
 right after an assault stops making progress, before it starts dying.
+
+**Process change (user request):** from this iteration on, check the single
+most interesting replay from each iteration's Gauntlet into `replays/` in
+git, so bot play can be reviewed over time independent of the git-ignored
+`gauntlet/` directory. See `TRAINING_ALGORITHM.md`'s new "Replay archive"
+section.
+
+---
+
+## Iteration 27  —  extend rubble-repositioning to the direct-attack fallback
+
+Rather than force a fourth attempt at the push-stall-collapse pattern (three
+dead ends running: Iterations 25, 26 attempt 1, 26 attempt 2), picked a
+smaller, low-risk, mechanically well-understood gap instead.
+
+### Step 4/5
+
+Iteration 21's `repositionForRubble()` (step onto a lower-rubble tile before
+firing, for faster next-turn cooldown) was only wired into the focus-fire
+attack branch (`SA_FOCUS` set). The direct-target fallback branch just below
+it -- used for the *first* contact of a fight, before focus fire has been
+established -- never got the same treatment. No fresh hypothesis-verification
+table for this one; it's a direct, low-risk extension of an already-accepted,
+already-verified mechanism to a second code path that does the same kind of
+attack.
+
+### Step 6 — Solution
+
+Add the same `repositionForRubble()` call to the direct-attack branch.
+`g_iter19` mirror: 50%, clean.
+
+-> Step 2, **Gauntlet 28** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 28 (step 2/3).** Peer: **149/240 = 62.1% ≥ WinPct** -> **added as
+`g_iter20`.** Per-ancestor: g_iter6/g_iter9/g_iter10 75%, g_iter12/g_iter16
+65%, g_iter13/g_iter18 60%, g_iter11/g_iter14/g_iter15/g_iter17 55%, g_iter19
+50%. Per-map (peer, 24 games each): jellyfish 21/24 best; pillars 11/24 worst
+(map-imbalanced, expected). Benchmarks unchanged: `sample_camelcase` 0/20,
+`sample_afinals` 2/20.
+
+*Retirement:* no opponent reached two-consecutive ≥90% (max 75%). No changes.
+Pool: peers `{g_iter6, g_iter9..g_iter20}`, benchmarks `{sample_camelcase,
+sample_afinals}`.
+
+**Replay archived:** `replays/iter27_sample_camelcase_maptestsmall_botA.bc22`
+(a fresh camelcase loss under the current code, for baseline comparison in
+future iterations).
+
+**Next:** the push-stall-collapse pattern (Iterations 20/23/24 partial fixes,
+25/26 rejected fixes) remains the biggest unresolved structural gap, now on
+`squer`/`highway`-class balanced maps as much as the map-imbalanced ones.
+Iteration 26's closing note (fresh `--indicators` on the *stall* window, not
+the collapse window) is still the most promising unexplored angle.
