@@ -1088,3 +1088,74 @@ the economy loses the *A* side. Needs a maptestsmall-shaped opening (fast Miners
 to a modest count, then hard rush) that doesn't cost the other maps — deferred.
 
 `g_iter9` stands as current best.
+
+---
+
+## Iteration 11  —  accurate census
+
+### Step 4 — losing game  `sample_camelcase / maze / botA` (annihilated ~r280)
+
+### Step 5 — Hypothesis
+
+Even with the Dijkstra pather (g_iter8/9), we field **0-2 live Soldiers** on maze
+vs `sample_camelcase` (`--metrics`: our Soldier count 0,0,1,2,1,1,1,0; our
+cumulative attacks crawl 10→40→75→82 while camelcase's run 42→196→563). Cause:
+`SA_MINERS`/`SA_SOLDIERS` are cumulative-ever counts. vs a peer, few units die,
+so cumulative ≈ alive and the build rule works. vs camelcase our Soldiers die as
+fast as we build them, so the cumulative Soldier count races ahead of Miners,
+`soldiers + 2 >= miners` flips true, and the Archon builds Miners instead of
+replacing the dead Soldiers -- the army never exists.
+
+| # | variable | threshold | measured (maze/camelcase) | ✓ |
+|---|----------|-----------|----------------------------|---|
+| V1 | our live Soldiers, whole game | ≤ 2 | 0-2 at every sample | ✓ |
+| V2 | camelcase cumulative attacks ÷ ours by r150 | ≥ 3 | 281 / 75 | ✓ |
+| V3 | we lose Archons while never fielding an army | yes | 3 → 1 by r241, Soldiers 0-1 | ✓ |
+| V4 | camelcase fields a growing army from the same economy | yes | 2 → 10 Soldiers r31→r270 | ✓ |
+| V5 | build rule reads a cumulative, not alive, Soldier count | yes | code | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Real per-round **census** (accumulator + first-actor publish) so
+`SA_MINERS`/`SA_SOLDIERS` are accurate ALIVE counts. Build rule simplifies to
+`miners < minerCap()` then pure army -- with alive counts this self-replaces
+losses of both types (raided Miners drop the count below the cap → rebuild;
+otherwise every build is a Soldier). Drops the Iteration-7 interleave and the
+Iteration-8 late-game revival hack (both were workarounds for the cumulative
+bug). Everything else (Dijkstra, mass-gate, richHome, beacons) unchanged.
+Re-run of the maze loss + g_iter9 regression set pending.
+
+**Step 6 — Iteration 11 results.**
+
+- Attempt 1 (census + pure `miners < minerCap()`): vs g_iter9 **11/20** —
+  maptestsmall **2/2** (Iteration 10's unsolved hole!), pillars 2/2, sandwich
+  2/2; but squer/valley/intersection 0/2. Net neutral.
+- Attempt 2 (census + 8-Miner floor + army-forward economy): vs g_iter9
+  **10/20** — chessboard/sandwich/squer 2/2; pillars regressed to 0/2. Net
+  neutral, different maps trade.
+- **Neither helped vs `sample_camelcase`** (maze still ~r260, sandwich ~r205).
+  The census correctly *replaces* dead Soldiers, but one Archon can't out-build
+  camelcase's focus-kill rate, so the army still never accumulates.
+
+**Iteration 11 abandoned.** The census is *correct* but inert on its own -- it
+only pays off bundled with Soldier survival (retreat-to-heal) and concentration
+(focus fire) so the army actually stays alive to accumulate. That is the real
+combat iteration and must be built + gauntletted as **one** package:
+
+```
+1. census() (exact diff below) replacing registerOnce; slots 17/18/19;
+   build rule -> `miners < minerCap()` (pure), drop interleave + revival
+2. runSoldier: retreat to nearest home Archon at HP <= 15 when not near home
+3. runSoldier: SA_FOCUS shared target, everyone shoots the focus when in range
+4. gauntlet vs peers -- must hold 60%+ -- AND check camelcase/afinals
+```
+
+Also worth trying next: **use the second+ Archons better** -- the 1-Archon
+build-throughput bound (≈1 unit / 2 rounds) is a hard ceiling camelcase doesn't
+have; a Laboratory (lead→gold) or Watchtower (static defence, 150 HP / 4 dmg)
+may spend surplus lead better than a 15th Soldier the lone Archon can't afford
+to build anyway.
+
+`g_iter9` remains the current best.
