@@ -1722,3 +1722,96 @@ peer-side loss is worked through -- candidates: matching camelcase's
 kite-only-on-cooldown attack pattern (`tryAttack`/`tryMoveToSafety` sequencing
 in `Soldier.java`) instead of our current "attack if in range, else advance"
 loop, which never repositions for a better trade.
+
+---
+
+## Iteration 20  —  scale the long-game Miner floor with round number
+
+### Step 4 — losing game  `g_iter6 / chessboard / botB` (loses on r2000 tiebreak)
+
+Followed Iteration 19's "next" pointer: chessboard is the new worst peer map.
+A loss against `g_iter13` on chessboard turned out to be a 2000-round mirror
+stalemate decided by an early accidental Archon-HP tiebreak (both sides run
+near-identical code) -- the same "near-mirror coin-flip" class Iteration 15
+already ruled out as unproductive for squer. A loss against the much older
+`g_iter6` (which predates Iteration 7's small-doctrine Miner cap and still
+uses the old large map-scaled cap) is a cleaner signal: a real strategic
+mismatch, not mirror noise.
+
+### Step 5 — Hypothesis
+
+`--metrics`: our Miners crash 10 -> 2 around r420-480 (`--events` confirms a
+small enemy raiding party -- 2-3 soldier IDs -- picking off exposed Miners
+unopposed), then flatline at exactly the hardcoded floor of **6** for the
+remaining ~1500 rounds of a game that runs to the r2000 timeout. `g_iter6`'s
+Miners decline only slowly (34 at r180 -> 18 at r560) and its Soldier count
+grows essentially unbounded (32 at r400 -> 422 at r2000) while ours stays
+capped near single digits the whole back half. The floor (`miners < 6`,
+Iteration 16) was designed as a raid-*replacement* number for the opening, not
+a long-game economy target -- it never scales, so any game that runs long
+enough to matter permanently caps our production at whatever "6" was tuned
+for, while an opponent with a larger sustainable economy keeps compounding.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | B(bot) Miners flatline at the floor from some round through r2000 | yes, ~1000+ rounds flat | flat at 6, r560-r2000 (~1440 rounds) | ✓ |
+| V2 | A(g_iter6) Soldiers, r500 -> r2000 | grows ≥5x | 60 -> 422 (~7x) | ✓ |
+| V3 | B(bot) Soldiers, same window | stays roughly flat/bounded | 2-9 range throughout | ✓ |
+| V4 | Miner die-off (r420-480) caused by real combat, not a code plateau | yes | confirmed: enemy Soldiers #10776/#13581/#10732 repeatedly attacking B Miners in the event log | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Replace the flat floor of 6 with a round-scaled one, gated off while under
+recent contact: `floor = contact ? 6 : min(6 + round/200, 20)`. Re-run
+pending.
+
+**Step 6 attempt 1 result.** Re-ran `g_iter6/chessboard/botB`: still a loss,
+and `--metrics` showed the floor **never actually moved** -- B Miners stayed
+flat at 5-7 through r2000, identical to before the fix. Diagnosis from the
+data: `contact` (`round - SA_ENEMY_SEEN < 60`) never goes false in a long
+grinding game where the enemy army is continuously in vision, so the `!contact`
+gate suppressed the ramp for the entire game -- the fix never engaged. This is
+exactly the kind of thing Step 6.3's "re-run and check" step exists to catch.
+
+**Step 6 attempt 2.** Drop the `!contact` gate -- the floor is a distinct,
+ongoing replenishment mechanism from the opening `quota` (which already
+handles early-rush response via the separate `contact` cut to 3); let it climb
+with round number unconditionally: `floor = min(6 + round/200, 20)`. Re-run
+pending.
+
+**Step 6 attempt 2 result.** Re-ran `g_iter6/chessboard/botB`: `--metrics`
+confirmed the floor now works -- B Miners climb 6 -> 14 by r2000, actually
+*overtaking* g_iter6's declining economy (9 by r2000). Still a loss on this
+specific game (B Soldiers stay 3-8 the whole game despite the healthier
+economy -- g_iter6's already-massive standing army, built during our r400-600
+stall, absorbs new recruits faster than we can accumulate them; the early
+deficit is too large to claw back in one game) but a real, verified change in
+mechanism, not a no-op. `g_iter14` mirror sanity check: 10/20 = 50%, clean.
+
+-> Step 2, **Gauntlet 19** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 19 (step 2/3).** Peer: **115/180 = 63.9% ≥ WinPct** -> **added as
+`g_iter15`.** Per-ancestor: g_iter7 95%, g_iter6 80%, g_iter9 75%, g_iter11
+65%, g_iter8 60%, g_iter13 60%, g_iter14 50%, g_iter10 45%, g_iter12 45%.
+Per-map (peer, 18 games each): **chessboard 8/18** still clearly worst (the
+floor fix didn't flip the underlying deficit problem, as expected from the
+Step-6 result above); pillars 9/18; intersection 10/18; valley 11/18;
+maptestsmall/maze 12/18; jellyfish/squer 13/18; highway 12/18; sandwich 15/18
+best. Benchmarks unchanged: `sample_camelcase` 0/20, `sample_afinals` 2/20.
+
+*Retirement:* `g_iter7` 90% (G18) **and** 95% (G19) -- two consecutive ≥90% ->
+**retired.** Pool: peers `{g_iter6, g_iter8..g_iter15}`, benchmarks
+`{sample_camelcase, sample_afinals}`.
+
+**Next:** chessboard remains the worst peer map even after the floor fix --
+the Step-6 result showed why: it's a kill-ratio/early-deficit problem, the
+same underlying gap Iteration 18 documented against camelcase (soldiers trade
+worse than the opponent's per engagement), not an economy-scale problem. This
+converges Iterations 18-20 on a single remaining structural target: **combat
+trade efficiency**, not army composition or arrival timing. Next iteration
+should select a fresh peer or benchmark loss and hypothesize directly about
+per-engagement damage exchange (e.g. camelcase's kite-on-cooldown pattern
+noted at the end of Iteration 19, or whether `betterTarget`/focus-fire
+selection is landing worse trades than the opponent's local targeting).
