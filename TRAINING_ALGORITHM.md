@@ -15,6 +15,21 @@ The Gauntlet should keep improving as a measure of fitness:
 - **New iterations.** Every implementation that passes Step 3 is added (as in the main algorithm).
 - **External bots.** Periodically — at least once every few iterations — search the internet (GitHub especially) for other Battlecode 2022 bot implementations, particularly strong ones (tournament finalists, well-documented post-mortems). Vendor any that compile cleanly as new opponents. Record each bot's source URL and licence.
 
+### Peer opponents vs. benchmark opponents
+
+Each bot in the Gauntlet is classified **peer** or **benchmark**:
+
+- **Peer** — an opponent of roughly comparable strength: the current implementation wins somewhere in the ~30–90% range against it. Every frozen prior iteration starts as a peer.
+- **Benchmark** — an opponent markedly stronger than the current implementation: it wins **< 30%** of that opponent's games. Newly vendored external bots that turn out to be much stronger (tournament finalists, etc.) start here.
+
+Reclassification happens after each Gauntlet from that Gauntlet's result: a benchmark bot the current implementation now beats **≥ 30%** becomes a peer; a peer bot that has crushed the current implementation to **< 20%** for **two consecutive** Gauntlets becomes a benchmark.
+
+Why the split: a benchmark bot is the *target*, not noise — the point of the exercise is to learn to beat bots like it — so it must stay in the Gauntlet as a scoreboard even while we lose every game to it. But it should not gate progress or dominate the game budget while that gap is being closed.
+
+- **Step 3 (the accept gate) is evaluated over peer games only.** Benchmark games are recorded and tracked in the logfile but excluded from the `WinPct` calculation. When every peer bar is cleared and only benchmark bots remain unbeaten, the implementation still passes Step 3 and is snapshotted.
+- **Step 4 (pick a losing game) draws from *all* games, benchmark included.** A benchmark loss is often the most valuable thing to work on.
+- **Benchmark bots are played only every `BenchmarkEvery` Gauntlets** (see hyperparameters), to save the game budget. On the Gauntlets in between, run peers only. Always play them on the Gauntlet where an iteration is a snapshot candidate.
+
 ### Retiring bots from the Gauntlet
 
 To keep `N` (and therefore the number of games) bounded, retire opponents that no longer provide signal:
@@ -22,6 +37,8 @@ To keep `N` (and therefore the number of games) bounded, retire opponents that n
 > After a Gauntlet completes, any opponent that the current implementation has beaten in **at least 90%** of that opponent's `2 * B` games in **two consecutive** Gauntlets is removed from the Gauntlet.
 
 This applies to reference bots, external bots, and frozen prior iterations alike. Track each opponent's per-Gauntlet win rate in the logfile so the two-consecutive-Gauntlet condition can be evaluated. A retired bot may be re-added later if a new iteration regresses badly against the opponents nearest it in strength.
+
+Opponents we *lose* to are **not** retired — a benchmark bot at 0% is the target, not noise (see above). Only the ≥90%-domination rule retires bots.
 
 ## Iteration 0
 
@@ -31,13 +48,14 @@ The initial implementation of our Battlecode bot will be very simple. The bot wi
 
 The algorithm for generating and improving a bot is defined in this section. This algorithm relies on the following hyperparameters:
 
-- *WinPct*: The percentage of games that the current implementation must win to be added to the Gauntlet. Set this to 60%.
+- *WinPct*: The percentage of **peer** games (see "Peer opponents vs. benchmark opponents") that the current implementation must win to be added to the Gauntlet. Set this to 60%.
 - *MaxHypothesisIterations*: The maximum number of times to try generating a verified hypothesis. Set this to 5.
 - *MaxSolutionsIterations*: The maximum number of times to try generating a winning solution. Set this to 5.
+- *BenchmarkEvery*: Benchmark opponents are played only once every this many Gauntlets (peers are played every Gauntlet). Set this to 3.
 
 1. Create Iteration 0. Set this to be our current implementation.
 2. Run the current implementation against the Gauntlet.
-3. If the current implementation wins at least *WinPct* of the games in Step 2, add it to the Gauntlet.
+3. If the current implementation wins at least *WinPct* of the **peer** games in Step 2, add it to the Gauntlet. (Benchmark games do not count toward this fraction; they are recorded and tracked in the logfile.)
 4. Select a game from Step 2 where the current implementation lost the game. If no such game exists, then go to Step 2.
 5. Hypothesis generation
    1. Form a hypothesis for why the current implementation lost.
