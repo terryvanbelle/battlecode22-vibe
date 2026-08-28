@@ -2346,3 +2346,64 @@ future iterations).
 `squer`/`highway`-class balanced maps as much as the map-imbalanced ones.
 Iteration 26's closing note (fresh `--indicators` on the *stall* window, not
 the collapse window) is still the most promising unexplored angle.
+
+---
+
+## Iteration 28  —  target enemy Soldiers before Archons (biggest single-iteration jump this session)
+
+### Step 4/5
+
+Followed Iteration 26's own closing pointer: fresh `--events` on the
+g_iter9/highway *stall* window (r815-830, not the later collapse) instead of
+re-treading the collapse itself. Result: of our 5 remaining Soldiers, only
+**one** (`#13152`) was ever in range of the enemy Archon; the other four were
+individually entangled with the opponent's growing defensive garrison, each
+still honoring `betterTarget`'s "Archon first" rule (unchanged since
+Iteration 1) by ignoring the Soldier actually in front of them whenever *any*
+Archon was in sight anywhere. Once a siege meets real defenders, "always
+chase the Archon" starves the fight that's actually blocking the siege of any
+help. camelcase's own verified, working attack-priority list ranks Soldier
+above Archon for exactly this reason. No formal V1-V4 table -- the fix is a
+direct structural read of the event log, not a threshold measurement.
+
+### Step 6 — Solution
+
+Replaced `betterTarget`'s binary Archon-first rule with a 3-tier
+`targetPriority`: combat units (Soldier/Sage/Watchtower) > Archon > workers
+(Miner/Builder/Laboratory), tie-broken by health within a tier as before.
+
+**Result.** Re-ran `g_iter9/highway`: **2/2**, including the side that had
+been losing all session. `g_iter20` mirror: **70%** (vs the usual 45-55%
+mirror baseline -- a strong signal even before the full Gauntlet).
+
+-> Step 2, **Gauntlet 29** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 29 (step 2/3).** Peer: **203/260 = 78.1% ≥ WinPct** -> **added as
+`g_iter21`.** By far the best peer score this session (previous best 69.4%,
+Iteration 18) -- *every* opponent at 70-90% (g_iter6 90%, g_iter9/10 80%,
+g_iter12 85%, rest 70-80%). Per-map (peer, 26 games each): **squer 26/26
+(100%)**, maptestsmall 22/26, maze/pillars 21/26, highway 21/26 -- **pillars
+jumped from 45% to 81%** and even **chessboard (previously an 91%-imbalanced
+map) improved to 11/26 (42%)**, well above what pure map geometry would
+allow if the fix weren't doing real work on both sides.
+
+**Benchmarks: `sample_camelcase` 1/20 (5%) -- the first win against it all
+session** (`sandwich`, bot as B, r296), after 0/20 across Iterations 18-27.
+`sample_afinals` unchanged at 2/20. Neither crosses the 30% peer-
+reclassification threshold yet, but this is the clearest evidence yet that
+the accumulated iterations are closing the gap against the strongest
+opponent, not just the peer pool.
+
+*Retirement:* `g_iter6` hit 90% this Gauntlet but only 75% in G28 -- not
+consecutive, no change. Pool: peers `{g_iter6, g_iter9..g_iter21}`,
+benchmarks `{sample_camelcase, sample_afinals}`.
+
+**Replay archived:** `replays/iter28_sample_camelcase_sandwich_botB_WIN.bc22`
+-- the historic first camelcase win (pulled directly from the VM since
+`gauntlet.sh` only auto-copies losses back).
+
+**Next:** with the Archon-rush trap fixed, worth re-running the exact
+Iteration-18/20 style attack-rate and solSpread comparisons against
+camelcase fresh -- the whole shape of these fights has likely changed and the
+old measurements (e.g. the 1.47x attack-rate gap) may no longer describe the
+current gap accurately.
