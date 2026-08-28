@@ -1547,3 +1547,100 @@ g_iter7..g_iter12 (6 snapshots): miner doctrine, Dijkstra pathfinder, mass-gate
 home defence, combat package (census + focus fire + retreat), Archon repair,
 camelcase-style opening. Peer ~70-77%. `sample_camelcase` 0/20 and
 `sample_afinals` 2/20 remain unbeaten -- the frontier is a gold/Sage economy.
+
+---
+
+## Iteration 18  —  raise the Soldier retreat threshold
+
+New session (fresh Claude Code instance on `claude-driver`, per `CLOUD_DRIVER.md`
+-- picking up here rather than migrating the prior laptop session, as designed).
+
+### Correction to the Iteration 17 session-close note
+
+Before selecting a game, read the vendored `sample_camelcase` source directly
+(not just its game behaviour): **camelcase never builds `LABORATORY` or
+`SAGE`.** `grep -rn "RobotType.SAGE\|RobotType.LABORATORY"` over the whole
+package turns up only the dead `case` arms in `RobotPlayer.createRobot` and one
+defensive check in `Robot.lookForDangerTargets` (running away from an enemy
+Sage) -- `Archon.spawnOrder` is `{SOLDIER, SOLDIER, SOLDIER, MINER, BUILDER}`,
+nothing else. The gold->Laboratory->Sage economy is **`sample_afinals`'s**
+mechanism (`BotLaboratory.java`, `BotSage.java` exist and are wired up there),
+not camelcase's -- Iteration 17's closing hypothesis was answering the wrong
+opponent. camelcase's actual, verified mechanics (`Archon.java` / `Robot.java`
+/ `Soldier.java`): a continuous 3:1:1 SOLDIER:MINER:BUILDER spawn cycle after a
+short opening, Builder-built `WATCHTOWER`s at home, Archon relocation to safer/
+lower-rubble ground, a shared "danger target" broadcast, and an attack-priority
+list ranking enemy Soldiers (7) above Archons (2) -- it does not Archon-rush.
+
+### Step 4 — losing game  `sample_camelcase / maptestsmall / botA` (annihilated r161)
+
+Chosen over another maze rerun (Iterations 16-17 already spent there): a fast
+loss (r161) on our best-case map (`richHome` grants an 18-Miner quota on
+maptestsmall), so whatever kills us here isn't an opening-economy problem.
+
+### Step 5 — Hypothesis
+
+`--metrics` on the g_iter12 loss: our 31-soldier force (round 95) is ground to
+**zero by round 137**, while camelcase's army barely loses a man (36->35 once
+at r108, then straight back up to 56) -- camelcase kills ~31 of ours for ~1 of
+theirs, well before any Watchtower comes online (`B_watchtowers` stays 0 until
+r100). `--indicators` on 501 sampled A-Soldier-turns in the crash window
+(r100-130): 48% still marching toward the static `armyObjective` (never
+reached the fight), **28% retreating ("heal")**, only **7% actually
+attacking**. camelcase's own `Soldier.java` only disengages at HP<10, or HP<16
+*and already within ~6 tiles of home* -- it never abandons a fight far from
+home over a moderate wound. Ours retreats at HP<=15 unconditionally (Iteration
+12), pulling a large, disproportionate share of the army out of every
+away-from-home engagement.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | A-soldier-turns in "heal" state, r100-130 sample | ≥ 20% | 28% (142/501) | ✓ |
+| V2 | A-soldier-turns actually attacking, same sample | ≤ 10% | 7% (37/501) | ✓ |
+| V3 | B soldier net losses, r95-137 crash window | ≤ 2 | ~1 (one dip r108) | ✓ |
+| V4 | A soldier count, same window | 31 → 0 | 31 → 0 (r137) | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Raise the retreat threshold from HP<=15 to **HP<=10** (critical only),
+matching camelcase's far-from-home bar. `runSoldier`'s retreat block,
+unchanged otherwise. Re-run pending.
+
+**Step 6 attempt 1 result.** `sample_camelcase/maptestsmall`: still a loss both
+sides, but survival jumped r161/183 -> **r188/197**. Not yet a win on the
+selected game, but a clean directional improvement with no new failure mode --
+kept per the established practice (Iteration 16) of proceeding to a full
+Gauntlet on a promising non-winning attempt rather than reverting on
+principle. Self-mirror sanity check vs `g_iter12` (near-identical code, one
+changed constant): 10/20 = 50%, i.e. a coin-flip lateral match, not a
+regression.
+
+-> Step 2, **Gauntlet 17** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 17 (step 2/3).** Peer: **111/160 = 69.4% ≥ WinPct** -> **added as
+`g_iter13`.** Per-ancestor: g_iter5 90%, g_iter7 85%, g_iter6 70%, g_iter11
+70%, g_iter8 65%, g_iter10 65%, g_iter9 60%, g_iter12 50% (expected -- a
+near-mirror match against its own immediate parent, one changed constant).
+Per-map (peer, 16 games each): **chessboard 9/16, intersection 9/16, pillars
+9/16, valley 9/16** worst; highway/maptestsmall 10/16; sandwich 12/16;
+jellyfish/maze 14/16; squer 15/16 best. Benchmarks unchanged: `sample_camelcase`
+0/20 (longer survival on several maps though: maptestsmall r188/197 vs prior
+r161/183, chessboard r391/407 vs prior r352/461), `sample_afinals` 2/20 (both
+wins on maptestsmall, r81/86, same as the prior baseline).
+
+*Retirement:* `g_iter5` 90% (G16) **and** 90% (G17) -- two consecutive ≥90% ->
+**retired.** Pool: peers `{g_iter6..g_iter13}`, benchmarks `{sample_camelcase,
+sample_afinals}`.
+
+The retreat fix bought measurable survival time against camelcase without
+costing peer strength (69.4%, above every prior Gauntlet), but didn't flip a
+single benchmark game. **Next:** the 48% idle-march share found in Step 5 is
+the more likely remaining lever -- soldiers with no sighted enemy walk toward a
+single static point (`armyObjective`) with no ongoing reinforcement-massing
+(Iteration 9's "wait for 3" only gates the *first* advance), so a large
+fraction of the army is in transit at any moment during a live engagement
+instead of reinforcing it piecemeal-in. Worth re-measuring the
+heal/attack/objective split against the new HP<=10 threshold on a fresh loss
+before deciding the next hypothesis.
