@@ -1416,3 +1416,77 @@ been 0/20 for the whole session. Its concrete, portable advantages over us
   builds and safety. (I was wrong earlier that Archons can't move.)
 Iteration 16 should port one of these -- most likely the Archon relocation, or
 the spawn-ratio shift toward more army.
+
+---
+
+## Iteration 16  —  camelcase opening (per-Archon lead-based Miner quota)
+
+### Step 4 — losing game  `sample_camelcase / maze / botA` (annihilated ~r250)
+
+### Step 5 — Hypothesis
+
+`--metrics` with full unit breakdown: on maze we build **3 → 14 Miners over
+~160 rounds and ZERO Soldiers**, while `sample_camelcase` builds **4 Miners and
+stops**, pumping Soldiers from r20 (7 by r161, 11 by r241). Our Archon HP
+1800 → 765 → 192; theirs untouched. Our whole-session 0/20 vs camelcase is this
+one thing: **our opening Miner cap (`min(16, 8 + 2*archons)` = 14 on a 3-Archon
+map) is set by Archon COUNT, not by how much lead the spawn can feed** -- so on
+lead-sparse maps we mine air for 160 rounds while the enemy armies up.
+
+| # | variable | threshold | measured (maze/camelcase) | ✓ |
+|---|----------|-----------|----------------------------|---|
+| V1 | our Miners at r120 | ≥ 12 | 12 | ✓ |
+| V2 | our Soldiers at r160 | 0 | 0 | ✓ |
+| V3 | camelcase Soldiers at r160 | ≥ 6 | 7 | ✓ |
+| V4 | camelcase Miner count all game | ≤ 8 | 4-8 | ✓ |
+| V5 | we are annihilated before r300 | yes | ~r250 | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Port camelcase's rule: **each Archon** spawns only
+`max(lead tiles within its 9-tile spawn cluster, 5)` Miners (fixed turn 1), then
+pure army; `richHome` (dense-lead spawn) raises its quota to 18. Per-Archon
+counter `myMinersSpawned`; the shared census keeps a 6-Miner team floor for
+raid replacement. Replaces the archon-count `minerCap()`. Re-run pending.
+
+**Step 6 attempt 1 result.** Per-Archon quota `max(leadTiles, 5)` = still ~15
+total on 3-Archon maps -> still built 13 Miners / 0 Soldiers to r200 on maze
+(camelcase r279, unchanged). vs g_iter11 **12/20** -- **squer 2/2** (the coin-
+flip hole fixed!), sandwich/jellyfish 2/2, but **chessboard 0/2**. Kept the
+quota, adding the real mechanism:
+
+**Step 6 attempt 2.** `SA_ENEMY_SEEN` -- any unit that sights an enemy combat
+unit stamps the round. While that stamp is < 60 rounds old, every Archon caps
+its Miners at **3** and rushes army (camelcase's danger-target check). Otherwise
+the lead-based quota. Re-run pending.
+
+**Step 6 attempt 2 result.** vs g_iter11 **12/20** — squer/highway/jellyfish
+2/2, but **maptestsmall 0/2** (the contact cut to 3 Miners starves the economy
+on a lead-dense rush map). camelcase marginally less bad (maze r283-291,
+sandwich r230) but still 0/20.
+
+**Step 6 attempt 3.** Contact cut applies only when `!richHome` -- on
+maptestsmall the economy is the game. Re-run pending.
+
+**Step 6 attempt 3 result.** Contact cut gated on `!richHome`. vs g_iter11
+**13/20 = 65%** — maptestsmall recovered to 1/2, **highway/jellyfish/squer 2/2**,
+no 0/2 regressions. camelcase still 0/20 (maze r283-291, sandwich r230 — we hold
+a little longer but don't win; the gap is deeper than the opening).
+
+→ Step 2, **Gauntlet 16** (snapshot candidate).
+
+**Gauntlet 16 (step 2/3).** Iteration 16 (camelcase opening) = 100/180 = 55.6%
+overall; **peer 98/140 = 70.0% ≥ WinPct** → **added as `g_iter12`.** vs g_iter11
+65% (beats last snapshot); vs g_iter5 90, g_iter6 75, g_iter7 80, g_iter10 70,
+g_iter9 60, **g_iter8 50** (a lateral matchup that tipped — losses spread across
+8 maps, no single cause; watch item). **squer and maze holes closed** (squer 0
+peer losses, maze 3). Benchmarks unchanged (`sample_camelcase` 0/20,
+`sample_afinals` 2/20).
+
+*Retirement:* g_iter5 at 90% (G16) but 85% (G15) — not consecutive. No changes.
+Pool: peers `{g_iter5..g_iter12}`, benchmarks `{sample_camelcase, sample_afinals}`.
+
+New worst maps (peer): **pillars 7/14, chessboard 7/14**, intersection 6/14. →
+Iteration 17.
