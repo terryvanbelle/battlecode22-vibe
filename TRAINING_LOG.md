@@ -1815,3 +1815,81 @@ should select a fresh peer or benchmark loss and hypothesize directly about
 per-engagement damage exchange (e.g. camelcase's kite-on-cooldown pattern
 noted at the end of Iteration 19, or whether `betterTarget`/focus-fire
 selection is landing worse trades than the opponent's local targeting).
+
+---
+
+## Iteration 21  —  reposition to lower rubble before firing (camelcase's kiting mechanism)
+
+### Step 4 — losing game  `sample_camelcase / maptestsmall / botA` (fresh loss under g_iter15)
+
+Selected to directly re-test whether the camelcase kill-ratio gap documented
+in Iteration 18 still exists post-Iterations-19/20, rather than reasoning from
+stale data.
+
+### Step 5 — Hypothesis
+
+`--metrics`, r100-200 window (troop counts roughly comparable early: 42 vs 30
+at r100): our per-soldier attack rate is **~0.236** attacks/soldier/round
+(613 attacks / 100 rounds / ~26 avg soldiers) vs camelcase's **~0.347** (1667 /
+100 / ~48) -- camelcase lands ~1.47x more attacks per soldier per round even
+before the numeric gap opens up. Read `sample_camelcase/robot/Robot.java`'s
+`tryAttack`: before firing on a non-building target, it steps onto a lower-
+rubble adjacent tile still within action range, if one is free -- movement and
+action are separate per-turn resources, so this costs nothing and speeds up
+next turn's cooldown recovery. Our `runSoldier` never does this.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | our attack rate, r100-200 (attacks/soldier/round) | baseline | ~0.236 | ✓ |
+| V2 | camelcase attack rate, same window | > 1.2x ours | ~0.347 (1.47x) | ✓ |
+| V3 | troop counts roughly comparable at window start (rules out "just outnumbered") | within 1.5x | 42 vs 30 (1.4x, and in *our* favor) | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Add `repositionForRubble()`: before the focus-fire attack, if movement is
+ready and an adjacent tile still within action range of the target has lower
+rubble than the current tile, step onto it first, then attack. Re-run pending.
+
+**Step 6 attempt 1 result.** Re-ran the selected game: **byte-identical**
+`--metrics` output to the pre-fix run at every checkpoint through r240 -- the
+change had zero measurable effect. Checked why: `maptestsmall`'s starting
+rubble map is uniformly 0-9 rubble everywhere (confirmed via the ASCII
+render) -- `repositionForRubble` can never find a strictly-lower tile there,
+so it's a guaranteed no-op on this specific map. Not a disproven hypothesis,
+just the wrong map to observe it on (noted here rather than silently
+discarded, per the "confirm/disconfirm honestly" standard this session is
+holding to). Re-tested on `chessboard` (real rubble variation, and our
+current worst peer map) against `g_iter6`: still a loss (1/2, same split as
+before), but the long, chaotic 2000-round game diverges too much round-to-
+round once any code changes to get a clean single-replay before/after delta.
+The change is harmless by construction (only ever moves to a strictly lower-
+rubble tile, otherwise no-op) and grounded in verified opponent code, so
+rather than force a clean single-game proof, let the standard Step 2/3
+aggregate decide it. `g_iter15` mirror sanity check: 11/20 = 55%, clean.
+
+-> Step 2, **Gauntlet 20** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 20 (step 2/3).** Peer: **114/180 = 63.3% ≥ WinPct** -> **added as
+`g_iter16`.** Per-ancestor: g_iter6 80%, g_iter8 80%, g_iter11 75%, g_iter9
+60%, g_iter14 60%, g_iter12 55%, g_iter13 55%, g_iter15 55%, g_iter10 50%.
+Per-map (peer, 18 games each): jellyfish 17/18 best; **chessboard 8/18,
+valley 9/18, intersection 9/18** worst (chessboard unchanged from G19 -- the
+rubble fix didn't move it, consistent with Step 6's inconclusive result there).
+Benchmarks unchanged: `sample_camelcase` 0/20, `sample_afinals` 2/20.
+
+*Retirement:* no opponent reached two-consecutive ≥90% this Gauntlet (max was
+80%). No changes. Pool: peers `{g_iter6, g_iter8..g_iter16}`, benchmarks
+`{sample_camelcase, sample_afinals}`.
+
+**Next:** chessboard/valley/intersection remain the worst peer maps across two
+Gauntlets running -- these are large/open maps where games run long (many
+still hit the r2000 timeout). The Iteration 20 finding (economic snowball from
+an early, undefended miner raid) is the more likely lever there than further
+combat-efficiency tuning: worth checking whether `checkHomeThreat`'s ≥2-enemy
+threshold and its distance-29-from-a-known-Archon gate actually catches a
+small raiding party that targets miners away from the Archon rather than the
+Archon itself -- the g_iter6/chessboard raid at r420-480 (Iteration 20) was
+exactly 2-3 raiders, right at that threshold's edge, and killed miners
+unopposed with no visible defensive response in the event log.
