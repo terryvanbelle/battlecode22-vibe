@@ -2531,3 +2531,43 @@ whether more than 1 per Archon, or triggering earlier/more aggressively,
 helps further, but only after confirming (via a fresh peer Gauntlet) that a
 second Watchtower doesn't reproduce Iteration 26's "extra economy investment
 hurts games we're already winning" problem.
+
+---
+
+## Iteration 31  —  allow a second Watchtower per Archon in long games
+
+### Step 6 — Solution
+
+`builderCap = round > 400 ? 2 : 1` -- the second Builder/Watchtower can only
+trigger in games already running long, so the extra investment doesn't land
+in every game the way a flat cap increase would.
+
+`g_iter23` mirror: 50%, clean.
+
+-> Step 2, **Gauntlet 32** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 32 (step 2/3).** Peer: **188/300 = 62.7% ≥ WinPct** -> **added as
+`g_iter24`.** Same lateral shape as the last two Gauntlets (g_iter21 the low
+point at 40%, older ancestors 75-85%) -- stable, not worsening. No
+retirements (max 85%).
+
+**Benchmarks: identical to Iteration 30** -- `sample_camelcase` 1/20 (same
+`valley` win), `sample_afinals` 3/20 (same three wins). Makes sense: most
+benchmark losses are decided well before r400 (per the loss-round data
+logged across Iterations 27-30, typically r200-800), so the second
+Watchtower rarely gets a chance to fire in exactly the matchups being
+tracked. Confirmed it *does* fire in genuinely long peer games: a 2000-round
+`g_iter9/highway` loss shows 2 Builders by the end (though the second
+Watchtower hadn't finished construction in time).
+
+**Replay archived:** `replays/iter31_g_iter9_highway_botB.bc22` -- the
+2000-round game showing the second Builder/Watchtower mechanism engaging.
+
+**Next:** the Watchtower investment appears to have plateaued in value for
+now -- two iterations (30, 31) added it and extended it with no benchmark
+movement. Time to return to a different angle for the camelcase/afinals gap;
+worth checking whether the two benchmarks' losses now cluster around a
+common cause (e.g. via a fresh V1-style attack-rate/solSpread comparison
+post-Iteration-28's targeting fix, which was never re-verified against
+afinals specifically -- all the post-Iteration-28 measurement has been
+camelcase-only).
