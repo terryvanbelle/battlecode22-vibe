@@ -1265,3 +1265,34 @@ army should *advance*, not hold), not the build rule — deferred to a focused
 Soldier-behaviour iteration.
 
 `g_iter10` remains the current best.
+
+### Step 6 — Solution (attempt 2)
+
+Board inspection of the maze loss (r320): we had **found and were attacking two
+enemy Archons** in one corner while ours in the other corner were raided (3 → 2
+Archons, the survivor at HP 153). Same over-commit as chessboard, but the
+mass-gate doesn't help because once an enemy Archon is *sighted* it disables and
+the whole army rushes. Fix: a fixed **~1/5 of Soldiers (by ID), once the army is
+past 6**, are a permanent home garrison — sit on the nearest home Archon with no
+enemy in sight, still fight anything adjacent, never leave. (Iteration 9 tried
+an ID garrison and it split the tiny early army; the `soldierCount >= 6` gate
+and the accurate census fix that.) Re-run pending.
+
+**Step 6 attempt 2 result.** ID garrison (1/5, gated `soldierCount >= 6`). vs
+g_iter10 **8/20 = 40%** — maze improved (0/2 → 1/2) but **maptestsmall regressed
+to 0/2** (r115-135: the garrison splits even the maptestsmall army once it hits
+6, and the idle fifth loses the rush) and most other maps dropped. Net -3.
+Reverted.
+
+**Iteration 13 abandoned.** maze (army over-commits on a small map, home Archon
+raided) resists both a build-rule fix (attempt 1: cutting economy hurts
+everywhere) and a fixed-fraction garrison (attempt 2: always costs more than it
+saves). The real fix is **dynamic** army allocation -- send home only what a
+sensed home threat actually needs, and don't let the *whole* army chase a
+sighted enemy Archon when we're not ahead -- which is a larger redesign of
+`armyObjective` / the Soldier's commit logic. Deferred.
+
+`g_iter10` remains the current best. **Session close:** g_iter7 → g_iter8
+(Dijkstra) → g_iter9 (mass-gate) → g_iter10 (combat package: census + retreat +
+focus fire). Peer 77.5%. The benchmark bots (`sample_camelcase` 0/20,
+`sample_afinals` 2/20) remain unbeaten -- the open frontier.
