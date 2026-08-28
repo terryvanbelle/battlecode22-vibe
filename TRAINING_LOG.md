@@ -2116,3 +2116,112 @@ helped -- pillars is worth the same treatment: a fresh Step-4 loss there,
 heal/attack/objective/reinforce split, and solSpread for formation cohesion,
 before forming a new hypothesis rather than assuming it's the same mechanism
 already fixed.
+
+---
+
+## Iteration 25  —  mass-gate reinforcement (REJECTED) -- and a bigger finding: pillars is side-imbalanced
+
+### Step 4 — losing game  `g_iter18 / pillars / botA`
+
+Before selecting, checked the full Gauntlet 24 `results.csv` for `pillars`
+across the whole ancestor pool: **whichever Battlecode team letter is "B" won
+19/22 games (86%), regardless of which bot -- ours or any ancestor -- was
+playing it.** This is a structural map/spawn asymmetry, not an
+opponent-strength or code-quality signal; it had been invisible in per-
+opponent win-rate aggregates because both A-side and B-side games get averaged
+together per opponent.
+
+### Step 5 — Hypothesis
+
+`--metrics` on a fresh team-A loss: we pushed the enemy Archon down to
+708/1800 HP by r360 (a near-kill), then were wiped 13 -> 1 Soldiers over
+r380-500 while the opponent rebuilt 6 -> 38. `--indicators` on that window:
+79% of our Soldier-turns were "reinforce" -- solo, freshly-built Soldiers
+marching individually into the same now-losing distant fight, since Iteration
+19's reinforcement branch skips the Iteration 9 mass-gate unconditionally.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | opponent Archon HP damaged to a near-kill by r360 | yes | 708/1800 | ✓ |
+| V2 | our Soldier count, r380->r500 | large collapse | 13 -> 1 | ✓ |
+| V3 | opponent Soldier count, same window | large rebuild | 6 -> 38 | ✓ |
+| V4 | our Soldier-turns in "reinforce" state, r380-460 sample | ≥ 50% | 79% | ✓ |
+
+**Verified → Step 6.** (In hindsight, V1-V4 describe a real *symptom* of
+losing -- they don't establish that gating reinforcement is the *cause* fix;
+see the rejection below.)
+
+### Step 6 — Solution (attempt 1, REJECTED)
+
+Extend the mass-gate to the `SA_FOCUS` reinforcement branch: a solo Soldier
+>25 dist² from the live focus point waits for 3+ friendlies before
+committing, same rule Iteration 9 used for the speculative advance. Re-run
+pending.
+
+**Step 6 attempt 1 result.** Re-ran `g_iter18/pillars`: still 1/2 (same split
+as before, side A still lost, survived longer r578->r648). `g_iter19` mirror:
+9/20 = 45%, within normal noise. **Gauntlet 25, peer: 126/240 = 52.5% <
+WinPct -- REJECTED**, and broadly: 7 of 12 opponents dropped below 50%
+(g_iter10 40%, g_iter12/15/16/17/19 45%, g_iter18 40%) where most had been
+55-75% in Gauntlet 24. Reverted per Step 6.5 (`git checkout`).
+
+**Why this failed broadly:** Iteration 19's entire point was *unconditional,
+fast* reinforcement -- most peer wins since then likely depend on that speed.
+Gating it broadly slowed down reinforcement in the large majority of games
+that don't have the specific failed-siege problem, for a fix aimed at one
+narrow map. Worse: re-examining the pillars side-imbalance data, **the 86%
+team-B win rate holds across ancestors like g_iter6 and g_iter9, which predate
+Iteration 19's reinforcement mechanism entirely** -- so the mechanism this
+iteration targeted cannot be the root cause of the map imbalance. The
+solo-reinforcement pattern in the Step 5 replay was a symptom of an
+already-losing position, not its cause.
+
+**Not retrying this hypothesis further** (Step 5.6 in spirit, even though the
+verified-variables table technically passed) -- the corrected understanding
+changes what Step 4 should target next. **Next:** investigate `pillars`'
+team-A-vs-team-B asymmetry directly and structurally -- compare Archon
+starting terrain/nearby-lead between the two spawn corners (already spotted:
+team A's nearest rich lead cluster is ~9-14 tiles out vs. closer clusters
+near team B's spawn in one sampled replay) rather than any in-game behavioral
+fix. If the map itself is unfair, the correct response may be down-weighting
+or flagging it rather than chasing a code fix that can't exist.
+
+### Methodological finding: most loop maps have a strong side bias
+
+Checked every map in the loop set the same way (which Battlecode team letter
+won, across the whole Gauntlet 24 ancestor pool, regardless of which bot --
+ours or any ancestor -- was playing which side):
+
+| map | winner=A | winner=B | balanced? |
+|---|---|---|---|
+| maptestsmall | 21/22 | 1/22 | **no -- A** |
+| intersection | 19/22 | 3/22 | **no -- A** |
+| sandwich | 18/22 | 4/22 | **no -- A** |
+| chessboard | 20/22 | 2/22 | **no -- A** |
+| maze | 5/22 | 17/22 | **no -- B** |
+| pillars | 3/22 | 19/22 | **no -- B** |
+| highway | 13/22 | 9/22 | roughly |
+| jellyfish | 13/22 | 9/22 | roughly |
+| valley | 12/22 | 10/22 | roughly |
+| squer | 11/22 | 11/22 | yes |
+
+Six of ten loop maps have a strong, code-independent side bias baked into the
+map geometry -- our code is fully side-symmetric (nothing reads `rc.getTeam()`
+to change strategy), so this cannot be a bug we introduced, and one team's
+disadvantaged-side win rate on these maps is structurally capped well below
+50% no matter how good the bot is. This reframes several sessions' worth of
+"worst map" chasing: **Iterations 20-25 repeatedly targeted chessboard,
+pillars, maze, valley** as "worst maps" from raw aggregate win rate, but at
+least three of those four are side-imbalanced -- the low aggregate score was
+substantially map geometry, not fixable bugs. (Iteration 24's valley fix is
+the exception that proves the rule: valley is one of the *balanced* maps, so
+its 41%->77% jump is a real, clean signal.) On the four balanced maps we are
+already doing reasonably well (squer 64%, highway 64%, jellyfish 91%, valley
+77%, all from Gauntlet 24) -- there just wasn't much signal left to chase
+there, which is *why* the worst-aggregate-map heuristic kept pointing at the
+imbalanced ones instead.
+
+**Going forward: prefer squer/highway/jellyfish/valley (and full-mapset runs)
+as the reliable source of true Step-4 losing games.** For imbalanced maps, a
+loss on the map's disadvantaged side is not strong evidence of a real bug
+unless it's also anomalous relative to other losses on that same side.
