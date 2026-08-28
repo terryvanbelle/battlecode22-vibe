@@ -962,3 +962,76 @@ That is Iteration 9's target. maptestsmall (~3/12) and valley (~4/12) also weak.
 *Retirement / reclassification:* g_iter1 at 95% (G12) but 80% at G10 — not two
 consecutive ≥90%. No benchmark ≥30%. No changes. Pool: peers
 `{g_iter1..g_iter8}`, benchmarks `{sample_camelcase, sample_afinals}`.
+
+---
+
+## Iteration 9  —  home defence
+
+### Step 4 — losing game  `chessboard / g_iter7 / botA` (r2000 "more Archons")
+
+### Step 5 — Hypothesis
+
+The Dijkstra army marches as one body to `armyObjective`, which -- with no home
+threat and no *known* enemy Archon -- returned the **rotational mirror of our
+Archon**, i.e. deep enemy territory. On open maps (chessboard) this leaves home
+undefended: our army crosses to the enemy half by ~r300 (`solCx` 17 → 3 on a
+46-wide map, spawn x≈37), the enemy out-trades it in the middle *and* raids our
+base -- we lose an Archon (2→1) and our economy (12 → 0 Miners) around r400-500
+while the army is away, then survive to r2000 but lose the Archon-count tiebreak
+1-v-2. `g_iter7`'s sloppier pathing kept the army closer to home and
+incidentally defended.
+
+| # | variable | threshold | measured (chessboard loss) | ✓ |
+|---|----------|-----------|-----------------------------|---|
+| V1 | our Soldier centroid crosses the midline before r300 | yes | solCx 11.7 @ r301 (mid ≈ 23) | ✓ |
+| V2 | we lose an Archon while the army is on the enemy half | yes | arch 2→1 by r601, solCx 3-9 @ r400-500 | ✓ |
+| V3 | our economy collapses in the same window | Miners → 0 | 12 → 0 by r500 | ✓ |
+| V4 | objective sends the army to the enemy mirror with no intel | yes | code: mirror-of-Archon | ✓ |
+| V5 | enemy keeps 2 Archons + economy through r800 | yes | B: 2 Archons, 12 Miners, arHP 1140 | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+- `armyObjective` with no threat and no *known* enemy Archon → a **forward
+  defensive line** one third of the way from our nearest Archon toward map
+  centre, instead of the enemy mirror. The army holds there and defends; it only
+  pushes deep once an enemy Archon is actually sighted.
+- **Miners report enemy Archons** too (they roam widest scouting for lead, so
+  they make first contact and unlock the push).
+
+Re-run of the chessboard loss + g_iter8 regression set pending.
+
+**Step 6 — Iteration 9 attempts.**
+
+1. `armyObjective` → forward defensive line (1/3 toward centre) + Miners scout
+   Archons. vs g_iter8 **10/20 = neutral** — too passive, turtled games we were
+   winning (intersection, highway, maze regressed).
+2. Fixed ~1/4 of Soldiers (by ID) a permanent home garrison. **Worse** (~2/11) —
+   splitting a small early army left too few attackers; didn't fix chessboard.
+3. **Mass-gate**: when marching to a *speculative* objective (no threat, no
+   sighted enemy Archon), a Soldier that is far from the objective and has < 3
+   friendly Soldiers in vision **waits** instead of trickling forward alone.
+   Fixed chessboard (0/10 → 2/2) and valley (2/2), but the unbounded wait
+   regressed highway (0/2) — on a long open map the army never left home.
+4. **Windowed mass-gate** (only rounds 60-250): the army forms up through the
+   opening, then commits regardless. vs g_iter8 subset **9/14 = 64%** —
+   chessboard **2/2**, valley **2/2**, highway recovered to 1/2, everything else
+   neutral (1/2). No clear regression.
+
+→ Step 2, **Gauntlet 13** (snapshot candidate).
+
+**Gauntlet 13 (step 2/3).** Iteration 9 (windowed mass-gate) = 125/200 = 62.5%
+overall; **peer 122/160 = 76.25% ≥ WinPct** → **added as `g_iter9`.** vs g_iter8
+60%, beats every ancestor (g_iter1 95, g_iter2 85, g_iter3 90, g_iter4 80,
+g_iter5 65, g_iter6 60, g_iter7 75, g_iter8 60). **chessboard 10 → 5 peer
+losses** (the Iteration-9 target). `sample_afinals` 2 → 3 — first movement on a
+benchmark all session. `sample_camelcase` still 0/20.
+
+*Retirement:* **`g_iter1` retired** — ≥90% in G12 (95%) and G13 (95%), two
+consecutive. No benchmark ≥30%. Pool: peers `{g_iter2..g_iter9}`, benchmarks
+`{sample_camelcase, sample_afinals}`.
+
+New worst maps (peer): **maptestsmall 8/16** (the 1-Archon rush map — long-
+standing), pillars 7/16, valley/maze/chessboard 5/16. → Iteration 10 targets
+maptestsmall.
