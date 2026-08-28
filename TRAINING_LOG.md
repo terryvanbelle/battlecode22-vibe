@@ -907,3 +907,58 @@ one unit against its own baseline, in this order:
 
 `g_iter7` remains the current best. Deferring the combat rewrite to a dedicated
 push rather than continuing to patch.
+
+---
+
+## Iteration 8  —  Dijkstra pathfinding
+
+### Step 4 — losing game  `sample_camelcase / maze / botA` (r302)
+
+### Step 5 — Hypothesis (verified in Iterations 8-9 earlier)
+
+Our army loses fights because it arrives **strung out** — the 8-direction greedy
+scorer can't trace obstacles, so Soldiers reach the enemy one at a time and are
+destroyed piecemeal. `sample_camelcase` ships a real within-vision Dijkstra
+(`dijkstra/Dijkstra20`). Independent evidence: every incremental Soldier-micro
+change (Iter 8-9) was inert on top of g_iter7 because the bottleneck is upstream
+(movement), not targeting.
+
+### Step 6 — Solution (attempt 1)
+
+**Vendor `sample_camelcase`'s `Dijkstra20`** (MIT, package-renamed to `bot`;
+2380 lines of code-generated unrolled Dijkstra — cost `1 + rubble` per tile).
+Route `moveToward(rc, goal)` through it (same signature, so nothing else
+changes); keep the old scorer as the fallback when the Dijkstra step is blocked
+by a unit.
+
+- **Pathing alone:** vs g_iter7, 13/20 — and for the first time a change **broke
+  the first-mover symmetry**, winning *both* sides on maze/sandwich/squer/
+  pillars/intersection. But it **regressed chessboard/jellyfish** (0/2 both):
+  the sharper army over-commits, our Miners get raided to 0, and — the
+  cumulative `SA_MINERS` cap already "hit" — never rebuild.
+- **+ census fix:** made it *worse* (11/20) — maintaining a Miner economy is a
+  liability in the ~r500 annihilation games (want pure army). Reverted the census.
+- **+ narrow late-game Miner revival** (round > 700 & this Archon's area
+  stripped of Miners & lead affordable): **14/20 vs g_iter7**, both sides on
+  **6 of 10 maps** (intersection, maze, sandwich, squer, highway, pillars).
+  jellyfish 0/2 → 1/2, highway 1/2 → 2/2. Still regresses chessboard (0/2,
+  r2000 "more Archons") and valley (0/2) — army over-commits with no home
+  garrison; that is combat work for the next iteration.
+
+Benchmarks unchanged (`sample_camelcase` maze still r300) — expected, combat
+micro is the next step. → Step 2, **Gauntlet 12** (snapshot candidate).
+
+**Gauntlet 12 (step 2/3).** Iteration 8 (Dijkstra + revival) = 112/180 = 62.2%
+overall; **peer 110/140 = 78.6% ≥ WinPct** → **added to the Gauntlet as
+`g_iter8`.** Beats every ancestor: g_iter1 95%, g_iter2 85%, g_iter3 75%,
+g_iter4 70%, g_iter5 75%, g_iter6 80%, **g_iter7 70%**. Benchmarks unchanged
+(`sample_camelcase` 0/20, `sample_afinals` 2/20).
+
+Per-map: strong on maze/sandwich/squer/pillars/intersection/jellyfish/highway;
+**chessboard 0/10 vs peers** (was g_iter7's strong map) — the sharper Dijkstra
+army marches out and loses the r2000 Archon-count game with no home garrison.
+That is Iteration 9's target. maptestsmall (~3/12) and valley (~4/12) also weak.
+
+*Retirement / reclassification:* g_iter1 at 95% (G12) but 80% at G10 — not two
+consecutive ≥90%. No benchmark ≥30%. No changes. Pool: peers
+`{g_iter1..g_iter8}`, benchmarks `{sample_camelcase, sample_afinals}`.
