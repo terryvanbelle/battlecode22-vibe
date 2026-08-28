@@ -2462,3 +2462,72 @@ consecutive -> **retired.** Pool: peers `{g_iter9..g_iter22}`, benchmarks
 fresh loss there specifically before the next unrelated hypothesis, to check
 whether the side-step change itself is the cause or whether it's confounded
 with the same lateral-matchup effect seen against g_iter19-21.
+
+---
+
+## Iteration 30  —  Builder/Watchtower static home defense (new mechanic)
+
+The `sandwich` regression check (this iteration's own opening item) turned
+out to be a near-mirror "small early edge compounds" pattern like squer
+(Iteration 15), not a specific bug -- as the peer pool converges in strength
+after Iteration 28's jump, more maps show this noise. Skipped re-chasing it
+and picked a fresh, non-mirror signal instead: a `sample_camelcase/highway`
+loss.
+
+### Step 4/5
+
+`--metrics`: a clean, low-combat economy race -- neither Archon takes real
+damage until r570+, army sizes diverge purely on production from ~r300
+(camelcase 24->132, us 21->0). This is the same structural gap Iteration 26
+tried to fix twice (raise the Miner floor on a Soldier-count crash) and both
+attempts were rejected for broad peer regressions. Rather than retry
+economy-floor tuning a third time, added a mechanic never attempted this
+session: Builder-built Watchtower static defense, present in camelcase's own
+design since early in the project but never implemented on our side.
+
+### Step 6 — Solution
+
+One Builder per Archon (capped via `myBuildersSpawned`), which heads home,
+builds one Watchtower, and repairs it (and anything else) while it's a
+`PROTOTYPE`. Watchtower AI is a single attack call using the existing
+`betterTarget` priority. Two failed gating attempts before it worked:
+- **Attempt 1**: gated on `!contact` -- same trap as Iteration 20's attempt 1
+  (`contact` means "enemy sighted recently", permanently true for the back
+  half of a long game with sustained visibility). `--metrics` confirmed 0
+  Builders/Watchtowers the entire replay.
+- **Attempt 2**: gated on `!needMiners` -- but the Miner floor climbs with
+  round number, so Miners hover perpetually at/near it and `needMiners` is
+  nearly always true too, for the identical reason. Still 0 Builders.
+- **Attempt 3**: since the Builder is self-limiting (max 1 ever), gave it
+  priority over the Miner/Soldier decision once `round > 100`, `miners >= 8`,
+  and `lead > 300` -- guaranteed to fire once instead of waiting for a
+  condition that never fully clears. `--metrics` confirmed: Builder=1,
+  Watchtower=1, functional by r320 in one of the two `highway` test games.
+
+`g_iter22` mirror: 50%, clean.
+
+-> Step 2, **Gauntlet 31** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 31 (step 2/3).** Peer: **177/280 = 63.2% ≥ WinPct** -> **added as
+`g_iter23`.** Same lateral shape as Iteration 29 (strong vs older ancestors
+75-85%, softer vs the most recent 40-55%, g_iter21 the low point at 40%) --
+overall still clears the bar. Per-map: maze 26/28, valley 25/28 strong;
+chessboard 8/28, sandwich 12/28 weak (map-imbalance and near-mirror noise
+respectively, both already understood, not new problems). No retirements
+(max 85%).
+
+**Benchmarks:** `sample_camelcase` held at 1/20 (5%, same `valley` win as
+Iteration 29 -- this specific replay is apparently unaffected by the
+Watchtower change). `sample_afinals` steady at 3/20 (15%) with a **new win on
+`sandwich`** (r231) replacing a previous loss there. No regression, no
+decisive breakthrough yet -- the mechanic works correctly but a single
+Watchtower per Archon is a modest addition against opponents with truly
+unbounded late-game armies.
+
+**Replay archived:** `replays/iter30_sample_afinals_sandwich_botA_WIN.bc22`.
+
+**Next:** the Watchtower mechanic is now proven functional -- worth checking
+whether more than 1 per Archon, or triggering earlier/more aggressively,
+helps further, but only after confirming (via a fresh peer Gauntlet) that a
+second Watchtower doesn't reproduce Iteration 26's "extra economy investment
+hurts games we're already winning" problem.
