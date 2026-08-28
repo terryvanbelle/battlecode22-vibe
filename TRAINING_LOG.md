@@ -1159,3 +1159,57 @@ may spend surplus lead better than a 15th Soldier the lone Archon can't afford
 to build anyway.
 
 `g_iter9` remains the current best.
+
+---
+
+## Iteration 12  —  combat package (census + retreat + focus fire)
+
+### Step 4 — losing game  `sample_camelcase / maze / botA`
+
+### Step 5 — Hypothesis
+
+Iteration 11's verified hypothesis, expanded: we field 0-2 live Soldiers vs
+`sample_camelcase` because (a) the cumulative counter stops the build rule
+replacing dead Soldiers [Iter 11 V1-V5], and even with an accurate census (b)
+our Soldiers die in one exchange (no retreat) and (c) spread their fire (no
+focus), so camelcase out-attacks us 3-8:1 and the army never accumulates. All
+three must be fixed together.
+
+### Step 6 — Solution (attempt 1): one package, built + gauntletted together
+
+1. **Census** — accurate per-round ALIVE counts (slots 17/18/19); build rule →
+   `miners < minerCap()` then pure army (self-replacing).
+2. **Focus fire** — `SA_FOCUS` shared target (cleared each round by the census);
+   every Soldier shoots the focus when in range, promotes its own better pick.
+3. **Retreat-to-heal** — HP ≤ 15 and not near a home Archon → fall back to one,
+   still firing.
+
+Dijkstra, mass-gate, richHome, beacons unchanged. Re-run of maze/camelcase +
+full g_iter9 regression set pending.
+
+**Step 6 attempt 1 result.** vs g_iter9 across all 10 loop maps × 2 sides:
+**13/20 = 65%** — a real improvement. Wins **both sides** on maptestsmall
+(Iterations 10-11's unsolved hole!), intersection, pillars, sandwich, jellyfish.
+Regresses maze (0/2) and squer (0/2).
+
+**Still loses every `sample_camelcase` game** (maze r259, sandwich r221) and
+`sample_afinals` (maze r343) — unchanged. The package fixes our army vs *peers*
+(it now accumulates and survives), but camelcase's edge is elsewhere (Dijkstra
+depth, build order, Sage/Watchtower usage) and not closed by this.
+
+→ Step 2, **Gauntlet 14** (snapshot candidate).
+
+**Gauntlet 14 (step 2/3).** Iteration 12 (combat package) = 126/200 = 63.0%
+overall; **peer 124/160 = 77.5% ≥ WinPct** → **added as `g_iter10`.** Beats every
+ancestor (g_iter2 95, g_iter3 90, g_iter4 90, g_iter5 80, g_iter6 70, g_iter7
+65, g_iter8 65, g_iter9 65). Benchmarks unchanged (`sample_camelcase` 0/20,
+`sample_afinals` 2/20).
+
+Per-map peer losses: **maptestsmall 8 → 1** (the combat package fixed the
+long-standing rush hole), but **maze 5 → 9** (new worst), squer 6, highway 6.
+
+*Retirement:* **`g_iter3` retired** — 90% in G13 and G14, two consecutive. No
+benchmark ≥30%. Pool: peers `{g_iter2, g_iter4..g_iter10}`, benchmarks
+`{sample_camelcase, sample_afinals}`.
+
+→ Iteration 13 targets maze.

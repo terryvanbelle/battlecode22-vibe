@@ -1,4 +1,4 @@
-package bot;
+package g_iter10;
 
 import battlecode.common.*;
 import java.util.Random;
