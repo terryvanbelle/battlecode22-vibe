@@ -77,3 +77,16 @@ The algorithm for generating and improving a bot is defined in this section. Thi
 ## Logging
 
 At each step, log any summary statistics and observations in a logfile.
+
+### Replay archive
+
+For each iteration (accepted or rejected), check the single most interesting
+game from that iteration's Gauntlet run into `replays/` in git -- the replay
+that best illustrates the iteration's hypothesis or result (e.g. the losing
+game analyzed in Step 4/5, or the game whose outcome changed most clearly
+after the Step 6 fix). Name it
+`replays/iterNN_<opponent>_<map>_bot<side>.bc22`, where `NN` is the iteration
+number. This is a human-browsable record of how play evolved over the course
+of the run, independent of `gauntlet/` (git-ignored, ephemeral) and the
+per-iteration source snapshots in `src/g_iterNN/`. Reference the checked-in
+path in the corresponding `TRAINING_LOG.md` entry.
