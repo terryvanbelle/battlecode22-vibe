@@ -15,7 +15,7 @@ set -euo pipefail
 VM=battlecode-dev
 ZONE=us-west1-b
 PROJECT=tvanbelle-vibecode
-USER_NAME="$(whoami)"
+USER_NAME="${BC_SSH_USER:-$(whoami)}"
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SSHO=(-i "$HOME/.ssh/google_compute_engine" -o StrictHostKeyChecking=no
       -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20 -o ServerAliveInterval=20

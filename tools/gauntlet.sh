@@ -28,7 +28,7 @@ REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SSHO=(-i "$HOME/.ssh/google_compute_engine" -o StrictHostKeyChecking=no
       -o UserKnownHostsFile=/dev/null -o ConnectTimeout=20 -o ServerAliveInterval=20
       -o ServerAliveCountMax=3 -o LogLevel=ERROR)
-USER_NAME="$(whoami)"
+USER_NAME="${BC_SSH_USER:-$(whoami)}"
 vm_ip () { gcloud compute instances describe "$VM" --zone="$ZONE" --project="$PROJECT" \
              --format='value(networkInterfaces[0].accessConfigs[0].natIP)' 2>/dev/null; }
 gssh () { ssh "${SSHO[@]}" "$USER_NAME@$IP" "$1"; }
