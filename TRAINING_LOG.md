@@ -2044,3 +2044,75 @@ positional/pathing (Dijkstra20's within-vision horizon on very large maps) or
 simply that our combat-strength-per-Soldier is still behind at parity numbers
 -- a fresh V1/V2-style attack-rate comparison (per Iteration 21's method) on a
 valley loss, since that measurement hasn't been done on this specific map.
+
+---
+
+## Iteration 24  —  stop resetting SA_FOCUS every round (formation cohesion)
+
+### Step 4 — losing game  `g_iter9 / valley / botB` (fresh loss under g_iter18)
+
+Per Iteration 23's pointer: an attack-rate comparison on `valley`, not yet
+done on this map.
+
+### Step 5 — Hypothesis
+
+Both armies started nearly identical (14-17 Soldiers each through r350).
+Over r350-410 the attack-volume comparison (Iteration 21's method) showed only
+a modest edge for the opponent (371 vs 311 attacks, 1.19x) yet a hugely
+lopsided kill ratio (they lost 4 Soldiers, we lost 10, 2.5x). `solSpread`
+(the per-round soldier-position stddev, already in `--metrics`) explained it:
+their formation *tightened* during the fight (8.9 -> 4.0) while ours *widened*
+(8.3 -> 13.2) -- a scattered army trades worse even at comparable attack
+volume, since fewer of the scattered units are simultaneously in range of the
+focus target. Read `census()`: it clears `SA_FOCUS` to 0 every single round
+("re-pick a focus-fire target each round", Iteration 12) before any engaged
+Soldier has re-selected it that round -- Iteration 19's reinforcing soldiers
+march toward wherever `SA_FOCUS` points *right now*, so a rally point that can
+change or blink to 0 from round to round scatters the approach instead of
+producing a stable convergence.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | our solSpread, start vs peak of engagement (r350->r380) | widens | 8.3 -> 13.2 | ✓ |
+| V2 | opponent solSpread, same window | narrows | 8.9 -> 7.6 -> 4.4 (by r390) | ✓ |
+| V3 | attack-volume ratio, r350-410 | modest (<1.5x) | 1.19x (371 vs 311) | ✓ |
+| V4 | Soldier-loss ratio, same window | much larger than V3 | 2.5x (10 vs 4) | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Drop the blanket per-round `SA_FOCUS` reset from `census()`. The existing
+dead-target check in `runSoldier` (clears `SA_FOCUS` when the tracked enemy is
+confirmed gone via `canSenseLocation` + team check) is sufficient to keep it
+from going stale. Re-run pending.
+
+**Step 6 attempt 1 result.** Re-ran `g_iter9/valley`: **1/2 -- won as side A**
+(this exact matchup was a clean loss before). The remaining loss (side B)
+diverged onto a much longer game (r1522, RNG cascade changed by the code
+change) so a clean single-replay before/after comparison wasn't available,
+but the win is a real result, not noise reduction. `g_iter18` mirror sanity
+check: 12/20 = 60%, clean (slightly above the usual 50-55% mirror baseline).
+
+-> Step 2, **Gauntlet 24** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 24 (step 2/3).** Peer: **139/220 = 63.2% ≥ WinPct** -> **added as
+`g_iter19`.** Per-ancestor: g_iter6/g_iter9/g_iter10 75%, g_iter12/g_iter16
+65%, g_iter13/g_iter18 60%, g_iter11/g_iter14/g_iter15/g_iter17 55%. Per-map
+(peer, 22 games each): **valley jumped from 9/22 (41%, G23) to 17/22 (77%)** --
+the formation-cohesion fix landed exactly where it was aimed. **pillars is now
+the worst map (10/22)**, chessboard improved slightly to 11/22. Benchmarks
+unchanged: `sample_camelcase` 0/20, `sample_afinals` 2/20.
+
+*Retirement:* no opponent reached two-consecutive ≥90% this Gauntlet (max
+75%). No changes. Pool: peers `{g_iter6, g_iter9..g_iter19}`, benchmarks
+`{sample_camelcase, sample_afinals}`.
+
+**Next:** pillars is the new clear worst map. This session's last several
+iterations (20-24) have each targeted one distinct large-map failure mode
+(economy floor, attack cadence, raid response, formation cohesion) and each
+helped -- pillars is worth the same treatment: a fresh Step-4 loss there,
+--metrics for army-size/economy comparison, --indicators for the
+heal/attack/objective/reinforce split, and solSpread for formation cohesion,
+before forming a new hypothesis rather than assuming it's the same mechanism
+already fixed.
