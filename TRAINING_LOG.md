@@ -2407,3 +2407,58 @@ Iteration-18/20 style attack-rate and solSpread comparisons against
 camelcase fresh -- the whole shape of these fights has likely changed and the
 old measurements (e.g. the 1.47x attack-rate gap) may no longer describe the
 current gap accurately.
+
+---
+
+## Iteration 29  —  side-step around blocked-path congestion
+
+### Step 4/5
+
+Fresh `--metrics` on the g_iter21-era camelcase/sandwich win-then-loss replay
+(Iteration 28's own log): we reduced camelcase to **zero Soldiers for 60+
+rounds** (r220-280) after damaging one Archon to 600/1200 HP -- an even more
+decisive advantage than any prior siege -- yet never closed it out. `--events`
+showed why: 384 consecutive identical `"objective [38,11]"` indicator strings
+from every Soldier, and the army's position centroid barely advanced (29.3 ->
+34.1 over 90 rounds, oscillating) despite zero enemy resistance. Pure
+corridor congestion on a long, narrow map (`sandwich`, 60x21) -- many
+Soldiers funneling through one path, each independently falling back to the
+full 8-direction greedy re-scan whenever the Dijkstra pather's blocked (by a
+friendly unit, not terrain), which can pull a unit onto a different route and
+scatter the column instead of keeping it filing through.
+
+### Step 6 — Solution
+
+In `moveToward`, when the Dijkstra direction is blocked, try side-stepping to
+its immediate neighbors (`rotateLeft`/`rotateRight`) before falling back to
+the full greedy re-scan.
+
+**Result.** Re-ran `sample_camelcase/sandwich`: 0/2 (was 1/2) -- but the RNG
+cascade diverged completely (a much faster, differently-shaped loss), so no
+clean single-replay comparison. `g_iter21` mirror: 40%, within normal noise.
+
+-> Step 2, **Gauntlet 30** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 30 (step 2/3).** Peer: **184/280 = 65.7% ≥ WinPct** -> **added as
+`g_iter22`.** Notable shape: very strong against older ancestors (g_iter6
+90%, g_iter9-13 75-85%) but soft against the most recent ones (g_iter19/20
+45%, g_iter21 40%) -- a lateral-matchup pattern (this iteration's own
+immediate lineage responds differently to congestion changes than older,
+structurally different code), not a broad regression; overall WinPct clears
+the bar. Per-map: **maze jumped to 27/28 (96%)**, but **sandwich -- the map
+this fix directly targeted -- dropped to 13/28 (46%)**, a genuine regression
+on the target map even as the overall pool improved. Worth revisiting.
+Benchmarks: `sample_camelcase` held at 1/20 (a new win on `valley`, r551,
+different game from Iteration 28's), `sample_afinals` improved to **3/20
+(15%, up from 2/20)**.
+
+*Retirement:* `g_iter6` hit 90% in **both** Gauntlet 29 and 30 -- two
+consecutive -> **retired.** Pool: peers `{g_iter9..g_iter22}`, benchmarks
+`{sample_camelcase, sample_afinals}`.
+
+**Replay archived:** `replays/iter29_sample_camelcase_valley_botA_WIN.bc22`.
+
+**Next:** the sandwich regression is the immediate open question -- worth a
+fresh loss there specifically before the next unrelated hypothesis, to check
+whether the side-step change itself is the cause or whether it's confounded
+with the same lateral-matchup effect seen against g_iter19-21.
