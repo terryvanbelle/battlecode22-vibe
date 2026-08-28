@@ -840,3 +840,70 @@ have not moved the needle against the benchmark bots. The gap is structural:
 Next iteration should be a deliberate combat rewrite (BFS pathfinder + shared
 focus target + census + retreat), built and gauntletted as one unit against a
 fresh baseline, not incrementally patched.
+
+---
+
+## Iteration 9  —  combat rewrite (focus fire + census + retreat)
+
+### Step 4 — losing game  `sample_camelcase / maze / botA` (r302 baseline)
+
+### Step 5 — Hypothesis
+
+Reuses the verified Iteration-8 combat hypothesis: our army loses fights at even
+or favourable numbers because (a) each Soldier targets independently ("weakest
+in range"), spreading damage so enemies die slowly and keep firing; (b) no
+retreat, so wounded Soldiers die instead of healing at an Archon; (c) the
+cumulative-counter bug left us fielding ~0 live Soldiers on contestable maps.
+Measured vs `sample_camelcase`: our Soldier count → 0 while theirs grows;
+cumulative attacks 4-8:1 against us; our Archon HP falls while theirs stays full.
+
+### Step 6 — Solution (attempt 1): one coherent rewrite
+
+- **Census** — real per-round live counts (accumulator + first-actor publish),
+  replacing the cumulative-ever bump. Build rule back to pure `miners <
+  minerCap()` then pure army (census makes "pure army after cap" self-replacing).
+- **Focus fire** — `SA_FOCUS` holds the army's shared target; each Soldier
+  promotes its own best pick (Archon-first, then lowest HP) if it beats the
+  current focus or the focus is dead; everyone prefers the shared focus when in
+  range. Concentrates damage so enemies die fast and stop shooting back.
+- **Retreat-to-heal** — HP ≤ 15 and not near a home Archon → fall back to one
+  (Archons repair droids), still firing, then rejoin. Stand and fight near home.
+
+Built and tested as one unit. Re-run of maze/camelcase + full g_iter7 regression
+set pending.
+
+**Step 6 attempt 1 result.** vs g_iter7, all 10 loop maps × 2 sides: **9/20 =
+45%** — a regression. Lost highway (g_iter7 goes 6/6 there), squer, sandwich,
+valley badly. Won chessboard 2/2 and jellyfish 2/2. Still loses all benchmark
+checks. The combined rewrite disturbs g_iter7's tuning the same way Iteration 8
+did — the common factor is the census + build-rule change. Reverted.
+
+**Step 6 attempt 2.** Isolate: **focus fire only**, on top of an unmodified
+g_iter7 — same counter, same build rule, same runSoldier structure; change only
+which target a Soldier shoots (shared `SA_FOCUS`, no census, no reset machinery,
+soldiers re-promote their best each round and clear a stale focus when adjacent
+to an empty focus tile).
+
+**Step 6 attempt 2 (focus fire only) + attempt 3 (+ rally when outnumbered).**
+Both land at **10-11/20 vs g_iter7** — the exact first-mover split (≈9/10 as team
+A, ≈1/10 as B), i.e. **measurably zero effect** in self-play, and **zero change**
+against `sample_camelcase` (maze r302 identical to baseline every time).
+
+**Iterations 8-9 conclusion.** Soldier-micro changes (retreat, kite, focus fire,
+rally) on top of `g_iter7` are inert or regressive. The bottleneck is upstream:
+our army is too small and arrives too strung-out for targeting logic to matter.
+Reverted to `g_iter7`.
+
+The combat iteration must be a **ground-up rewrite**, built and gauntletted as
+one unit against its own baseline, in this order:
+
+1. **Census** (accurate live counts) + re-tune the whole build rule from scratch
+   with a fresh Gauntlet — `g_iter7`'s rule is calibrated around the buggy
+   cumulative counter and can't be changed piecemeal.
+2. **BFS / Dijkstra pathfinder** replacing the 8-dir greedy scorer, so the army
+   moves as a concentrated body (study `src/sample_camelcase/dijkstra/`).
+3. Only then: **focus fire + formation + kiting** — these only pay off once we
+   field a real, concentrated army.
+
+`g_iter7` remains the current best. Deferring the combat rewrite to a dedicated
+push rather than continuing to patch.
