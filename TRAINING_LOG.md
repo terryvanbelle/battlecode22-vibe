@@ -742,3 +742,101 @@ favourable economy.** maptestsmall second-player losses (rushed r130-160),
 chessboard/valley/intersection r2000 tiebreak losses (can't close), and the
 benchmark gap (`sample_camelcase` out-attacks us ~3:1 at equal army size). The
 economy is now competitive; combat is the lever.
+
+### Step 4 — losing game  [`sample_camelcase / maze / botA`, annihilated r302]
+
+### Step 5 — Hypothesis (iteration 1 of ≤5)  [Iteration 8]
+
+*Hypothesis:* our Soldiers have no retreat and no kiting. `runSoldier` attacks
+once if a target is in range, else advances and stands — it never steps back.
+So each Soldier trades its 50 HP for roughly one 3-dmg hit before dying to
+focused enemy fire. `sample_camelcase`'s Soldiers retreat to an Archon to heal
+when wounded and kite while their weapon reloads, so each survives many
+exchanges. Across every camelcase loss our Soldier count collapses to 0 while
+theirs grows, and cumulative attacks run 4-8:1 against us.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | our Soldiers alive: r160 vs r40 | strictly falling to ~0 | maze 0 @ r161 vs 1 @ r41; mts 7 @ r161 vs 12 @ r41 | ✓ |
+| V2 | our cumulative attacks ÷ enemy's, midgame | ≤ 0.4 | maze 79/304 = .26; mts 246/1193 = .21 | ✓ |
+| V3 | retreat / kite logic in runSoldier | none | none (code) | ✓ |
+| V4 | enemy Soldiers grow while ours shrink, same window | yes | maze B 2→10, A 2→0 (r41→r281) | ✓ |
+| V5 | our Archon HP falls while enemy's stays ~full | yes | maze A 1800→240, B 1800 | ✓ |
+
+**Verified → Step 6.**
+
+**Step 6 — Solution (attempt 1).** Add to `runSoldier`: (a) take any available
+shot first; (b) if HP ≤ 18, fall back to the nearest home Archon (Archons heal
+friendly droids) then rejoin; (c) kite — right after firing, while the action is
+on cooldown, step away from the target. Re-run of the maze loss + regression set
+pending.
+
+**Step 6 — Iteration 8 solution attempts (combat).**
+
+1. Retreat-when-hurt (HP≤18 → home Archon to heal) + kite (step back while
+   weapon reloads). Doesn't beat `sample_camelcase` on any map, but the
+   maptestsmall second-player rush flips to a win.
+2. **Census bug fix.** `SA_MINERS/SA_SOLDIERS` were cumulative-ever counts (bump
+   once at birth, no decrement). Fine when units rarely die, but vs a strong
+   opponent our Soldiers die and rebuild constantly, so cumulative Soldiers
+   raced ahead of Miners and the build rule `soldiers + 2 >= miners` flipped
+   back to Miners — we fielded ~8 Miners and ~0 live Soldiers on maps we should
+   contest. Replaced with a real per-round census (accumulator + first-actor
+   publishes last round's total). This is a genuine bug fix, kept regardless.
+3. With accurate counts, changed the build rule to `soldiers >= miners` (army
+   leads, economy follows, both track losses). Flips valley + pillars vs g_iter6
+   to wins; maptestsmall B-side still rushed.
+4. Refined retreat (stand and fight when already near a home Archon — it heals
+   in place; running just lets the enemy past). valley flipped back — the micro
+   tweaks thrash map-to-map.
+
+**Assessment.** `sample_camelcase` / `sample_afinals` are not beatable with
+incremental Soldier tweaks — they use Dijkstra pathfinding + coordinated focus
+fire + formation. That's a multi-iteration combat rewrite. For now: keep the
+**census fix** (correct) and a **conservative retreat-to-heal** (HP≤15, not near
+home) — it clearly helps maze-vs-g_iter4 (r538 loss → r898 annihilation),
+pillars, valley — drop the thrashy kite. Running **Gauntlet 11** (peer-only, per
+`BenchmarkEvery=3`) to see if this beats `g_iter7` on peers; if not, revert to
+`g_iter7` and make the combat rewrite its own iteration.
+
+**Gauntlet 11 (peer-only).** Iteration 8 (census + retreat + `soldiers >=
+miners`) = **52.9% peer, 3/20 vs g_iter7** — a clear **regression**. Reverted
+`src/bot/` to `g_iter7`.
+
+*Lesson:* the census "bug fix" can't be shipped in isolation — g_iter7's whole
+build-rule tuning is (accidentally) calibrated around the cumulative counter's
+behaviour, and `soldiers >= miners` on accurate counts + retreat interact into a
+death spiral (soldiers hover low → economy capped low → weak everything).
+
+**Restarting Iteration 8 minimally.** Keep `g_iter7` exactly — same counter,
+same build rule. Change **only** `runSoldier`: add a single conservative
+retreat-to-heal (HP ≤ 15, not already near a home Archon → move to nearest home
+Archon, keep firing). No census, no build-rule change, no kite. Test that one
+change in isolation.
+
+**Iteration 8 v2 (retreat-to-heal only, on top of g_iter7).** vs g_iter7 across
+all 10 loop maps × 2 sides: **11/20** — bot wins 9/10 as team A, 2/10 as team B.
+That A/B split is just first-mover advantage; the retreat change is **within
+noise of g_iter7** and regresses `pillars` (0/2). Does not beat
+`sample_camelcase`. **Reverted — Iteration 8 abandoned.** `g_iter7` stands.
+
+### Iteration 8 — postmortem / plan for the combat iteration
+
+Four sessions of incremental Soldier tweaks (retreat, kite, census, build-rule)
+have not moved the needle against the benchmark bots. The gap is structural:
+
+- **Pathfinding.** We use an 8-direction greedy scorer (`moveToward`).
+  `sample_camelcase` ships a real BFS/Dijkstra (`dijkstra/Dijkstra20`). On
+  obstacle maps our army still arrives strung out and is beaten in detail.
+- **Focus fire.** Each of our Soldiers independently picks "weakest in range",
+  spreading damage. camelcase concentrates fire — kills faster, so takes less
+  return fire. This needs a shared target broadcast.
+- **Kiting / formation.** camelcase Soldiers attack-then-retreat while the weapon
+  reloads and pull back wounded; ours stand and die.
+- **The census bug is real** but can't be fixed alone — g_iter7's build rule is
+  tuned around the cumulative counter. The combat iteration must redo the census
+  *and* re-baseline the build rule together.
+
+Next iteration should be a deliberate combat rewrite (BFS pathfinder + shared
+focus target + census + retreat), built and gauntletted as one unit against a
+fresh baseline, not incrementally patched.
