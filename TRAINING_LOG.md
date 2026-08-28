@@ -1296,3 +1296,58 @@ sighted enemy Archon when we're not ahead -- which is a larger redesign of
 (Dijkstra) → g_iter9 (mass-gate) → g_iter10 (combat package: census + retreat +
 focus fire). Peer 77.5%. The benchmark bots (`sample_camelcase` 0/20,
 `sample_afinals` 2/20) remain unbeaten -- the open frontier.
+
+---
+
+## Iteration 14  —  Archon repair
+
+### Step 4 — losing game  `sample_camelcase / maze / botA`  (also the maze regression vs peers)
+
+### Step 5 — Hypothesis
+
+Studying `src/sample_camelcase/robot/building/Archon.java`: camelcase's Archon
+calls `tryRepair()` **every turn** (heals the most-wounded friendly droid in
+action range). **Our Archon never repairs** -- it spends its action on
+`buildRobot` every single turn. So Iteration 12's retreat-to-heal is a **no-op**:
+wounded Soldiers fall back to an Archon that ignores them, sit there, and either
+die anyway or return to the fight still hurt. Our army evaporates in sustained
+fights (maze: Soldier count 5 → 0 while clumped near home) partly because the
+"heal" half of retreat-to-heal was never wired up.
+
+| # | variable | threshold | measured | ✓ |
+|---|----------|-----------|----------|---|
+| V1 | `rc.repair` / `canRepair` calls in our Archon code | 0 | 0 | ✓ |
+| V2 | camelcase Archon repairs every turn it can | yes | `tryRepair()` unconditional | ✓ |
+| V3 | our Soldiers retreat home then still die | yes | maze: clumped at Archon, count 5→0 | ✓ |
+| V4 | our Archons out-of-combat with a spare action most turns | yes | 1 build / ~2 rounds, action idle otherwise | ✓ |
+
+**Verified → Step 6.**
+
+### Step 6 — Solution (attempt 1)
+
+Archon: before building, scan friendly droids in action range (R²=20); if one is
+wounded (> 6 below max HP), spend the action repairing the most-wounded (combat
+units before Miners) instead of building. Now retreat-to-heal actually heals.
+Re-run of maze + camelcase + g_iter10 regression set pending.
+
+**Step 6 attempt 1 result.** vs g_iter10, all 10 loop maps × 2 sides: **12/20 =
+60%** — modest gain. valley **2/2**, pillars **2/2**, maze **0/2 → 1/2**, and bot
+wins the *B* (second-player) side on 6 maps (maze/sandwich/jellyfish/squer/
+valley/pillars) — the signature of a real defensive improvement. No regression.
+**Still loses every `sample_camelcase`/`sample_afinals` game.**
+
+→ Step 2, **Gauntlet 15** (snapshot candidate).
+
+**Gauntlet 15 (step 2/3).** Iteration 14 (Archon repair) = 126/200 = 63.0%
+overall; **peer 124/160 = 77.5% ≥ WinPct** → **added as `g_iter11`.** Beats every
+ancestor (g_iter2 95, g_iter4 90, g_iter5 85, g_iter6 75, g_iter7 75, g_iter8
+75, g_iter9 65, g_iter10 60). **maze peer losses 9 → 3** (the repair wired up
+retreat-to-heal). Benchmarks unchanged (`sample_camelcase` 0/20, `sample_afinals`
+2/20).
+
+*Retirement:* **`g_iter2` (95/95) and `g_iter4` (90/90) retired** — both ≥90% two
+consecutive Gauntlets. No benchmark ≥30%. Pool: peers `{g_iter5..g_iter11}`,
+benchmarks `{sample_camelcase, sample_afinals}`.
+
+New worst maps (peer): **squer 7/16**, highway 6/16, valley 5/16. → Iteration 15
+targets squer.
