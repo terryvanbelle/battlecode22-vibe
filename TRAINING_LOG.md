@@ -2571,3 +2571,64 @@ common cause (e.g. via a fresh V1-style attack-rate/solSpread comparison
 post-Iteration-28's targeting fix, which was never re-verified against
 afinals specifically -- all the post-Iteration-28 measurement has been
 camelcase-only).
+
+---
+
+## Iteration 32  —  prioritize enemy Laboratory (afinals's Sage pipeline, finally identified)
+
+### Step 4/5
+
+Fresh `--metrics` on `sample_afinals/highway` (a balanced map, following
+Iteration 26's own methodological correction): a real, distinct opponent
+build, unlike anything analyzed against camelcase this session. afinals
+built **0 Soldiers** and instead grew to **111 Sages** (100 HP, 45 dmg -- a
+near-one-shot on our 50-HP Soldiers) by r840, fueled by 6 Laboratories
+converting lead to gold throughout the game. Their Sages alone destroyed our
+25-Soldier army and then our Archon (1200 -> 15 HP) while they fielded zero
+regular Soldiers the entire game. This also **corrects** a wrong claim from
+Iteration 17's session-close note (already partially corrected in Iteration
+18): "camelcase never builds Sage/Laboratory" is true, but the note went on
+to describe the gold/Sage economy as *the* frontier without ever actually
+profiling `sample_afinals` directly to confirm it's real there -- it is, and
+this is the first time this session it's been measured.
+
+`targetPriority` ranked Laboratory at 0 (tied with Miner/Builder) -- the
+literal source of the entire threat was untargeted. camelcase's own
+attack-priority list (`Robot.java`, already read back in Iteration 4-era
+research) ranks Laboratory **second only to Soldier** -- above Sage,
+Watchtower, and even Archon. Match that.
+
+### Step 6 — Solution
+
+`targetPriority`: combat units (3) > Laboratory (2) > Archon (1) > workers
+(0). `g_iter24` mirror: 50%, clean.
+
+-> Step 2, **Gauntlet 33** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 33 (step 2/3).** Peer: **198/320 = 61.9% ≥ WinPct** -> **added as
+`g_iter25`.** Stable, same shape as recent Gauntlets (g_iter21 40% low
+point, older ancestors 75-85%). No retirements (max 85%).
+
+**Benchmarks: unchanged from Iteration 30-31** -- `sample_camelcase` 1/20,
+`sample_afinals` 3/20, identical win set both times. The targeted replay
+(`highway`) itself showed no Laboratory kills even with the new priority --
+our Soldiers likely never survive long enough against 100+ Sages to reach
+the Labs, which (per afinals' own economy) are presumably kept well back
+from the front line. The fix is directionally correct (matches verified
+working code) and clears the peer bar with no regression, but doesn't move
+this specific benchmark on its own -- reaching the Labs would need our army
+to survive the Sage gauntlet first, which is really the same combat-quality
+gap flagged repeatedly this session, now with a concrete adversary (Sage's
+45-damage hits) instead of a vague "trade efficiency" description.
+
+**Replay archived:** `replays/iter32_sample_afinals_maptestsmall_botA_WIN.bc22`.
+
+**Next:** afinals' Sage threat is now precisely characterized (0 Soldiers,
+pure Sage/Lab economy, 45 dmg/hit, actCD 200 -- attacks roughly once every 20
+rounds per Sage, but compounds at scale). A soldier that survives to melee
+range trades reasonably against a single Sage (100 HP is not much more than
+a Soldier's 50, and Sage's slow cooldown means most rounds it can't act) --
+the real problem is the sheer *count* by the time our army arrives. Worth
+checking whether an earlier, more aggressive push (before Sage count builds
+past ~20-30) fares better than the current patient buildup this session's
+economy-tuning has favored.
