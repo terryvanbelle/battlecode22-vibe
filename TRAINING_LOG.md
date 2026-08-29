@@ -4049,3 +4049,68 @@ doesn't consume the Archon's own precious build-ring tiles at all. This
 is a bigger change than the minimal version tried here, but addresses the
 actual failure mode directly rather than just moving where the same
 mechanism bites.
+
+---
+
+## Iteration 58  —  Builder-placed Laboratory + Sage economy (REJECTED, 58.7%)
+
+### Step 4/5/6
+
+Implemented Iteration 57's own fix: the Builder now walks ~7 tiles past
+the Watchtower site before placing the Laboratory, keeping it clear of
+the Archon's own build ring entirely. Verified directly on the exact
+`g_iter22/maptestsmall` case that collapsed catastrophically last
+iteration: win restored (r232, matching the original r234), and
+`--metrics` confirmed the fix actually works this time -- Laboratory
+built by r140 and visibly transmuting (gold fluctuating 0-19 rather than
+stuck at 0), a Sage produced by r160, Soldiers growing healthily to 82 by
+r220 with no collapse.
+
+`g_iter28` mirror: 10/20 = 50%, clean.
+
+**Gauntlet 58 (step 2/3).** Peer: **176/300 = 58.7%**. Reverted per Step
+6.5.
+
+### A striking cross-iteration pattern
+
+Checking the per-opponent breakdown against Iterations 54 and 56:
+**identical down to every single number** -- `g_iter12` 75%, `g_iter13`
+75%, `g_iter16` 70%, `g_iter17` 75%, `g_iter18` 75%, `g_iter19` 60%,
+`g_iter20` 60%, `g_iter21` 45%, `g_iter22`-`g_iter25` 50% each,
+`g_iter26` 55%, `g_iter27` 40%, `g_iter28` 50% -- across three
+*completely unrelated* mechanisms (more Watchtowers per Builder, a
+lead-gated 3rd Builder, and now a full gold/Sage economy). All three
+share only two things: each is additive rather than replacing existing
+logic, and each barely engages in the specific 300-game sample (the gold
+economy, for instance, only produces meaningful gold in long, calm
+economy-race games -- a small fraction of this pool). That three
+structurally different mechanisms produce byte-identical aggregate
+results strongly suggests the actual games decided differently
+(`g_iter16` down, `g_iter17`/`g_iter18` up, rest completely unchanged)
+aren't being decided by any of these mechanisms' actual content -- more
+likely some shared, incidental effect of adding code at all (e.g. a
+bytecode-budget shift nudging a handful of already-marginal games one way
+or the other, independent of what the new code does).
+
+### Outcome
+
+Not a regression -- Iteration 57's actual bug (catastrophic self-boxing)
+is fixed and confirmed working -- but not yet a validated aggregate win
+either. Given how rarely a full gold economy would engage within the
+current 10-map peer pool (needs a long, calm, high-lead-surplus game to
+ever produce a Sage at all), 58.7% with an *inert-in-most-games*
+mechanism isn't a fair test of whether the underlying idea has value.
+
+**Next:** the cross-iteration identical-numbers pattern deserves its own
+look before trusting any more "small additive change, marginal miss"
+results at face value -- worth deliberately testing whether a genuinely
+*no-op* change (e.g. an unused local variable, or a comment-only diff)
+produces the same `g_iter16`/`g_iter17`/`g_iter18` shift, which would
+confirm it's a mechanical artifact of the Gauntlet/build process rather
+than anything about these specific mechanisms, before spending further
+iterations chasing what might be noise mistaken for signal. Separately,
+the gold economy itself (Iteration 58's actual code, now proven not to
+self-box) is worth keeping on file for a future test against maps/
+opponents chosen specifically to engage it -- `sample_afinals` most of
+all, since it's the one opponent whose own doctrine is built entirely
+around this exact mechanic.
