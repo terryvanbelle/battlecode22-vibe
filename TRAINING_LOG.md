@@ -4482,3 +4482,39 @@ variant -- attempt 3 would be within `MaxSolutionsIterations` (2 used of
 not just parameterized around blindly a third time. In the meantime, pick
 a fresh Step 4 target from the still-large `maptestsmall`/`intersection`
 loss categories.
+
+## Diagnostic note  —  maptestsmall side-A/B asymmetry (no fix attempted, parked)
+
+`maptestsmall` showed the most extreme side split of any map in Gauntlet
+61: bot-side A won **15/15**, bot-side B won only **1/15**. Per-map side
+splits across the whole Gauntlet: most maps mildly favor A (intersection
+13/2, maze 13/8, highway 14/10, pillars 15/5), but `valley` strongly
+favors B (4/15 A vs. 10/15 B, see Iteration 63) and `squer` mildly favors
+B (9/15 vs. 13/15) -- ruling out a simple universal engine turn-order
+artifact (that would favor the same side on every map). Each map's split
+looks like its own idiosyncratic interaction with our code.
+
+Fetched an actual `maptestsmall/botA` win replay directly from the VM
+(gauntlet.sh only copies back losses) to compare against a `botA` loss --
+`g_iter22__maptestsmall__botA_WIN.bc22` vs.
+`losses/g_iter22__maptestsmall__botB.bc22`. Both show the **same shape**:
+whichever iteration occupies side B has its Soldier count climb in
+lockstep with side A through ~r100, then crash to 0 by r200-226 while
+side A's climbs to 60-90 -- present regardless of which specific
+iteration occupies which side, meaning it's baked into logic shared
+across (most of) our snapshot lineage, not something specific to the
+current code.
+
+Checked the two most likely absolute-coordinate-bias candidates:
+Watchtower placement (built essentially at-home on both sides, no
+directional skew) and `nearestLead()` (tie-breaks on `distanceSquaredTo`
+from the calling unit, i.e. relative, not absolute). Neither explains it.
+The remaining candidate is the primary `Dijkstra20` pathfinder (2388
+lines) -- not audited, would need a dedicated pass. **Parked without a
+fix**: this is a clean, well-evidenced, high-value lead (a 15/15 vs. 1/15
+split is enormous) but finding the actual mechanism needs more targeted
+effort than fits in this pass. Revisit with a dedicated Step 4 session on
+`Dijkstra20`'s tie-breaking specifically, ideally by instrumenting a
+tracer that logs each Miner/Soldier's chosen direction alongside its
+absolute position over the first ~150 rounds on both sides of this exact
+matchup.
