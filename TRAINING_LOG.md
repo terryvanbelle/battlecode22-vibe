@@ -4114,3 +4114,45 @@ self-box) is worth keeping on file for a future test against maps/
 opponents chosen specifically to engage it -- `sample_afinals` most of
 all, since it's the one opponent whose own doctrine is built entirely
 around this exact mechanic.
+
+---
+
+## Iteration 59  —  no-op methodological test (diagnostic only, no feature)
+
+### Test and result
+
+Ran the Iteration 58 note's proposed test directly: added a single,
+genuinely inert line to `runArchon()` (an unused local variable computed
+from `foes.length`, zero behavioral effect) and re-ran the identical
+15-opponent Gauntlet used for Iterations 54/56/58.
+
+Result: **175/300 = 58.3%**, with `g_iter16` **75%**, `g_iter17` **70%**,
+`g_iter18` **70%** -- matching the *true* Gauntlet-37 baseline exactly,
+**not** the 54/56/58 pattern (`g_iter16` 70%, `g_iter17`/`g_iter18` 75%
+each). This refutes the "any code addition" hypothesis outright: a pure
+no-op reproduces the original baseline, not the anomaly.
+
+### Corrected finding
+
+The `g_iter16`/`g_iter17`/`g_iter18` shift is real and specific, not a
+generic bytecode-perturbation artifact -- but it's tied to a narrower
+common thread than "any change" across Iterations 54, 56, and 58:
+**all three modified Builder-related logic** (54: Watchtowers-per-Builder;
+56: the `builderCap` formula controlling how many Builders get spawned;
+58: `runBuilder`'s Laboratory placement). The no-op touched none of that.
+Apparently these three specific opponents' games are decided by something
+sensitive to *any* change in Builder timing/count/placement, consistently
+in the same direction (worse vs `g_iter16`, better vs `g_iter17`/`g_iter18`)
+regardless of which specific Builder-related change is made -- a real,
+narrow effect, not noise, just not evidence that any particular one of
+those three mechanisms is itself good or bad.
+
+Reverted the no-op line (purely diagnostic, never a real feature).
+
+**Next:** this narrows future Watchtower/Builder-doctrine work
+meaningfully -- `g_iter16`, `g_iter17`, `g_iter18` are now known to be
+unusually sensitive test cases for anything touching Builder behavior,
+worth checking first (via a quick single-game or mirror-scale test)
+before running a full Gauntlet on any future Builder-related change, since
+their consistent swing may be masking or distorting the aggregate signal
+from whatever the actual change does elsewhere in the pool.
