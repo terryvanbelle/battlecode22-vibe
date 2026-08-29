@@ -3093,3 +3093,52 @@ existing threat-detection pipeline, which is already confirmed working.
 Worth checking Archon spawn-distance as a per-map property (average
 pairwise Archon distance) against peer win rate to see if it actually
 predicts the softer maps before committing to a standing-guard rework.
+
+---
+
+## Iteration 40  —  standing per-Archon home guard (REJECTED, broad regression)
+
+### Step 4/5
+
+Implemented Iteration 39's proposed idea directly: the first Soldier to
+spawn at each Archon (via a new `SA_GUARD_0` shared-array slot, claimed if
+within `dist^2<=20` of an unclaimed Archon) becomes a permanent guard --
+never joins `SA_FOCUS` reinforcement or the `armyObjective` march, just
+holds near home and fights whatever comes into local range.
+
+Verified the mechanism itself worked: re-running `TEAM_A=bot
+TEAM_B=g_iter21 tools/vm-match.sh sandwich` (the Iteration 39 reproduction
+case) showed the "guard" indicator firing 221 times, correctly claiming the
+nearest unclaimed Archon. But digging into *which* Archon actually got a
+guard revealed the real story: only one of our two Archons -- (8,1) -- ever
+had a Soldier claim guard duty; the doomed one at (38,11) never built a
+single Soldier before the raid arrived (still in its Miner-heavy opening,
+plausibly a `richHome` spawn). The guard concept never got a chance to
+matter for the specific case that motivated it -- Archon #10 still died at
+r115 (vs r112 before), no real change.
+
+### Step 6 -- Solution attempted, then reverted
+
+`g_iter28` mirror: **6/20 = 30%** -- far softer than any mirror check this
+session (typically 40-55%). Checked a loss before spending a Gauntlet run:
+`g_iter28/maptestsmall` (a lead-rich, **single-Archon** map) showed the
+same familiar Soldier-count attrition pattern, but on a map with only one
+Archon per side, a permanent guard has zero defensive upside (there's no
+second, undefended Archon to protect) while still permanently benching one
+Soldier from every fight. The cost (one fewer combat unit, always) is
+universal; the benefit (saving a distant, slow-to-reinforce Archon) is
+narrow and, per the verification above, didn't even fire correctly in the
+one game that motivated it. Reverted per Step 6.5 without running the full
+Gauntlet -- the 30% mirror plus a clear, understood causal mechanism was
+enough to decide without spending 300+ games confirming it.
+
+**Next:** the underlying Archon-isolation problem (Iterations 36/39) is
+still open. A fix needs to be conditional on actually having multiple,
+widely-spaced Archons -- e.g. only stand up a guard when
+`SA_OUR_ARCHON_0`'s slots show >1 Archon at distance, not unconditionally --
+and separately needs to address Iteration 39's actual observed failure
+mode (an Archon that hasn't built any Soldiers yet when a rush arrives),
+which a "first Soldier becomes a guard" rule can't fix if that Archon never
+gets a first Soldier out in time. Worth reconsidering whether the fix
+belongs in the Archon's own build priority (build at least 1 Soldier early
+regardless of Miner quota) rather than in Soldier behavior at all.
