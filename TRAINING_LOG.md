@@ -3691,3 +3691,45 @@ sibling Archon is *actually* below quota/starved (readable via
 approximate "is anyone else waiting") rather than unconditionally on a
 timer, which may be needlessly costing games where no sibling is actually
 contention-starved.
+
+---
+
+## Iteration 51  —  shortened 8-round fairness-yield (REJECTED, same shortfall)
+
+### Step 4/5/6
+
+Tuned Iteration 50's fairness-yield window down from 15 to 8 rounds, per
+its own "Next" recommendation, to reduce the yielding Archon's downtime.
+On the `g_iter21/sandwich` reproduction case this produced a genuine
+**win** (r716) -- the first time this exact matchup has ever been won in
+this whole thread -- with Soldiers built from multiple Archon locations.
+
+`g_iter28` mirror: 11/20 = 55% -- normal range, even better than
+Iteration 50's 45%.
+
+**Gauntlet 51 (step 2/3).** Peer: **160/300 = 53.3% < 60%** -- essentially
+the same shortfall as Iteration 50's 54.0%, but with a different
+per-opponent shape: `g_iter21` (the original target) improved 35%->55%,
+while `g_iter22-26` all dropped to 35% (worse than Iteration 50's 45% for
+the same opponents). Reverted per Step 6.5.
+
+### Outcome
+
+Two different tunings of the same mechanism (15-round and 8-round yield
+windows) both landed at 53-54%, just under the bar, with different
+opponents winning and losing each time -- not noise, a real, consistent
+structural tradeoff. The fix demonstrably helps the exact case it targets
+(sandwich-shaped Archon starvation) but costs something against a
+different cluster of opponents (g_iter22-26) each time, roughly
+cancelling out in aggregate regardless of window length. Shortening the
+window changed *which* opponents won and lost without changing the net
+outcome -- evidence that window length isn't the actual lever.
+
+**Next:** stop tuning the window; the shared cost is probably structural,
+not a duration parameter. Before trying a fourth variant, it's worth
+directly diagnosing *why* g_iter22-26 specifically get worse under this
+mechanism (a Step 4 pass on a fresh g_iter22-26 loss under this fix,
+the same way sandwich itself was diagnosed) rather than guessing at
+another tuning knob -- three iterations (49/50/51) have now shown the
+mechanism has a real, repeatable cost somewhere, and it needs to be found
+and addressed directly rather than averaged away by adjusting timing.
