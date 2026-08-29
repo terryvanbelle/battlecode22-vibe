@@ -3799,3 +3799,71 @@ refinement -- e.g. only yielding when a sibling Archon can be confirmed to
 actually still want a Soldier (not just unconditionally on a timer),
 which targets the residual cost more precisely than adjusting duration
 did.
+
+---
+
+## Iteration 53  —  sibling-hunger-aware fairness-yield (REJECTED, 59.3%); thread parked
+
+### Step 4/5/6
+
+Implemented Iteration 52's own refinement idea (b): an Archon only yields
+Soldier-building to a sibling if a fresh shared-array "hunger" signal
+shows a *different* Archon currently can't afford a Soldier either --
+instead of yielding unconditionally on a timer regardless of whether
+anyone actually needs the room. Verified both target cases held: `g_iter21/
+sandwich` still wins (r582, unchanged), `g_iter22/maptestsmall` still wins
+(r234, unchanged).
+
+`g_iter28` mirror: 12/20 = 60%, matching Iteration 52's best.
+
+**Gauntlet 53 (step 2/3).** Peer: **178/300 = 59.3%** -- the closest miss
+yet, only 2 games short, with most opponents matching or slightly beating
+Iteration 52's numbers (`g_iter13`/`g_iter16` improved 75%->80%). But
+`g_iter22-26` sat at exactly the same 40% as the ungated timer-only
+version -- the hunger-awareness refinement changed nothing for that
+cluster. Diagnosed why directly: diffing `g_iter22`'s 20 games against the
+pre-thread baseline (Gauntlet 37) game-by-game showed the regression isn't
+concentrated in one place -- 3 different maps flipped win->loss
+(chessboard, intersection, pillars) while one flipped loss->win (highway),
+scattered across otherwise-unrelated matchups. That pattern reads as
+ordinary timing sensitivity in already-close games (any change to Archon
+build cadence nudges the exact moment of contact, which can flip a
+marginal fight either way) rather than a single further-fixable mechanism.
+
+Given how close 178/300 was, re-ran the *identical, unmodified* Iteration
+53 code a second time to test whether the shortfall was sampling noise a
+team could plausibly clear on a re-roll. Result: **byte-for-byte
+identical** -- 178/300, every single per-opponent number matching exactly.
+This settles an open question from earlier in the session: Battlecode
+matches between two fixed bots on a fixed map/side are fully
+deterministic given `gauntlet.sh`'s per-game seeding, not independently
+sampled noise each invocation. 59.3% is the true, reproducible number for
+this exact code, not an unlucky draw -- earlier assumptions this session
+that re-running "the same matchup" would give a different result were
+about *different code* producing different (but still each individually
+deterministic) outcomes, not true run-to-run randomness.
+
+### Outcome
+
+Reverted per Step 6.5. This closes out the Iterations 39-53 thread (now
+spanning the *raised* `MaxHypothesisIterations`/`MaxSolutionsIterations`
+budget of 10, itself partly motivated by this thread's persistence) without
+an accepted fix, but with the diagnosis essentially complete: a real,
+well-understood, reproducible shared-lead-contention bug on multi-Archon,
+lead-rich maps (`sandwich`-shaped), a proven mechanism to fix it
+(curArchons-gated, sibling-hunger-aware fairness yield), and a precisely
+characterized, scattered residual cost (timing-sensitivity noise in
+already-marginal games against one opponent cluster) that isn't reducible
+by further tuning the same lever. 178/300 is real and reproducible, not
+noise to wait out.
+
+**Next:** the fix code itself (Iteration 53's exact diff) is worth keeping
+on hand rather than rederiving from scratch -- it is the strongest,
+most-precisely-targeted version across nine sub-attempts, and the residual
+2-game gap is small enough that either (a) a future change to the peer
+pool (new opponents, more retirements) could shift the aggregate over 60%
+without any further change to this mechanism, or (b) a genuinely different
+lever entirely (not more yield-mechanism tuning, which is now demonstrated
+exhausted) applied elsewhere could supply the last couple of points. Not
+picking this thread back up again without one of those two conditions
+changing first.
