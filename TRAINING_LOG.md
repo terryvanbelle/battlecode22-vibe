@@ -3000,3 +3000,51 @@ against Iteration 37's code that it didn't do against older ancestors? With
 the retirement prune above, the Gauntlet pool is now weighted toward
 opponents close to our current strength, so this kind of frontier-specific
 softness should be easier to spot and chase directly going forward.
+
+---
+
+## Iteration 38  —  investigation only, no code change (g_iter27 softness reframed)
+
+### Step 4/5
+
+Followed up on Iteration 37's "Next" pointer: picked
+`g_iter27__maptestsmall__botB.bc22` (a quick loss, r217) to look for a
+concrete mechanism behind `g_iter27`'s 40% record against current code.
+`--metrics` showed a genuine, gradual mid-game grind: both sides open
+identically (18 Miners, matched Soldier ramp through r80), then our
+Soldier count slowly bleeds from r100 (25) to r200 (1) while `g_iter27`'s
+climbs (25->73) -- a real fight lost, not a sudden collapse or an economy
+stall. Checked whether Iteration 37's new "defend home" branch was
+over-triggering and pulling Soldiers off the front for false alarms (the
+most obvious way a *new* change could cause *this* kind of slow bleed): it
+fired only 10 times in the entire game -- not remotely enough to explain a
+72-round divergence. No fix-shaped mechanism found in this replay.
+
+Reframed the underlying premise instead: `g_iter28` differs from `g_iter27`
+by exactly one small change (Iteration 37's home-defense priority). Two
+adjacent iterations of the *same lineage* are a near-mirror matchup, and
+mirror matchups are close to a coin flip by construction (see the
+`g_iter25` mirror check earlier in this session landing at 50%, and this
+session's `g_iter27` mirror at 40%, `g_iter37`... i.e. plain `g_iter27` vs
+itself-family checks -- both well within one standard deviation of 50% at
+n=20 games). The clean, monotonic climb in win rate against *older*
+ancestors (g_iter16 75%, g_iter12 75-80%, g_iter9-11 85-90% before
+retirement) isn't a sign of over-optimizing on weak opponents so much as
+the expected shape of a lineage that keeps compounding real improvements --
+the gap to each ancestor grows with iteration-distance, while the gap to
+the immediately-preceding iteration stays naturally noisy near 50%
+regardless of whether the latest change was a genuine improvement.
+
+### Outcome
+
+No fix implemented. This iteration didn't find a specific bug to attribute
+the `g_iter27` softness to -- the maptestsmall loss was a fair, close fight
+that we lost, and the aggregate 40% is plausibly explained by mirror-match
+variance rather than a regression from Iteration 37.
+
+**Next:** rather than continuing to chase `g_iter27` specifically as if it
+were a bug, track win rate against the *single most recent* opponent across
+several Gauntlets as a rolling signal -- if it stays persistently well
+below 50% across multiple iterations (not just one noisy 20-game sample),
+that's a real signal worth a dedicated investigation; a single below-50%
+reading on a near-mirror matchup is not, on its own.
