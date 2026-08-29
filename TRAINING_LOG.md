@@ -4518,3 +4518,101 @@ effort than fits in this pass. Revisit with a dedicated Step 4 session on
 tracer that logs each Miner/Soldier's chosen direction alongside its
 absolute position over the first ~150 rounds on both sides of this exact
 matchup.
+
+## Iteration 64  —  fixed Sage/Laboratory gold economy (ACCEPTED, 63.8%); g_iter12/13/16 retired
+
+### Step 4/5/6
+
+Reverted Iteration 63's code first (back to the `g_iter29` baseline), then
+picked up Iteration 58's own parked "Next" note rather than a fresh
+Step-4 loss: the Sage/Laboratory gold economy was proven non-regressive
+back in Iteration 58 (58.7% peer) but almost never engaged within the
+standard 10-map peer pool, so it was never a fair test of the mechanism
+itself. `sample_afinals` -- the one opponent whose own doctrine is built
+entirely around this exact mechanic -- is the natural place to actually
+test it. Restored Iteration 58's design: Archon builds a Sage (0 lead /
+20 gold) at top priority whenever affordable, ahead of the existing
+Miner/Soldier tradeoff since it's a fully parallel resource lane; Builder
+places a Laboratory 7 tiles clear of the Archon's build ring (fixing
+Iteration 57's self-boxing bug) and it transmutes lead to gold every
+round; `SAGE` dispatches through `runSoldier`, `LABORATORY` through a new
+`runLaboratory`.
+
+First test vs. `sample_afinals`: 3/20 = 15%, byte-for-byte identical to
+`g_iter29`'s own baseline result against this opponent (0 outcome flips,
+17/20 rounds unchanged) -- suspicious for a mechanism that was supposed
+to at least sometimes fire. `--metrics` confirmed why: our single
+Laboratory got built and repaired 4 times, then sat as a lifeless
+PROTOTYPE for the remaining ~190 rounds, 0 gold produced all game, while
+`sample_afinals`'s own 4 Laboratories transmuted every round to 66+
+Sages. Root cause: the repair-priority check at the top of `runBuilder`
+only fires when `canRepair()` succeeds *that specific round* -- on any
+round where the Builder's own repair action is merely on cooldown (not
+because the Laboratory finished), control fell through to the "walk
+home" fallback and permanently abandoned the still-unfinished building
+the moment the Builder left its action radius. Fixed: don't walk home
+while a nearby friendly unit is still in `PROTOTYPE` mode, regardless of
+whether this round's `canRepair()` happens to be true.
+
+Retested vs. `sample_afinals`: still 3/20 (same result), but `--metrics`
+now confirmed the mechanism genuinely works -- the Laboratory completed,
+transmuted 53 times, gold reached 20, and a Sage was built. Traced why it
+still didn't move the outcome: the Sage spawned and was killed in the
+*same round* by three of `sample_afinals`'s own Sages focus-firing it
+(they'd built 72 by that point in the game) -- our single-Lab, minimal-
+priority investment is simply too small in scale to matter against an
+opponent that built its whole doctrine around this mechanic from the
+start. Not a bug; a genuine scale mismatch. Still valuable: unlike the
+broken version (pure wasted Builder/Archon turns with zero payoff), the
+fixed version is now a real, if modest, working economy lane.
+
+### Step 6.5 — Mirror check
+
+vs. `g_iter29`: 10/20 = 50%, comfortably clear of `MirrorCheckMinWinPct`
+(35%) -> full Gauntlet.
+
+### Gauntlet 64 (peer, 16 opponents incl. `g_iter29`)
+
+**204/320 = 63.8%.** Comparing the shared 15-opponent subset (excluding
+`g_iter29`) against Gauntlet 61 -- the actual last-accepted baseline, not
+the rejected Iteration 63 candidate -- gives **194/300 = 64.7%**,
+essentially flat (Gauntlet 61 was 65.0%). `tools/compare_gauntlets.py`
+shows only **one** outcome flip in either direction
+(`g_iter16/maptestsmall/B`, win->loss) and a mixed, net-neutral round-delta
+pattern (47 improved / 29 worsened) on the rest -- nothing like Iteration
+63's systematic regression signature. `g_iter29` itself: 10/20 = 50%.
+This reads as a clean, low-risk accept: the underlying mechanism is now
+correctly functioning (a real bug fix with lasting value for any future
+work that builds on the gold economy) and the net aggregate effect is
+neutral-to-slightly-positive rather than the broken version's pure
+wasted overhead.
+
+### Retirements
+
+Both `g_iter12` and `g_iter13` sit at 80% in this Gauntlet, matching
+their 80% in Gauntlet 61 (the prior accepted Gauntlet) -- two consecutive
+accepted Gauntlets at >=80%, meeting the domination-retirement rule.
+`g_iter16` similarly: 80% here vs. 85% in Gauntlet 61, also two
+consecutive Gauntlets >=80%. **All three retired from the Gauntlet's
+opponent list** (`OPPONENTS` for future runs drops `g_iter12`,
+`g_iter13`, `g_iter16`) -- the first retirements since the threshold was
+lowered from 90% to 80%.
+
+### Outcome
+
+**ACCEPTED.** Snapshot `g_iter30`. Replay:
+`replays/iter64_sample_afinals_highway_botB_LOSS.bc22` (the game used to
+diagnose and verify the Laboratory-completion fix -- a loss overall, but
+the clearest illustration of the fixed mechanism actually working:
+Laboratory completes and transmutes, a Sage gets built, and dies
+instantly to `sample_afinals`'s own much larger Sage army).
+
+**Next:** the gold economy lever is now correctly functional but still
+far too small in scale to matter against a doctrine built around it --
+if this thread gets picked up again, scale the investment materially
+(more than one Laboratory per Archon, or an earlier/more aggressive
+trigger) rather than another isolated tuning pass, per Iteration 56's
+same lesson about the Watchtower-scaling thread. Otherwise, with three
+retirements just landing, the Gauntlet's opponent pool is smaller and
+fresher -- worth a routine peer Gauntlet run to get an updated per-
+opponent picture before picking the next Step 4 target.
