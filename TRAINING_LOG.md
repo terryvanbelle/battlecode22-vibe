@@ -2671,3 +2671,76 @@ defeat camelcase by being cautiously incremental." Saved as a standing
 preference (memory: `embrace-high-risk-iterations`). Directly applies to the
 Archon-relocation idea shelved above -- picking that up next instead of
 another narrow tweak.
+
+---
+
+## Iteration 34  —  Archon relocation (ACCEPTED, marginal); snapshot g_iter26
+
+### Step 4/5
+
+Picked up the idea shelved in Iteration 33: a besieged-but-not-yet-lost
+Archon relocating toward the army's front, exactly like camelcase's own
+PORTABLE/TURRET transform-and-move mechanic. Resolved the uncertainty that
+stopped me last time by pulling the real `battlecode22-2.2.1.jar` onto
+`battlecode-dev` and decompiling `RobotMode` with `javap -c`: `TURRET` is
+`canAct=true, canMove=false, canTransform=true`; `PORTABLE` is
+`canAct=false, canMove=true, canTransform=true`. A relocating Archon
+genuinely cannot build, repair, or attack -- confirmed, not inferred.
+
+Implementation: an Archon with no home threat (`th==0`), no combat unit
+within dist² 40, more than 20 tiles (dist² 400) from `armyObjective()`, past
+round 500, and not yet relocated this game transforms to PORTABLE and walks
+toward the objective for up to 6 steps (or until a threat appears nearby),
+then transforms back. Capped at one relocation per Archon per game.
+
+Two gate-loosening attempts on the Step-4 test replay (`sample_afinals/
+highway`) showed **zero** behavioral change (identical r849/r1105 round
+counts before and after, both with `foes.length==0` and then with the
+`localThreat` distance check). `--metrics` explained why: the Archon's HP in
+that specific matchup declines continuously from r500 onward (660 -> 525 ->
+420 -> 105) under sustained ranged Sage fire -- `th==0` correctly never
+holds there, and a besieged Archon shouldn't relocate anyway. Concluded this
+was the gate working as intended for an unfavorable matchup, not a bug, and
+moved to the standard validation pipeline rather than loosening further
+without more evidence -- per the "embrace risk" feedback, tested the honest
+version instead of tuning against one replay until it fired.
+
+### Step 6 — Solution
+
+`g_iter25` mirror: 50% (10/20), clean.
+
+-> Step 2, **Gauntlet 35** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 35 (step 2/3).** Peer: **205/340 = 60.3% >= WinPct** -- a
+marginal but genuine pass. Per-opponent spread unchanged in shape from
+Iteration 32/33's baseline: strong against early ancestors (g_iter9-13,
+75-85%), soft against the recent lateral cluster (g_iter19-25, 45-55%,
+g_iter21 lowest at 35% -- the same recurring lateral-softness point noted
+since Iteration 29). Per-map: no collapse anywhere (worst was chessboard at
+12/34 = 35%, still within the range seen on that historically-hard map in
+prior accepted iterations). No retirements this round (max domination 85%,
+vs g_iter11/g_iter12).
+
+**Snapshot:** `g_iter26`.
+
+**Benchmarks: unchanged from Iteration 30-32** -- `sample_camelcase` 1/20
+(5%), `sample_afinals` 3/20 (15%). Consistent with the Step-4 finding that
+this feature is a positional fix for the peer pool's mid-game reinforcement
+problem, not a combat-quality fix -- it was never expected to move the
+benchmark needle on its own.
+
+**Replay archived:**
+`replays/iter34_g_iter25_valley_botB_WIN.bc22` -- a clean win (side B, r615)
+where all three Archons independently trigger and complete a full
+relocation cycle (`begin relocate toward [20, 3]` -> `relocating 1..6` ->
+`relocated, transforming back`), the first replay this session where the
+new mechanic visibly fires end-to-end.
+
+**Next:** the lateral-softness cluster (g_iter19-25, and g_iter21
+specifically) has now persisted across five-plus iterations without a
+targeted fix -- worth a dedicated Step 4 investigation into what those
+opponents' code actually does differently on the maps where we lose to
+them, rather than continuing to treat it as background noise. Also worth
+checking, in a calmer matchup than `sample_afinals/highway`, whether
+relocation's positional benefit shows up quantitatively (e.g. reinforcement
+travel distance or time-to-front) now that it's confirmed to fire.
