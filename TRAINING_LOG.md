@@ -3284,3 +3284,47 @@ Archon's ability to build while barely touching the (already
 well-tuned) general mining/beacon logic. Verify with the same debug dump
 approach (confirm `best != null` clears during the previously-stuck
 r15-112 window) before spending a Gauntlet run.
+
+---
+
+## Iteration 44  —  ring-occupancy cap (REJECTED, no-op); thread parked
+
+### Step 4/5/6
+
+Implemented Iteration 43's proposed fix: once more than 2 friendly Miners
+are already within an Archon's build-adjacent ring, a newcomer steps one
+tile further out instead of piling on. Verified on the same reproduction
+case with the debug dump still attached: **no change at all** --
+`want=SOLDIER best=null` logged for 97 of 97 sampled rounds, same r112
+death.
+
+Went one level deeper this time: pulled the exact starting-rubble values
+around the doomed Archon's 8 neighboring tiles from the `STARTING RUBBLE
+MAP` dump. The tile directly south, `(38,10)`, reads `#` (67-100 rubble --
+the densest tier); north and west read `o` (34-66); only east reads clean.
+This raises a real, unresolved question this session doesn't have a firm
+answer for: does `canBuildRobot` in this engine version refuse to place a
+unit on sufficiently high rubble, independent of occupancy? If so, this
+Archon may simply be sitting in a spawn pocket where rubble alone removes
+most of its 8 build directions, and Miner crowding (Iterations 42-43) is
+only part of the story, not the whole one.
+
+### Outcome
+
+Reverted (no-op, confirmed before any Gauntlet spend, per Step 6.5).
+Six sub-attempts across Iterations 39-44 have now gone into this single
+Archon's build-stall on one map/opponent pairing without landing a fix --
+each pass genuinely narrowed the mechanism (ruled out `richHome`, ruled out
+"fleeing miners," ruled out simple ring-crowding at a 2-Miner threshold),
+but the marginal cost of continuing to guess is no longer clearly worth it
+against the value of moving to other, more tractable work. Parking this
+specific thread rather than spending a seventh iteration on it.
+
+**Next:** before touching this again, resolve the actual Battlecode 2022
+rule for `canBuildRobot` vs. rubble directly (decompile/check the real
+`battlecode22-2.2.1.jar`, the way Iteration 34 did for `RobotMode`, rather
+than inferring from replay behavior) -- if rubble does block building, the
+fix is a rubble-aware spawn-site check on turn 1 (an Archon whose ring is
+mostly high-rubble could pre-emptively treat itself as needing an earlier,
+smaller Soldier commitment), which is a fundamentally different and more
+promising angle than anything tried in Iterations 40-44.
