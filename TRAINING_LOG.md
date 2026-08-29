@@ -4165,3 +4165,40 @@ Soldier count was already at 0 in the endgame either way -- this reads as
 ordinary timing sensitivity in an already-close, marginal matchup (same
 shape as the `g_iter22` "scattered noise across unrelated maps" finding
 from Iteration 53), not a new distinct bug worth chasing further.
+
+---
+
+## Iteration 60  —  curArchons-scaled contact-quota (REJECTED on reproduction case, no Gauntlet spent)
+
+### Step 4/5/6
+
+Tried Iteration 48's original income-side idea directly, which the
+thread had skipped straight past in favor of the fairness-yield approach
+(Iterations 49-53): scale the contact-cut Miner quota with `curArchons`
+(2 Archons -> quota 4, 3 -> quota 5, up from a flat 3) so multi-Archon
+maps get modestly more aggregate mining capacity.
+
+Tested on the `g_iter21/sandwich` reproduction case before touching
+anything else: still a loss (r312), and critically, **still zero
+Soldiers built from the previously-starved Archon** -- all builds still
+came from the same dominant Archon as before, just slightly more Miners
+alongside them.
+
+### Outcome
+
+This directly confirms Iteration 49's turn-order-dominance diagnosis
+rather than contradicting it: raising the *income* lets the already-
+winning Archon build a bit more of everything (including Miners), but
+does nothing about *which* Archon wins each contested lead surplus --
+the starved Archon is exactly as starved as before. Reverted without
+spending mirror or Gauntlet time, since the reproduction case gave a
+clean, immediate answer.
+
+**Next:** the sandwich-shaped Archon-starvation problem now has two
+independent lines of evidence pointing the same direction (Iteration 49's
+diagnosis, confirmed again here): it is specifically about *who wins each
+lead-surplus race*, not aggregate income. Iteration 53's sibling-hunger-
+aware fairness-yield remains the best-verified fix for that exact
+mechanism (59.3%, closest miss on the whole thread) -- any further attempt
+should keep pursuing turn-order/priority fixes, not income-side ones,
+which are now twice-confirmed not to touch the actual problem.
