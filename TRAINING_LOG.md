@@ -3235,3 +3235,52 @@ congestion fix) rather than piling directly onto the Archon's build ring.
 Verify by re-running this exact reproduction case and checking the same
 debug dump shows `best != null` during the r90-115 window before spending
 any Gauntlet games on it.
+
+---
+
+## Iteration 43  —  correcting Iteration 42's diagnosis (no fix yet)
+
+### Step 4/5
+
+Implemented Iteration 42's proposed fix: when a fleeing Miner is already
+adjacent to a friendly Archon, step to whichever direction both increases
+distance from the threat and clears the Archon's build ring, instead of
+just stopping. Verified on the same reproduction case with the debug dump
+still attached -- **zero change**: `want=SOLDIER best=null` still logged
+92 consecutive rounds, same death round (r112) as before the fix.
+
+Went back to a `--map-detail` board snapshot, this time at **r25** --
+deliberately early, before any enemy unit is anywhere near this Archon (the
+only visible enemy units at r25 are far away, elsewhere on the board). The
+Archon's build ring was *already* occupied then, by two of our own
+uppercase `M` (friendly) Miners sitting one and two rows below it. This
+disproves Iteration 42's "fleeing Miners pile up under threat" theory
+outright -- there is no threat at r25, so nothing is fleeing. The real
+mechanism is much simpler: this Archon's spawn happens to have rich lead
+immediately adjacent to it, Miners correctly camp on those tiles to mine
+it (the top of `runMiner()` mines any adjacent tile down to 1 lead every
+round, then relies on passive regen, +5 per 20 rounds, to keep supplying
+it) -- and because that's genuinely the *correct*, efficient thing for a
+Miner to do, nothing in the existing logic ever moves them off those tiles
+once they've settled. A handful of productive Miners can permanently fill
+an Archon's entire 8-tile build ring as a side effect of doing their job
+well, with no threat or fleeing involved at all.
+
+### Outcome
+
+Reverted the (now-confirmed-irrelevant) flee-routing change; no fix
+implemented this iteration either. Five iterations (36, 39, 40, 41, 42, 43)
+have now been spent on this one Archon's build-stall across two sessions'
+worth of a single training loop invocation, without a working fix, though
+each pass has narrowed the actual mechanism further -- this one finally
+looks complete and specific enough to act on.
+
+**Next:** the fix needs to live in `runMiner()`'s own tile selection, not
+in threat response: cap how many Miners are allowed to sit within an
+Archon's 8-tile build ring at once (e.g. at most 2), directing any Miner
+beyond that cap to mine from one tile further out even if that means
+slightly less locally-optimal lead access. This directly preserves the
+Archon's ability to build while barely touching the (already
+well-tuned) general mining/beacon logic. Verify with the same debug dump
+approach (confirm `best != null` clears during the previously-stuck
+r15-112 window) before spending a Gauntlet run.
