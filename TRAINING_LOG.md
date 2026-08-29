@@ -3867,3 +3867,42 @@ lever entirely (not more yield-mechanism tuning, which is now demonstrated
 exhausted) applied elsewhere could supply the last couple of points. Not
 picking this thread back up again without one of those two conditions
 changing first.
+
+---
+
+## Iteration 54  —  multi-Watchtower Builder (REJECTED, marginal, roughly neutral)
+
+### Step 4/5/6
+
+First attempt at the camelcase Watchtower lead logged earlier this
+session (44 live Watchtowers by r200 on a single-Archon map, vs. our own
+1-per-Builder cap). Deliberately modest first step: let a Builder keep
+placing Watchtowers (up to 4, still just adjacent to itself) instead of
+stopping after one, with the existing conservative Builder-count gating
+in `runArchon` left untouched.
+
+`g_iter28` mirror: 10/20 = 50%, clean.
+
+**Gauntlet 54 (step 2/3).** Peer: **176/300 = 58.7%**. Comparing
+per-opponent to the Gauntlet-37 baseline (no Watchtower changes):
+`g_iter17`/`g_iter18` improved (70%->75% each), `g_iter16` dropped
+(75%->70%), everything else unchanged -- a small, roughly neutral net
+movement rather than a clear win or loss. Reverted per Step 6.5.
+
+### Outcome
+
+Not a regression, but not a validated improvement either -- 4 Watchtowers
+per Builder (capped by the existing rare Builder-count gate) is too small
+a step to meaningfully test the doctrine the camelcase finding pointed at.
+The real gap (44 Watchtowers vs. our low single digits) is much more about
+Builder *count* than Watchtowers-per-Builder, which this iteration left
+untouched.
+
+**Next:** the more informative next experiment is raising `builderCap`
+itself (currently `round>400?2:1`, extremely conservative) rather than
+Watchtowers-per-Builder -- that's the lever actually gating our total
+Watchtower output an order of magnitude below camelcase's. Do that
+carefully and incrementally (this project's own history, e.g. Iteration
+23, shows aggressive economy-lever jumps can cause broad regressions) and
+verify with `--metrics` that Watchtower count actually climbs
+meaningfully before spending a Gauntlet run on it.
