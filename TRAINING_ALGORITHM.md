@@ -34,11 +34,11 @@ Why the split: a benchmark bot is the *target*, not noise — the point of the e
 
 To keep `N` (and therefore the number of games) bounded, retire opponents that no longer provide signal:
 
-> After a Gauntlet completes, any opponent that the current implementation has beaten in **at least 90%** of that opponent's `2 * B` games in **two consecutive** Gauntlets is removed from the Gauntlet.
+> After a Gauntlet completes, any opponent that the current implementation has beaten in **at least 80%** of that opponent's `2 * B` games in **two consecutive** Gauntlets is removed from the Gauntlet.
 
 This applies to reference bots, external bots, and frozen prior iterations alike. Track each opponent's per-Gauntlet win rate in the logfile so the two-consecutive-Gauntlet condition can be evaluated. A retired bot may be re-added later if a new iteration regresses badly against the opponents nearest it in strength.
 
-Opponents we *lose* to are **not** retired — a benchmark bot at 0% is the target, not noise (see above). Only the ≥90%-domination rule retires bots.
+Opponents we *lose* to are **not** retired — a benchmark bot at 0% is the target, not noise (see above). Only the ≥80%-domination rule retires bots.
 
 ## Iteration 0
 
