@@ -2835,3 +2835,62 @@ gap -- worth checking whether the same beacon-oscillation class of bug (or
 a related staleness issue in `publishLead`'s dedup radius) shows up on the
 specific maps where that cluster still wins against us. Also watch g_iter10
 for retirement next Gauntlet.
+
+---
+
+## Iteration 36  —  investigation only, no code change (findings recorded)
+
+### Step 4/5
+
+Per-map breakdown of Gauntlet 36 (Iteration 35's sticky-beacon fix) against
+Gauntlet 35's, opponent set held constant for the 17 shared opponents:
+`intersection` 44%->97%, `jellyfish` 62%->100%, `squer` 76%->100%,
+`chessboard` 35%->50% -- the fix's intended targets, all big gains. But two
+maps dropped hard: `valley` 82%->58% (-24 points) and `sandwich` 44%->31%
+(-13 points), with early ancestors `g_iter14`/`g_iter15` -- previously
+comfortable wins -- now beating us on both. Confirmed with a saved replay:
+`g_iter14,valley,A,A,726,win` in Gauntlet 35 vs `g_iter14,valley,A,B,600,loss`
+in Gauntlet 36, same opponent code, same map -- a real regression, not
+sampling noise on that one data point at least.
+
+Investigated the `g_iter14__valley__botA.bc22` loss to find the mechanism.
+Ruled out a mining-side regression: A miner positions during the early game
+were well spread across distinct deposits (not crowded onto one beacon as
+hypothesized), and the sample was too small/mixed to say more without
+running dedicated tracer games. The real divergence: 3 Archons vs 3, even
+Soldier counts (15 v 15) through r320, then two of our three Archons die
+(r400-480) while only one of B's does, and army sizes diverge purely as a
+production-capacity consequence afterward (B climbs to 25 Soldiers, we
+collapse to 0 by r600).
+
+Checked per-round attack/kill volume in the r320-400 window (while troop
+counts were still even) specifically to test the "combat trade-efficiency
+gap" flagged repeatedly since Iteration 21/32/33/35's "Next" notes: kills
+were 10 (A) vs 9 (B), attacks 387 (A) vs 377 (B) -- essentially even. The
+gap only opens in r400-600, exactly tracking the Archon-count divergence
+(800 B attacks vs 286 A in that window, driven by B's growing troop count,
+not a better per-soldier hit rate). This reframes the long-standing
+"combat-quality gap" language used since Iteration 32: at least in this
+sample, our Soldiers trade roughly evenly per-unit -- the compounding
+disadvantage comes from *which side loses more Archons early*, which then
+cascades into an economy/production gap that looks like a combat gap by
+the time it's visible in aggregate army-size charts.
+
+### Outcome
+
+No fix implemented this iteration -- didn't have a verified, specific
+mechanism for the valley/sandwich regression or for why 2/3 Archons died
+early against g_iter14 specifically, and Step 6's discipline (verify before
+spending a Gauntlet run) argues against guessing. Recording the findings
+instead of a speculative patch.
+
+**Next:** the real question is Archon survival, not Soldier combat AI --
+why did 2 of 3 Archons die by r480 against g_iter14 on valley when the
+opposing army was never larger than ours until after those deaths? Worth a
+dedicated Step 4 pass on Archon HP timelines vs local threat/reinforcement
+lag specifically (is help arriving too late to an Archon under attack?),
+using `valley`'s 3-Archon layout as the test case. Separately, the
+valley/sandwich regression itself deserves a larger sample (the standard
+Gauntlet is only 2 games per opponent per map) before concluding it's fully
+explained by Archon-death variance rather than some remaining
+Iteration-35-adjacent side effect.
