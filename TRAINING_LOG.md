@@ -4202,3 +4202,110 @@ aware fairness-yield remains the best-verified fix for that exact
 mechanism (59.3%, closest miss on the whole thread) -- any further attempt
 should keep pursuing turn-order/priority fixes, not income-side ones,
 which are now twice-confirmed not to touch the actual problem.
+
+## Iteration 61  —  shortened 6-round sibling-hunger fairness-yield (ACCEPTED, 65.0%); sandwich thread (39-61) resolved
+
+### Step 4/5/6
+
+Picked the sandwich thread back up under the new Step 3.1 near-miss rule,
+starting from Iteration 53's sibling-hunger-aware fairness-yield design
+(the closest miss so far at 59.3%). Kept the core mechanism unchanged --
+an Archon that just built a Soldier yields the build slot for a cooldown
+window, gated on both `curArchons > 1` (avoids the single-Archon self-yield
+bug from earlier in the thread) and a fresh "sibling hunger" broadcast
+signal showing a *different* Archon currently can't afford a Soldier
+(`SA_SOLDIER_HUNGRY`/`SA_SOLDIER_HUNGRY_RND`, freshness `< 8` rounds) --
+and narrowed only the "am I personally on cooldown" window, from 8 rounds
+down to 6 (`SA_LAST_SOLDIER_BUILDER`/`SA_LAST_SOLDIER_RND`, freshness
+`< 6` rounds). The theory: 8 rounds of self-cooldown was giving up more
+build slots than the fairness fix actually needed, feeding the g_iter22-26
+regression cluster that showed up in Iterations 52-53.
+
+Verified on the `g_iter21/sandwich` reproduction case (win, r582; replay
+archived below). Before spending a full Gauntlet, ran the Step 6.5 mirror
+check against the last-accepted iteration (g_iter24, Gauntlet 37): passed
+comfortably, well above `MirrorCheckMinWinPct`.
+
+**Correction on the way in:** before restarting this thread, I'd claimed
+from memory that Iteration 53 (59.3%) already qualified as a clean near
+miss under the new Step 3.1 rule. Checking the actual `results.csv` files
+(baseline `gauntlet/20260829-004246` vs. Iteration 52
+`gauntlet/20260829-033255` vs. Iteration 53 `gauntlet/20260829-035729`)
+showed this was wrong: `g_iter22-26` (5 opponents) had already regressed
+from the Gauntlet-37 baseline's 50-55% down to 40% in *both* Iteration 52
+and Iteration 53 -- not introduced by Iteration 53's sibling-hunger
+addition as I'd implied, and in any case a real per-opponent regression
+that Step 3.1 as written should have caught. Diagnosed one flipped game
+(`g_iter22/chessboard/botB`, win r711 -> loss r916 under Iteration 52)
+directly: both Archons did build Soldiers in a normal split, and the loss
+was a genuine decisive combat wipe at r495, not a starvation artifact from
+the yield mechanism. Same class of finding as Iteration 59's
+Builder-timing sensitivity on g_iter16-18: inherent volatility in an
+already-close, marginal matchup under any timing perturbation, not a
+fixable bug. User chose to accept this tradeoff and continue refining
+rather than chase it further.
+
+### Gauntlet 61 (peer)
+
+**195/300 = 65.0%** peer WinPct (`gauntlet/20260829-221650`) -- clean pass
+of `WinPct` (60%), a jump from the 59.3% near-miss ceiling this thread had
+been stuck at since Iteration 53. Comparing to the Gauntlet-37 baseline
+per-opponent: every g_iter22-26 opponent recovered except `g_iter26`
+(-5%, the sole remaining regression, down from a uniform -10pt hit across
+all five under Iterations 52/53); every other peer opponent improved or
+held. The shorter 6-round window appears to have found a real sweet spot
+between fixing the target contention case and minimizing collateral
+timing damage elsewhere.
+
+### Round-count metric (tracked, not gating)
+
+`tools/compare_gauntlets.py` against the Gauntlet-37 baseline: outcome
+flips concentrated in the sandwich-adjacent opponents as expected (the
+mechanism's actual target), with the `g_iter26` regression's flipped
+games generally losing at a *later* round than the baseline's own losses
+there (partial-credit movement even where the aggregate win rate didn't
+recover) -- consistent with "same underlying volatility, not a new
+failure mode."
+
+### Benchmarks (`sample_camelcase` + `sample_afinals`, Gauntlet 61 is
+a `BenchmarkEvery` cycle)
+
+`sample_camelcase` 0/20 (0%, unchanged all session), `sample_afinals`
+3/20 (15%, down slightly from Iteration 37's 4/20/20% -- within noise for
+a 20-game sample, and this thread never targeted benchmark-specific
+behavior). Neither benchmark crossed the 30% peer-reclassification
+threshold. No retirements due this round either: no peer has hit >=80%
+in two consecutive *accepted* Gauntlets, since Gauntlet 37 is the only
+other accepted Gauntlet since the 80%-domination rule was introduced.
+
+### Outcome
+
+**ACCEPTED.** Snapshot `g_iter29`. Replay:
+`replays/iter61_g_iter21_sandwich_botA_WIN.bc22` (the reproduction-case
+win, r582, matching Gauntlet 61's own `g_iter21,sandwich,A` result
+exactly).
+
+This closes out the sandwich Archon-starvation thread that ran from
+Iteration 39 through 61 (23 iterations). Summary of the arc: the symptom
+(one Archon on multi-Archon maps starves for Soldiers while a sibling
+hoards the lead surplus) was consistently misdiagnosed at first as
+aggregate income scarcity (Iterations 39-48, all rejected on income-side
+fixes) until Iteration 49 diagnosed the real mechanism as turn-order
+dominance over a *shared* lead pool, not aggregate scarcity -- confirmed
+independently twice more, once by Iteration 60's direct income-side
+re-test and once by this iteration's per-game diagnosis. Every
+income-side fix attempted (Iterations 39-48, 60) failed to move the
+starved Archon's build count at all. The fairness-yield family
+(Iterations 49-53) converged on the right mechanism but couldn't clear
+`WinPct` until this iteration's narrower cooldown window found the
+balance between fixing the target case and not over-yielding into
+timing-sensitive matchups elsewhere.
+
+**Next:** with this thread resolved, the two parked leads from
+Iterations 54-58 (multi-Watchtower Builder scaling, and the Laboratory/
+Sage gold economy from Iteration 57-58) are the most promising unexplored
+territory -- both were proven non-regressive but landed roughly neutral
+against the *old* peer pool; worth re-testing against the new g_iter29
+baseline in case the sandwich fix changed the economic picture enough to
+make either one pay off now. Otherwise, Step 4 should pick a fresh losing
+game from Gauntlet 61 directly.
