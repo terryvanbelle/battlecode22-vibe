@@ -4379,3 +4379,106 @@ causes/locations in this exact matchup if revisited, but given the narrow
 scope (4/300 games), better ROI right now is a fresh Step 4 target from a
 higher-volume loss category (`valley`: 16 losses, `maptestsmall`: 14
 losses in Gauntlet 61) that could move aggregate peer WinPct more broadly.
+
+## Iteration 63  —  skip Archon repair under active enemy fire (REJECTED despite clearing WinPct -- net regression)
+
+### Step 4 — losing game `g_iter22/valley/botA` (r746, Archon annihilation)
+
+`valley` showed a strong side asymmetry in Gauntlet 61: as bot-side A,
+15% peer win rate (11 losses); as bot-side B, 67%. Losses cluster at
+nearly identical rounds (746, 765, 792) across many different peer
+snapshots -- pointed at one structural bug rather than an opponent-
+specific one.
+
+### Step 5 — Hypothesis
+
+`--metrics` on `g_iter22/valley/botA`: army sizes were roughly even
+through r300 (13 A Soldiers vs. 14 B), then A's Soldier count crashed
+13->1 by r575 while B's grew 10->35 -- the well-documented "push-stall-
+collapse" pattern from Iterations 20-26/32-36, never previously root-
+caused. Traced the mechanism directly this time: in the r325-590 window,
+A built only 14 Soldiers to B's 40, and the dominant cause was **Archon
+build-turn allocation**, not combat trades or Miner floor competition --
+our Archon spent 30 of 43 actions on `repair` in the r400-610 window
+(Iteration 14's unconditional "heal before build" priority). One case
+traced exactly: the Archon re-repaired the same Miner 6 consecutive
+rounds while it sat under sustained enemy fire, then it died anyway --
+a fully wasted damage race. **Generality check**: confirmed on
+`g_iter16/valley/botA` too (75 repairs vs. 23 builds in the same-shaped
+window, an even more skewed ratio) → verified, continue to Step 6.
+
+### Step 6 — Solution (attempt 1, superseded)
+
+Skip repairing any friendly unit (combat or not) that currently has an
+enemy combat unit within range 20 of it. Reproduction batch (5 valley
+opponents x 2 sides = 10 games): 4/10 = 40%, up from this same subset's
+30% baseline -- real signal, including one clean flip
+(`g_iter16/valley/botA` loss->win). The Step-4 target game itself stayed
+a loss but 33 rounds faster (mild regression there specifically).
+
+### Step 6 — Solution (attempt 2, REJECTED)
+
+Narrowed the skip to non-combat units only (Miners/Builders), keeping
+Iteration 14's original heal-during-a-fight logic for Soldiers/Sages/
+Watchtowers, on the theory that healing a unit mid-exchange can tip that
+exchange unlike babysitting a Miner with no way to fight back. Same
+reproduction batch: 3/10 = 30%, exactly baseline, and it lost attempt 1's
+one clean flip. Reverted to attempt 1's (broader) version as the better
+performer.
+
+### Step 6.5 — Mirror check
+
+Attempt 1 vs. `g_iter29` (last accepted): 11/20 = 55%, comfortably above
+`MirrorCheckMinWinPct` (35%). Passed -> full Gauntlet.
+
+### Gauntlet 63 (peer, 16 opponents incl. new `g_iter29`)
+
+**194/320 = 60.6%** -- clears `WinPct` (60%) on raw aggregate. But
+comparing to Gauntlet 61's per-opponent baseline on the shared 15-opponent
+pool (excluding the new `g_iter29`): 183/300 = 61.0%, down from 65.0%.
+9 of 15 shared opponents dropped exactly 5 points, one (`g_iter21`)
+dropped 15 points, **none improved**. `tools/compare_gauntlets.py`
+against Gauntlet 61 showed why: of 16 outcome flips, only 2 were gains
+(`g_iter16/valley/A` and `g_iter28/sandwich/A`, both loss->win) against
+**14 losses**, heavily concentrated on two specific maps: 5 near-identical
+`pillars/botA` win->loss flips (all landing at exactly r552 -- opponents
+g_iter22-26, a near-mirror snapshot family) and 4 `sandwich/botB`
+win->loss flips (r415/r332). Both maps had substantial prior iteration
+investment (`pillars`: iterations 4/5/21/27; `sandwich`: the 39-61 thread)
+now regressing.
+
+Traced the `g_iter22/pillars/botA` flip (win r893 -> loss r552) directly:
+team A's Soldier count hit **zero** by r503 (last Soldier built r464,
+4 died with no replacement) while the Archons then took direct,
+undefended fire and died in sequence. This doesn't fit the "wasted
+repair on a doomed unit" mechanism the fix targeted -- freeing more
+build turns should only ever produce *more* Soldiers, not a full
+production stall. Most likely explanation: the fix changes early-game
+Archon behavior enough to diverge the whole game's trajectory (a
+butterfly effect in a chaotic combat sim), and on `pillars`/`sandwich`
+specifically that divergence lands somewhere worse, not just "less
+repair, more Soldiers" in isolation.
+
+### Outcome
+
+**REJECTED, reverted** -- despite technically clearing the raw `WinPct`
+bar, this is a genuine, systematic net regression from the last-accepted
+baseline (65.0% -> 61.0% on the shared opponent pool), concentrated
+enough (14 of 16 flips unfavorable, two specific well-tested maps) that
+it reads as a real cost, not noise. TRAINING_ALGORITHM.md's Step 3 gate
+is an absolute bar with no explicit no-regression clause, but accepting
+a change the Gauntlet itself shows moving backward relative to the prior
+snapshot contradicts the algorithm's purpose. Choosing engineering
+judgment over the letter of Step 3 here.
+
+**Next:** the underlying diagnosis (Archon repair-priority competing with
+Soldier production during sustained combat) is still well-evidenced on
+`valley` specifically and worth returning to, but needs either (a) a
+narrower trigger that doesn't touch `pillars`/`sandwich`'s game trajectory
+at all, or (b) direct root-causing of *why* `pillars/botA` loses all
+Soldier production by r503 under the new code before trying a third
+variant -- attempt 3 would be within `MaxSolutionsIterations` (2 used of
+10) but the sandwich/pillars interaction needs to be understood first,
+not just parameterized around blindly a third time. In the meantime, pick
+a fresh Step 4 target from the still-large `maptestsmall`/`intersection`
+loss categories.
