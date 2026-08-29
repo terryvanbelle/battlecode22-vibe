@@ -52,27 +52,35 @@ The algorithm for generating and improving a bot is defined in this section. Thi
 - *MaxHypothesisIterations*: The maximum number of times to try generating a verified hypothesis. Set this to 10.
 - *MaxSolutionsIterations*: The maximum number of times to try generating a winning solution. Set this to 10.
 - *BenchmarkEvery*: Benchmark opponents are played only once every this many Gauntlets (peers are played every Gauntlet). Set this to 3.
+- *MirrorCheckMinWinPct*: The minimum win rate a solution must achieve in a mirror check (Step 6.5) against the most recently accepted iteration before it's worth spending a full Gauntlet run on. Set this to 35%. (A near-mirror matchup between adjacent iterations of the same lineage is inherently noisy and usually lands in a 40-55% band even for a genuinely good solution -- this threshold exists only to catch outright collapses, not to demand parity.)
+- *NearMissMargin*: How many percentage points below *WinPct* still counts as a "near miss" worth refining further, rather than abandoning outright. Set this to 5.
+- *MaxNearMissRefinements*: The number of additional solution refinements allowed for a hypothesis whose solution qualifies as a near miss (Step 3.1), on top of *MaxSolutionsIterations*. Set this to 3.
 
 1. Create Iteration 0. Set this to be our current implementation.
 2. Run the current implementation against the Gauntlet.
-3. If the current implementation wins at least *WinPct* of the **peer** games in Step 2, add it to the Gauntlet. (Benchmark games do not count toward this fraction; they are recorded and tracked in the logfile.)
+3. If the current implementation wins at least *WinPct* of the **peer** games in Step 2, add it to the Gauntlet, snapshot it as the new most-recently-accepted iteration, and go to Step 4.
+   1. Otherwise, if this Gauntlet run was evaluating a Step 6 solution (not Iteration 0, and not a Step 2 loop with no pending solution) and it qualifies as a **near miss** -- peer WinPct is within *NearMissMargin* points of *WinPct*, **and** comparing this Gauntlet's per-opponent peer win rates to the last-accepted baseline shows no peer opponent's win rate dropping (a uniform-or-improving shortfall, not a mixed regression) -- and fewer than *MaxNearMissRefinements* refinements have been spent on the current hypothesis, treat this as license to keep refining the same solution: go back to Step 6.1. This refinement does not count against *MaxSolutionsIterations*.
+   2. Otherwise, undo the implementation changes back to the last-accepted iteration and go to Step 4.
 4. Select a game from Step 2 where the current implementation lost the game. If no such game exists, then go to Step 2.
 5. Hypothesis generation
    1. Form a hypothesis for why the current implementation lost.
    2. Determine a set of variables and threshold values that would, if passed, verify that the hypothesis is true.
    3. If necessary, update the instrumentation of the current implementation to store the information required to verify the hypothesis as defined in Step 5.2.
    4. Re-run the losing game selected in Step 4.
-   5. From the game's save file, extract the necessary variables defined in Step 5.2. If the hypothesis is verified according to the criteria defined in Step 5.2, continue to step 6.
-   6. If *MaxHypothesisIterations* hypothesis have been generated for this game, and none of them have been verified, go back to Step 4 and select a different losing game.
-   7. Otherwise, go back to step 5.1.
+   5. From the game's save file, extract the necessary variables defined in Step 5.2. If the hypothesis is not verified according to the criteria defined in Step 5.2, go to Step 5.8.
+   6. Generality check: if one or more *other* losing games from Step 2 exist (prefer one against a different opponent or map than Step 4's selection, since a same-symptom game against a different opponent is the strongest test), re-run at least one of them and check whether the same Step 5.2 variables/thresholds verify the hypothesis there too. Record the result in the logfile either way.
+   7. If the hypothesis held on the game(s) checked in Step 5.6 (or no other losing game existed to check against), continue to Step 6. If it did not hold, the games most likely share a symptom but not a root cause -- conflating them wastes a Step 6 solution attempt on a hypothesis that only explains part of what it claims to. Either narrow the hypothesis to the scope it actually explains and continue to Step 6 with that narrower scope noted in the logfile, or, if it has no independent support left, treat it as unverified and go to Step 5.8.
+   8. If *MaxHypothesisIterations* hypothesis have been generated for this game, and none of them have been verified, go back to Step 4 and select a different losing game.
+   9. Otherwise, go back to step 5.1.
 6. Solution generation
    1. Based on the verified hypothesis from Step 5, describe a solution that would cause the current implementation to win instead of lose.
    2. Implement this solution in the current implementation.
    3. Re-run the losing game selected in Step 4.
-   4. If the current implementation now has won the game, go back to Step 2.
-   5. Undo the implementation changes from Step 6.2.
-   6. If *MaxSolutionsIterations* solutions have been generated for this hypothesis, and none of them has caused the current implementation to win the game, go back to Step 4 and select a different losing game.
-   7. Otherwise, go back to step 6.1.
+   4. If the current implementation has not won the game, go to Step 6.6.
+   5. Mirror check: play the current implementation against the most recently accepted iteration (`2 * B` games, one per board per side, as in a normal Gauntlet round). If the win rate is below *MirrorCheckMinWinPct*, treat this as a failed solution and go to Step 6.6. Otherwise, go back to Step 2 -- this is a cheap (`2 * B`-game) gate against an expensive (`2 * B * N`-game) full Gauntlet run, meant to catch a collapse before paying for one.
+   6. Undo the implementation changes from Step 6.2.
+   7. If *MaxSolutionsIterations* solutions have been generated for this hypothesis, and none of them has passed the mirror check, go back to Step 4 and select a different losing game.
+   8. Otherwise, go back to step 6.1.
 
 ## Logging
 
