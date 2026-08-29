@@ -98,3 +98,23 @@ number. This is a human-browsable record of how play evolved over the course
 of the run, independent of `gauntlet/` (git-ignored, ephemeral) and the
 per-iteration source snapshots in `src/g_iterNN/`. Reference the checked-in
 path in the corresponding `TRAINING_LOG.md` entry.
+
+### Round-count metric (tracked, not yet gating)
+
+Win/loss alone discards information: a change that makes us win faster, or
+lose more slowly, is real progress even when it doesn't flip the outcome
+column -- and the reverse is a real (if invisible-to-WinPct) regression. On
+every full Gauntlet run that's a Step 3 candidate or a near-miss under Step
+3.1, run `tools/compare_gauntlets.py <baseline_dir> <candidate_dir>` (the
+baseline being the last-accepted iteration's own Gauntlet run) and log the
+result: how many games flipped outcome, and for the games that didn't, the
+net round-delta (wins counted faster-is-positive, losses counted
+slower-is-positive) plus the improved/worsened/unchanged split.
+
+This is deliberately **not** part of the Step 3 accept gate yet -- round
+count doesn't capture everything that matters on its own (a game that drags
+to the 2000-round cap in a stall isn't obviously "better" than a clean loss
+at round 400, and the metric has no way to distinguish those), and it needs
+more runs under its belt before trusting it to gate anything. Use it
+descriptively for now, especially to judge whether a Step 3.1 near miss
+represents real margin progress across the pool or is just treading water.
