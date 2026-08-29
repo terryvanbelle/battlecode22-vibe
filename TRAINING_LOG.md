@@ -3328,3 +3328,18 @@ fix is a rubble-aware spawn-site check on turn 1 (an Archon whose ring is
 mostly high-rubble could pre-emptively treat itself as needing an earlier,
 smaller Soldier commitment), which is a fundamentally different and more
 promising angle than anything tried in Iterations 40-44.
+
+**Addendum (same session):** resolved the rubble question directly --
+`javap -c` on the real `RobotControllerImpl.assertCanBuildRobot` (decompiled
+on `battlecode-dev`, same technique as Iteration 34's `RobotMode` check)
+shows exactly four checks in order: type compatibility (`RobotType.canBuild`),
+sufficient lead, sufficient gold, `onTheMap`, and `isLocationOccupied` --
+**no rubble check anywhere in the method**. Rubble is fully ruled out as a
+cause; `best=null` for 97 straight rounds can only mean all 8 adjacent
+tiles were genuinely occupied (by any unit, friendly or enemy) the entire
+time. Precisely identifying *which* units, every round, needs programmatic
+instrumentation (dumping the actual occupant list) rather than more manual
+ASCII-board reading, which proved too imprecise to pin down cleanly across
+several attempts this session. Logging this as a durable, confirmed engine
+fact for whoever picks this thread back up, and moving on rather than
+sinking further effort into a ninth attempt at the same specific bug.
