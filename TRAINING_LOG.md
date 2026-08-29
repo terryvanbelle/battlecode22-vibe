@@ -4616,3 +4616,51 @@ same lesson about the Watchtower-scaling thread. Otherwise, with three
 retirements just landing, the Gauntlet's opponent pool is smaller and
 fresher -- worth a routine peer Gauntlet run to get an updated per-
 opponent picture before picking the next Step 4 target.
+
+## Diagnostic note  —  maptestsmall side-A/B split resolved: likely a Battlecode engine team-order artifact, not our code
+
+Follow-up to the earlier parked `maptestsmall` diagnostic (this file,
+after Iteration 63). A routine Gauntlet run with the post-retirement
+opponent pool showed the split had gotten even more extreme: **A:14/14
+(100%), B:0/14 (0%)**. Crucially, the `g_iter30` opponent slot is our own
+current implementation playing against an exact copy of itself (a true
+mirror match, byte-identical code both sides) -- and it split **A wins,
+B loses, at the identical round (r212) both times**. Since the code is
+literally identical, this rules out any strategy-quality explanation
+entirely: the outcome depends only on which team ID a given army
+occupies.
+
+Fetched both replays of that exact mirror pair (`g_iter30/maptestsmall`,
+one from each side) and traced the first combat contact directly. Both
+armies approach the map center in perfect lockstep (identical lead
+income, identical build timing, mirrored positions round-for-round) until
+the first Soldier pair enters mutual attack range on the exact same
+round (r41): team A's Soldier #13120 (at (13,16)) and team B's Soldier
+#10014 (at (16,17)) -- distance-squared 10, both within a Soldier's
+`actionRadiusSquared` of 13, meaning **both were in range to attack each
+other that same round**. Only `A SOLDIER #13120 attacks B SOLDIER #10014`
+is recorded in round 41; `B SOLDIER #10014`'s return attack doesn't
+appear until round 42, by which point it's already taken a free hit.
+
+This is consistent with team A's units resolving before team B's within
+each simulated round (a Battlecode engine convention, not something in
+our `RobotPlayer.java`) -- on most maps this tiny per-clash edge gets
+buried in the noise of terrain, numbers, and Archon-count effects (see
+`valley`'s *opposite* skew, B:67% vs A:15% in Gauntlet 61, which already
+ruled out a naive "side A always wins" theory). `maptestsmall` is the one
+map where two mirror-symmetric armies rush and clash almost entirely
+simultaneously across dozens of paired 1v1s with essentially nothing else
+going on -- so the same tiny first-strike edge repeats across every
+skirmish and compounds into a fully deterministic outcome.
+
+**Not treating this as a Step 6 target.** If the mechanism is genuinely
+engine-level team-order (plausible, not yet exhaustively proven), there's
+no code fix on our side that changes which team ID we're assigned in a
+given match -- the only lever available would be deliberately engineering
+around simultaneous engagement (e.g. slight approach hesitation or
+kiting to avoid exact-same-round mutual-range clashes), which is a
+speculative, higher-risk mechanic change disproportionate to a single
+map's worth of games, and would need to help on whichever side we end up
+on without knowing in advance which that'll be. Recording the finding in
+full since it's a real, well-evidenced piece of project knowledge, but
+parking any fix attempt.
