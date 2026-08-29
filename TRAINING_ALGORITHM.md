@@ -49,8 +49,8 @@ The initial implementation of our Battlecode bot will be very simple. The bot wi
 The algorithm for generating and improving a bot is defined in this section. This algorithm relies on the following hyperparameters:
 
 - *WinPct*: The percentage of **peer** games (see "Peer opponents vs. benchmark opponents") that the current implementation must win to be added to the Gauntlet. Set this to 60%.
-- *MaxHypothesisIterations*: The maximum number of times to try generating a verified hypothesis. Set this to 5.
-- *MaxSolutionsIterations*: The maximum number of times to try generating a winning solution. Set this to 5.
+- *MaxHypothesisIterations*: The maximum number of times to try generating a verified hypothesis. Set this to 10.
+- *MaxSolutionsIterations*: The maximum number of times to try generating a winning solution. Set this to 10.
 - *BenchmarkEvery*: Benchmark opponents are played only once every this many Gauntlets (peers are played every Gauntlet). Set this to 3.
 
 1. Create Iteration 0. Set this to be our current implementation.
