@@ -668,7 +668,7 @@ public strictfp class RobotPlayer {
             rc.setIndicatorString("advance " + target.location);
             return;
         }
-        // ITERATION 36: a g_iter14/valley loss showed 2 of our 3 Archons
+        // ITERATION 37: a g_iter14/valley loss showed 2 of our 3 Archons
         // killed (r384, r467) by flanking raids while our whole visible army
         // sat at the map's center the entire time (solCx/solCy ~15,20 the
         // whole window) fighting an even, ongoing skirmish there. Traced to
