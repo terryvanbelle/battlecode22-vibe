@@ -4156,3 +4156,12 @@ worth checking first (via a quick single-game or mirror-scale test)
 before running a full Gauntlet on any future Builder-related change, since
 their consistent swing may be masking or distorting the aggregate signal
 from whatever the actual change does elsewhere in the pool.
+
+**Addendum:** traced the exact flip -- `g_iter16,maptestsmall,botB` went
+from a win (r317, Gauntlet 37 baseline) to a loss (r349) under Iteration
+58's code. `--metrics` on the losing replay showed the Laboratory never
+actually got built in this specific game (`B_labs=0` throughout) and our
+Soldier count was already at 0 in the endgame either way -- this reads as
+ordinary timing sensitivity in an already-close, marginal matchup (same
+shape as the `g_iter22` "scattered noise across unrelated maps" finding
+from Iteration 53), not a new distinct bug worth chasing further.
