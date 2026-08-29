@@ -3187,3 +3187,51 @@ Archon's own `needMiners`/`quota`/`floor` values directly (e.g. a temporary
 indicator string dump of those three numbers each round) rather than
 inferring them from aggregate counts -- this thread has cost four
 iterations on inference-only debugging without result.
+
+---
+
+## Iteration 42  —  diagnosis only, root cause found (no fix yet)
+
+### Step 4/5
+
+Took the previous "Next" note literally: added a temporary per-round debug
+indicator string to `runArchon()` (`mine=/q=/tm=/fl=/want=/best=/rich=`,
+dumping `myMinersSpawned`, `quota`, team miners, `floor`,
+the computed `want`, the chosen build `Direction`, and `richHome`) and
+re-ran the exact `TEAM_A=bot TEAM_B=g_iter21 tools/vm-match.sh sandwich`
+reproduction case. Found it immediately: from ~r15 through the Archon's
+death at r112, the doomed Archon's own log reads `want=SOLDIER best=null`
+**every single round** -- the build-priority logic is completely correct
+(it wants a Soldier, exactly as it should once `needMiners` clears), but
+`best` (the chosen build direction, out of the Archon's 8 adjacent tiles)
+is `null` -- none of the 8 tiles are ever buildable. Not a priority bug at
+all; a placement bug.
+
+Cross-referenced a `--map-detail` board snapshot at r40: the Archon sits
+with several of its own Miners (`M`) clustered in the rows immediately
+around it, while enemy Soldiers (`s`) are visible nearby on the board too.
+The likely mechanism: `runMiner()`'s threat-flee branch
+(`moveToward(rc, me.add(threat.location.directionTo(me)))`) moves a
+threatened Miner directly *away* from the enemy, which -- for a Miner
+already working near home -- points straight at its own Archon. Under
+sustained nearby enemy presence, fleeing Miners pile up in the Archon's own
+8-tile build ring, right where it most needs an open tile to build the
+Soldier that would drive the enemy off. A self-reinforcing trap: threat
+appears -> Miners flee to the Archon -> Miners block the Archon's only
+build tiles -> Archon can't build the Soldier that would help -> Archon
+dies with the "correct" build decision queued the entire time but never
+executable.
+
+### Outcome
+
+No fix implemented -- diagnosis only, cleaned the debug instrumentation
+back out before committing. This is now enough to guide a real fix, unlike
+Iterations 40/41's blind guesses:
+
+**Next:** the fix belongs in `runMiner()`'s flee branch, not in
+`runArchon()` -- a threatened Miner already adjacent to a friendly Archon
+should route *around* it (e.g. sidestep like `moveToward`'s Iteration 29
+congestion fix) rather than piling directly onto the Archon's build ring.
+Verify by re-running this exact reproduction case and checking the same
+debug dump shows `best != null` during the r90-115 window before spending
+any Gauntlet games on it.
