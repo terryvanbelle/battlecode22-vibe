@@ -3993,3 +3993,59 @@ it should be as part of a genuinely different, larger doctrine change
 which is closer to what camelcase's own Builder AI reportedly does) with
 its own dedicated verification, not another gating tweak on the current
 home-only placement.
+
+---
+
+## Iteration 57  —  Laboratory/Sage gold economy (REJECTED, catastrophic); new mechanism found
+
+### Step 4/5
+
+Our own gold economy had been completely unused all session -- 0
+Laboratories, 0 Sages, ever, despite Sage costing **0 lead / 20 gold**
+(confirmed via `RobotType` field dump), a fully parallel production lane
+that never competes with the lead pool the Iterations 39-53 thread spent
+so much effort on. Read `sample_afinals`'s own vendored `BotLaboratory.
+java` for the real mechanic: `rc.canTransmute()`/`rc.transmute()`
+converts lead to gold on command.
+
+### Step 6 — Solution attempted, then reverted (severe regression)
+
+Minimal version: one Laboratory per Archon (same gating pattern as the
+existing Watchtower mechanic), transmute every round it can, spend
+surplus gold on a Sage instead of a Soldier. Verified on the
+`g_iter22/maptestsmall` reproduction case used throughout the Watchtower
+thread -- previously a clean win (r234) -- and got a **loss** (r212)
+with `--metrics` showing something far worse than a simple regression:
+team lead ballooned to **9750 unspent** by r200 while Soldiers collapsed
+from 38 to 0 and gold stayed at exactly 0 the entire game (the Laboratory
+never once successfully transmuted).
+
+Diagnosed the mechanism: a Laboratory, like a Watchtower, is a
+*stationary* building -- once placed adjacent to the Archon, it occupies
+one of its 8 build-ring tiles **permanently**, unlike a Soldier or Miner
+that walks away after spawning. Adding a second permanent structure
+(Watchtower + now Laboratory) on top of the existing Miner/Builder/Soldier
+traffic through that same 8-tile ring makes the Archon dramatically more
+prone to the exact occupancy-blocking mechanism the Iterations 42-44
+`sandwich` investigation spent so much effort characterizing (`canBuildRobot`
+fails purely on tile occupancy, confirmed via `javap` on the real engine)
+-- except this time self-inflicted and severe enough to fully paralyze
+the Archon's build queue for the rest of the game. Reverted immediately.
+
+### Outcome
+
+A real, valuable connecting finding even though the fix itself failed:
+the occupancy-blocking mechanism from the sandwich thread isn't
+sandwich-specific or contention-specific -- it generalizes to *any*
+permanent structure competing for an Archon's own adjacent tiles, and
+adding more such structures (as both this iteration and the Watchtower
+thread tried) makes it worse, not better.
+
+**Next:** don't have the Archon build the Laboratory directly. Route it
+through a Builder instead (the way Watchtowers conceptually should be,
+and the way `sample_afinals`'s own `BotLaboratory` explicitly relocates
+away from the Archon after construction) so it's placed somewhere that
+doesn't consume the Archon's own precious build-ring tiles at all. This
+is a bigger change than the minimal version tried here, but addresses the
+actual failure mode directly rather than just moving where the same
+mechanism bites.
