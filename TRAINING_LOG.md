@@ -3550,3 +3550,58 @@ spending pressure on the same-sized shared pool) -- carefully, given
 Iteration 23's specific warning against raising Miner quotas broadly, and
 with the same full-game (not just mirror) verification discipline
 Iteration 45/46 learned the hard way.
+
+---
+
+## Iteration 49  —  fairness-yield fix (REJECTED, no-op); corrects the contention theory
+
+### Step 4/5/6
+
+Checked the `sample_afinals/maze` reproduction case precisely: all 5
+Soldiers our team built the entire game spawned from the *same* Archon,
+one build every 30-73 rounds. Implemented a turn-order fairness fix -- an
+Archon that just built a Soldier sits out the next 15 rounds, giving
+siblings a window to claim the next lead surplus instead of the same
+Archon grabbing every one. Re-ran the exact reproduction case:
+byte-for-byte identical result (same round, same 5 Soldiers, same robot
+IDs). The fix never engaged, because the real gaps between this Archon's
+own builds (30-73 rounds) were already far longer than the 15-round
+cooldown -- by the time it wanted another Soldier, the window had long
+since expired and yielding never fires.
+
+More importantly, that gap length itself disproves the underlying
+contention theory: if the dominant Archon goes 73 rounds without wanting
+anything, that's ample time for either sibling to independently reach 75
+lead if the team's aggregate income were adequate -- turn-order dominance
+can't explain 73-round silence. Checked the map itself instead: `maze`'s
+lead map shows only **240 total Pb across 12 tiles on the whole 20x20
+map** -- one of the sparsest maps in the pool. Since `getTeamLeadAmount`
+is a genuinely shared, single team-wide pool (confirmed by its use
+throughout `runArchon`), *where* a Miner mines doesn't restrict who can
+spend the resulting lead -- so the real constraint here isn't contention
+or geography, it's that the map's total economy can only support
+somewhere around 5 Soldiers in 390 rounds, full stop, regardless of which
+Archon gets them or how fairly they're distributed.
+
+### Outcome
+
+Reverted (no-op, confirmed on the reproduction case before any Gauntlet
+spend). This corrects the "shared lead contention" framing from
+Iterations 44-48: contention was a real, correctly-diagnosed mechanism for
+*why one specific Archon wins over another*, but on a genuinely
+lead-scarce map like `maze`, no reshuffling of *who* gets the rare surplus
+changes the *aggregate* amount available -- the team-wide economic ceiling
+is the real constraint, and it may simply be map-inherent, closer in kind
+to Iteration 15's squer conclusion or Iteration 17's miner-count
+conclusion than to a fixable coordination bug.
+
+**Next:** this doesn't necessarily kill the fix ideas already logged
+(Iteration 45/46/48's income-scaling angle) -- they may still matter on
+maps with more total lead where contention, not aggregate scarcity, is the
+binding constraint (worth re-checking whether the original `g_iter21/
+sandwich` case was itself contention-bound or just as lead-poor as `maze`
+before trying anything else there). But treat "fix the coordination" and
+"the map just doesn't have enough lead" as two *different* diagnoses
+requiring different evidence before attempting either again -- this
+iteration's mistake was assuming the `maze` case was the same shape as
+`sandwich` without checking the map's own lead supply first.
