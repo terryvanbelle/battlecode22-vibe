@@ -3448,3 +3448,57 @@ sufficient lead surplus before a sibling's routine Miner spend grabs it.
 That's a bigger, riskier change than anything tried so far in this thread,
 better suited to a fresh iteration with its own dedicated verification
 rather than another quick patch.
+
+---
+
+## Iteration 47  —  investigation only: chessboard's FURY-timed losses explained
+
+### Step 4/5
+
+Pivoted away from the abandoned sandwich thread to `chessboard` (50%
+aggregate, tied for the softest non-sandwich map). 7 of 19 chessboard
+losses in Gauntlet 37 timed out at r2000; the rest clustered tightly at
+r743-842. That tight clustering was the tell -- checked the anomaly
+schedule and every one of those games has a `FURY` global anomaly at
+r800.
+
+Decompiled `GameWorld.causeFuryUpdate`/`AnomalyType`'s static initializer
+directly (same jar, same technique as Iterations 34/44): FURY is a real
+global effect -- for every `TURRET`-mode unit on the map (Archons and
+Watchtowers are always `TURRET`), it applies `-0.05 * maxHealth` instantly
+(30 damage to a 600-HP Archon), for *both* teams, then immediately checks
+if either team has hit zero Archons and ends the game by annihilation
+right there if so. On the `g_iter14/chessboard` loss, our Archon dies at
+r805 -- 5 rounds after the r800 FURY tick.
+
+30 damage alone isn't dramatic, though: checking the Archon's HP trend
+into r800 (see `--metrics`, same replay), it was already deep in the same
+long-game economic-snowball collapse flagged repeatedly since Iterations
+20/23 (`g_iter14`'s Soldier count climbing 4->95 over the game while ours
+fell to 0). FURY's chip damage is the finishing blow on an *already*
+critical Archon, not a new root cause -- the real driver is still the
+economic snowball, and the one documented lever for that (raising the
+Miner floor past its current `min(6+round/100,25)` cap) has a real
+regression history of its own (Iteration 23: `g_iter14/15/16` dropped to
+40-45% peer when pushed too far).
+
+### Outcome
+
+No fix attempted -- didn't want to re-open an already-explored, documented-
+risky lever without a genuinely new angle, and this session has already
+absorbed two consecutive rejected attempts on a similarly-shaped economy
+problem (Iterations 45/46). Recording the FURY mechanism precisely since
+it's a durable, confirmed engine fact (globalPercentage=0.05,
+sagePercentage=0.1, fires on a fixed global schedule visible in every
+match header) that's useful context for chessboard/long-game analysis
+going forward, even without a fix attached to it this iteration.
+
+**Next:** the actionable version of this finding, if pursued, is narrow:
+an Archon already critical (say <20% HP) heading into a *known* upcoming
+FURY round (the schedule is visible via `rc.getAnomalySchedule()` if
+exposed to `RobotController`, otherwise inferable from round number
+patterns) could prioritize repair/retreat slightly harder in that window.
+But this is a small mitigation for a symptom -- the higher-leverage fix
+remains the economic snowball itself, which needs a fresh angle on Miner
+production scaling for very long games rather than another floor-cap
+tweak, given the documented history of that specific lever backfiring.
