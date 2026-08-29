@@ -3502,3 +3502,51 @@ But this is a small mitigation for a symptom -- the higher-leverage fix
 remains the economic snowball itself, which needs a fresh angle on Miner
 production scaling for very long games rather than another floor-cap
 tweak, given the documented history of that specific lever backfiring.
+
+---
+
+## Iteration 48  —  investigation only: shared-lead contention generalizes beyond sandwich
+
+### Step 4/5
+
+Checked `sample_afinals/maze` (a fresh, unrelated matchup -- 3-Archon map,
+never previously tied to the Iterations 39-46 thread) to see if the
+Iteration 44 finding (Archons structurally unable to afford a wanted
+Soldier because a *shared* lead pool gets spent elsewhere first) was a
+sandwich-specific quirk or something broader. It's broader: `--metrics`
+showed our Soldier count staying at 0-2 for the *entire* 390-round game
+while afinals' Sage count climbed to 8 and their Archon HP never dropped
+below 1800 (we landed zero effective damage the whole game). Team Miners
+capped at ~9 -- exactly 3 Archons x quota-3 each, confirming the
+contact-cut *is* engaging correctly (ruling out the richHome-exemption
+theory from Iteration 41 for this case too) -- but essentially no Soldiers
+ever get built regardless. Same shape as the sandwich case: correct
+build-priority decisions, structurally unable to execute on them because
+of lead contention between 3 simultaneously-active Archons.
+
+### Outcome
+
+No fix attempted -- this session already spent two rejected attempts
+(Iterations 45/46) on variations of "give a starved Archon something to
+build instead," both of which backfired for non-obvious reasons (a
+fallback spend competes for the exact resource it's trying to save up).
+Finding the SAME failure mode independently on a completely different
+map/opponent raises the importance of this thread considerably -- it's not
+a sandwich curiosity, it's a general multi-Archon economy weakness that
+plausibly explains real losses across several maps, including against
+`sample_afinals` where our benchmark win rate has been stuck at ~20% all
+session with no dedicated Step 4 pass since Iteration 32.
+
+**Next:** this deserves a dedicated iteration with real budget, not another
+squeezed-in attempt -- the failure mode is well-understood now (3
+independent Archons, one shared lead pool, no coordination primitive
+between them), but every fix tried so far has manipulated *spending*
+behavior and made things worse. Worth trying the opposite lever next:
+increasing shared *income* specifically when multiple Archons are
+simultaneously contact-cut (e.g. a per-Archon Miner quota that scales
+slightly with `curArchons`, since 3 Archons at quota-3 each is the same
+per-Archon economy as a 1-Archon map at quota-3, but with 3x the aggregate
+spending pressure on the same-sized shared pool) -- carefully, given
+Iteration 23's specific warning against raising Miner quotas broadly, and
+with the same full-game (not just mirror) verification discipline
+Iteration 45/46 learned the hard way.
