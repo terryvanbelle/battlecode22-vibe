@@ -2744,3 +2744,94 @@ them, rather than continuing to treat it as background noise. Also worth
 checking, in a calmer matchup than `sample_afinals/highway`, whether
 relocation's positional benefit shows up quantitatively (e.g. reinforcement
 travel distance or time-to-front) now that it's confirmed to fire.
+
+---
+
+## Iteration 35  —  sticky Miner beacon target (ACCEPTED, big jump); snapshot g_iter27
+
+### Step 4/5
+
+Picked up the "Next" pointer above: a dedicated investigation into the
+g_iter19-25 lateral-softness cluster, starting from a `g_iter21/
+intersection` loss (side A, r375). `--metrics` showed our Soldier count
+peaking at ~9-10 by r70 (matching g_iter21's own) then collapsing to 0 by
+r325 while g_iter21's climbed steadily to 50 -- despite both sides holding
+~7 Miners the whole game. `--all-actions` traced it to the actual mining
+rate, not the fight: over the whole game our Miners mined lead 552 times vs
+g_iter21's 1241 (2.25x) with equal Miner counts. Re-running the exact same
+map with sides flipped (`g_iter21__intersection__botB.bc22`) reproduced the
+same asymmetry the other way (whichever side is g_iter21 mines far more,
+regardless of which physical side of the mirrored map it's on) -- ruling out
+spawn-position luck and pointing at our own code.
+
+Since g_iter21 *is* an earlier snapshot of our own bot, `diff`ing
+`runMiner()`/`moveToward()` against the current version showed the mining
+logic itself is byte-identical -- the regression, if any, was indirect.
+First hypothesis (Iteration 29's rubble-blind corridor side-step walking
+Miners onto heavy-rubble maze walls) was implemented, then falsified before
+even reaching the Gauntlet: re-running the same `TEAM_A=bot TEAM_B=g_iter21
+tools/vm-match.sh intersection` reproduction with the fix in place produced
+a byte-for-byte identical replay trace -- the side-step branch never fired
+for the specific Miners in question, so it couldn't be the cause. Reverted
+per Step 6.5 without spending a Gauntlet run on it.
+
+Looked closer at the actual movement trace instead of the aggregate count:
+individual Miners were visibly ping-ponging between two adjacent tiles for
+10+ rounds without ever mining (e.g. `(29,22) -> (28,23) -> (29,22) -> ...`).
+`nearestLead()` recomputes "closest known beacon" fresh every round with no
+memory; on a maze map like `intersection` where lead clusters repeat at
+regular intervals, two published beacons can sit at similar distance, and
+which one is "nearest" can flip round to round as the Miner moves or as
+*other* Miners deplete one of them. `moveToward`'s own anti-reversal guard
+is keyed on the goal staying the same across calls -- it never engages here
+because the goal itself is what's flipping.
+
+### Step 6 — Solution
+
+Added a per-Miner `myLeadTarget` static: once a Miner commits to a beacon it
+keeps heading there until it actually arrives or the beacon reads out
+depleted (`senseLead < 6`), instead of re-picking "nearest" every round.
+
+Verified directly on the reproduction case before running anything else:
+`TEAM_A=bot TEAM_B=g_iter21 tools/vm-match.sh intersection` flipped from a
+loss (r375, our mining actions 436 vs g_iter21's 1253) to a **win** (r378,
+mining actions 1450 vs 501) -- the fix visibly ends the ping-pong and lets
+Miners actually settle on a deposit.
+
+`g_iter25` mirror: 11/20 = 55%, no collapse -- and notably both
+`intersection` games flipped from losses to wins (they were the original
+Step-4 target), as did both `chessboard` games (the other historically-worst
+map, also a maze/heavy-rubble archetype).
+
+-> Step 2, **Gauntlet 36** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 36 (step 2/3).** Peer: **251/360 = 69.7%** -- up 9.4 points from
+Iteration 34's 60.3%, the largest single-iteration jump this session.
+Improved against essentially every opponent (early ancestors g_iter9-18 now
+75-90%, vs g_iter10 hitting 90% specifically), and the lateral-softness
+cluster moved too though it's still the relative soft spot: g_iter19-26 now
+45-60% (worst g_iter21 at 45%, up from 35% in Gauntlet 35). No opponent
+below 40%. g_iter10 crossed the 90%-domination retirement line this
+Gauntlet but did not cross it in Gauntlet 35 (80% then) -- not retired yet,
+needs a second consecutive 90%+ Gauntlet.
+
+**Snapshot:** `g_iter27`.
+
+**Benchmarks:** `sample_camelcase` 0/20 (0%, down from 1/20 -- single-game
+noise, camelcase's own combat-heavy doctrine barely touches Miner
+pathing), `sample_afinals` 4/20 (20%, up from 3/20). Roughly flat, as
+expected -- this fix targets peer-pool maze/chokepoint maps specifically,
+not the benchmarks' own (very different) failure modes.
+
+**Replay archived:**
+`replays/iter35_g_iter21_intersection_botA_WIN.bc22` -- the exact
+reproduction match from Step 6 verification: a win (r378) on the map and
+opponent that originally exposed the bug, with the mining-action count
+(1450 vs 501) directly demonstrating the fix.
+
+**Next:** the lateral-softness cluster (g_iter19-26) is still the clearest
+remaining soft spot, though this iteration narrowed rather than closed the
+gap -- worth checking whether the same beacon-oscillation class of bug (or
+a related staleness issue in `publishLead`'s dedup radius) shows up on the
+specific maps where that cluster still wins against us. Also watch g_iter10
+for retirement next Gauntlet.
