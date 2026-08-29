@@ -3906,3 +3906,46 @@ carefully and incrementally (this project's own history, e.g. Iteration
 23, shows aggressive economy-lever jumps can cause broad regressions) and
 verify with `--metrics` that Watchtower count actually climbs
 meaningfully before spending a Gauntlet run on it.
+
+---
+
+## Iteration 55  —  3rd Builder for very long games (REJECTED, exact no-op)
+
+### Step 4/5/6
+
+Followed Iteration 54's own "Next" note: raised `builderCap` (the real
+constraint on Watchtower output) from `round>400?2:1` to
+`round>700?3:round>400?2:1`, extending the same incremental,
+round-gated pattern rather than jumping toward camelcase's scale.
+Verified via `--metrics` on a long `g_iter25/highway` game (r1089) that
+Watchtower count climbed (0->2, up from a previous flat 0-1) before
+spending anything on a Gauntlet run.
+
+`g_iter28` mirror: 10/20 = 50%, clean.
+
+**Gauntlet 55 (step 2/3).** Peer: **175/300 = 58.3%** -- and checking
+per-opponent against the Gauntlet-37 baseline, **every single number
+matched exactly** (`g_iter12` 75%, `g_iter13` 75%, ... `g_iter27` 40%,
+all identical). The r700+ gate is restrictive enough that it essentially
+never engages within the standard 10-map peer pool -- most games conclude
+well before r700. Reverted; not a regression, a genuine no-op.
+
+### Outcome
+
+Confirms the mechanism itself is inert at this threshold, not merely
+unmeasured. The camelcase Watchtower lead needs either a much lower round
+threshold (so it engages in a meaningful fraction of ordinary-length
+games, not just the rare r700+ ones) or a different trigger entirely
+(e.g. gated on lead surplus rather than round number, so it fires
+whenever the economy can afford it regardless of game length). Both
+Iterations 54 and 55 targeted the doctrine correctly in direction but too
+conservatively in magnitude to produce a measurable signal either way.
+
+**Next:** try gating the 3rd (and maybe a 4th) Builder on team lead
+surplus (e.g. `lead > 600`) instead of round number -- this would engage
+in *any* sufficiently long, low-combat economy race regardless of exact
+round count, which better matches how camelcase's own build order
+actually behaves (continuous investment as resources allow, not a fixed
+timer). Verify engagement with `--metrics` on more than one long game
+before spending a Gauntlet run, given how narrowly Iteration 55's r700
+gate missed mattering at all.
