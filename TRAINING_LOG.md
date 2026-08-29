@@ -3048,3 +3048,48 @@ several Gauntlets as a rolling signal -- if it stays persistently well
 below 50% across multiple iterations (not just one noisy 20-game sample),
 that's a real signal worth a dedicated investigation; a single below-50%
 reading on a near-mirror matchup is not, on its own.
+
+---
+
+## Iteration 39  —  investigation only, no code change (Archon-isolation is a distance problem)
+
+### Step 4/5
+
+Continued the Archon-survival thread against `g_iter21` (lowest peer win
+rate in the pruned pool, 45%): `g_iter21__sandwich__botA.bc22`, a fast
+loss (r279) with Archon #10 dead at r112 -- very early. `--metrics` showed
+our army centroid parked at (17, 6.5) the entire window while the dying
+Archon sat at (38, 11), ~21 tiles away -- essentially undefended by
+geography, not by any missing logic.
+
+Checked whether Iteration 37's fix was actually the bottleneck here (it
+wasn't obviously broken, but worth ruling out precisely): `--indicators`
+confirmed `SA_HOME_THREAT` correctly fired on this Archon and Soldiers
+*did* show `defend home [38, 11]` starting well before the death -- the
+detection and prioritization from Iteration 37 both worked exactly as
+designed. But only 1-2 of our Soldiers responded against 3 enemy Soldiers
+converging on the target (`#13697`, `#11678`, `#13807` all visibly
+`focus`/`reinforce [38, 11]`), and even those responders couldn't cover 21
+tiles in the ~20-30 rounds available before the Archon's 600 HP ran out.
+This is a travel-time problem, not a logic bug -- the fix from Iteration 37
+is doing its job and still isn't enough when the distance is this large.
+
+### Outcome
+
+No fix implemented. The Watchtower/Builder mechanic (Iteration 30/31) is
+gated to `round > 100`, which is already too late for an Archon that dies
+at r112, and even if it weren't, a freshly-spawned Watchtower needs further
+rounds under repair before it can act. A same-day code fix that reliably
+saves an Archon rushed this early, this far from the main cluster, isn't
+obviously available without a much bigger design question (e.g. should
+isolated Archons keep a standing local guard instead of contributing every
+Soldier to the main army?) that's too large to verify in one iteration.
+
+**Next:** if this keeps costing games specifically on maps with widely
+spaced Archon spawns (sandwich, valley both fit this so far), the fix is
+more likely "detach 1-2 Soldiers as a standing home guard per Archon,
+independent of SA_FOCUS/SA_HOME_THREAT reinforcement" than any tweak to the
+existing threat-detection pipeline, which is already confirmed working.
+Worth checking Archon spawn-distance as a per-map property (average
+pairwise Archon distance) against peer win rate to see if it actually
+predicts the softer maps before committing to a standing-guard rework.
