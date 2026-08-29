@@ -3616,3 +3616,28 @@ army for either team (likely map-inherent). Future attempts at the
 Iteration 45/46/48/49 coordination fixes should target `sandwich`-shaped
 cases (rich map, starved Archon) specifically, and check a candidate
 map's total starting Pb before assuming the same mechanism applies.
+
+---
+
+## Note (research, no code change): camelcase mass-builds Watchtowers
+
+While Iteration 50's Gauntlet ran in the background, checked a fresh
+`sample_camelcase/maptestsmall` loss (single-Archon map, so clear of the
+multi-Archon lead-contention thread entirely) to look for anything new
+about the one benchmark we've never beaten at all (0/20 all session).
+Found something not previously characterized: by r200, camelcase has
+**44 live Watchtowers** (confirmed via `--all-actions` unit-count line,
+not a metrics artifact) alongside 41 Miners, 13 Builders, and 75 Soldiers
+-- on a *single*-Archon map. Our own Watchtower mechanic (Iteration 30/31)
+caps at 1-2 per Archon as a minor home-defense bonus; camelcase is
+apparently using Builders to mass-produce Watchtowers as a core army
+component, not an afterthought.
+
+This is a large, doctrinal difference, not a quick fix -- matching or even
+partially countering it would mean a real Builder-production rework (build
+many Builders, place Watchtowers offensively/defensively at scale), on the
+order of the Iteration 34 Archon-relocation or bigger. Not attempted this
+session; recording it as a well-documented, high-value lead for a future
+iteration with real budget for a structural change, particularly since it
+targets `sample_camelcase` specifically, the one opponent this session
+never moved the needle on at all.
