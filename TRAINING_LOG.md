@@ -2894,3 +2894,109 @@ valley/sandwich regression itself deserves a larger sample (the standard
 Gauntlet is only 2 games per opponent per map) before concluding it's fully
 explained by Archon-death variance rather than some remaining
 Iteration-35-adjacent side effect.
+
+---
+
+## Retirement threshold lowered 90% -> 80% (user request); 5 opponents retired
+
+Per direct user request, `TRAINING_ALGORITHM.md`'s domination-retirement
+rule now fires at **≥80%** in two consecutive Gauntlets (was ≥90%).
+
+This was prompted by a look at Gauntlet 37's per-opponent spread (see
+Iteration 37 below): `g_iter9`/`g_iter10`/`g_iter11` sitting at 85-90% while
+`g_iter27` -- our own immediately-preceding accepted iteration -- was down
+at 40%. The aggregate 65.8% WinPct was real but partly propped up by
+domination of ancestors that no longer test anything, exactly the
+over-optimizing-on-weak-opponents risk the user flagged. Asked whether to
+add a separate "must also beat the most-recent iteration" gate on top of
+this; user preferred to rely on the faster retirement alone rather than add
+a second gate.
+
+Checking Gauntlet 36 + 37 (both needed for the two-consecutive condition)
+against the new 80% bar:
+
+| opponent | G36 | G37 | retire? |
+|---|---|---|---|
+| g_iter9  | 80% | 90% | **yes** |
+| g_iter10 | 90% | 90% | **yes** |
+| g_iter11 | 85% | 85% | **yes** |
+| g_iter12 | 80% | 75% | no |
+| g_iter13 | 80% | 75% | no |
+| g_iter14 | 80% | 80% | **yes** |
+| g_iter15 | 80% | 80% | **yes** |
+| g_iter16 | 85% | 75% | no |
+| g_iter17 | 75% | 70% | no |
+| g_iter18 | 75% | 70% | no |
+
+**Retired: `g_iter9`, `g_iter10`, `g_iter11`, `g_iter14`, `g_iter15`** (5 of
+19 opponents). Remaining peer pool going forward: g_iter12, 13, 16-27 (14
+ancestors) plus the two benchmarks. This should make aggregate WinPct a more
+honest reflection of current strength -- the pool now skews toward
+opponents that still contest us (45-75%) rather than ones we've long since
+outgrown.
+
+---
+
+## Iteration 37  —  Soldier home-defense priority (ACCEPTED); snapshot g_iter28
+
+### Step 4/5
+
+Picked up Iteration 36's "Next" pointer directly: on the `g_iter14/valley`
+loss, `--all-actions` showed 2 of our 3 Archons killed (r384, r467) by
+flanking raids while our army centroid sat at the map's center the entire
+window (solCx/solCy ~15,20 throughout r320-480), fighting an even,
+ongoing skirmish there the whole time.
+
+Traced to `runSoldier()`'s own control flow: `armyObjective()` (used by
+idle Soldiers with no live fight) already checks `SA_HOME_THREAT` first --
+but that function is only reached when `SA_FOCUS` is zero, i.e. no live
+fight anywhere. Iteration 19's "reinforce toward SA_FOCUS" branch sits
+*before* that check and returns unconditionally whenever `SA_FOCUS` is set
+-- which is essentially always, once real combat starts. A correctly-raised
+home-threat flag was structurally unreachable by any Soldier for the whole
+back half of a real game, because there was always a live fight to reinforce
+somewhere else.
+
+### Step 6 — Solution
+
+Added a `SA_HOME_THREAT` check ahead of the `SA_FOCUS` reinforcement branch
+in `runSoldier()` -- a real home threat now overrides marching to reinforce
+a distant fight, extending the priority `armyObjective()` already gave it
+into the live-combat case.
+
+Verified directly on the reproduction case first: `TEAM_A=bot
+TEAM_B=g_iter14 tools/vm-match.sh valley` still lost (r697, vs the original
+r600) but the "defend home" indicator fired 529 times and the game visibly
+extended -- confirming the mechanism engages correctly even though it
+didn't flip this specific matchup on its own. `g_iter27` mirror: 8/20 =
+40% -- softer than a typical mirror check but not a collapse; proceeded to
+the full Gauntlet per the embrace-risk standing preference rather than
+pre-judging from one soft mirror result.
+
+-> Step 2, **Gauntlet 37** (snapshot candidate -- benchmarks included).
+
+**Gauntlet 37 (step 2/3).** Peer: **250/380 = 65.8%** -- down from Iteration
+35's 69.7% but comfortably above the 60% bar. `g_iter14`/`g_iter15` both
+climbed to 80% (from the same value in G36, so flat rather than clearly
+improved by the fix in aggregate) while `g_iter27` -- our own immediately
+preceding iteration -- came in at 40%, the softest matchup in the pool. This
+prompted the retirement-threshold conversation above; per the user's
+preference, no separate frontier gate was added, so this iteration is
+judged on the standard aggregate rule alone, which it clears.
+
+**Snapshot:** `g_iter28`.
+
+**Benchmarks:** `sample_camelcase` 0/20 (0%), `sample_afinals` 4/20 (20%) --
+unchanged from Iteration 35, as expected (this fix targets peer-pool
+Archon defense, not the benchmarks' very different failure modes).
+
+**Replay archived:** `replays/iter37_g_iter14_valley_botB_WIN.bc22` -- a win
+(r815) on the exact map/opponent that originally exposed the bug, with the
+"defend home" indicator firing 248 times.
+
+**Next:** `g_iter27` at 40% is worth a dedicated look next -- what
+specifically does Iteration 35's own code (our immediate predecessor) do
+against Iteration 37's code that it didn't do against older ancestors? With
+the retirement prune above, the Gauntlet pool is now weighted toward
+opponents close to our current strength, so this kind of frontier-specific
+softness should be easier to spot and chase directly going forward.
