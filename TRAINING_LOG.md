@@ -3641,3 +3641,53 @@ session; recording it as a well-documented, high-value lead for a future
 iteration with real budget for a structural change, particularly since it
 targets `sample_camelcase` specifically, the one opponent this session
 never moved the needle on at all.
+
+---
+
+## Iteration 50  —  fairness-yield fix, correctly re-targeted (REJECTED, close)
+
+### Step 4/5/6
+
+Re-implemented Iteration 49's exact fairness mechanism (an Archon that
+just built a Soldier yields the next 15 rounds to a sibling) but tested it
+against the *right* case this time: `g_iter21/sandwich` (738 starting Pb,
+contention-bound) instead of `maze` (240 Pb, aggregate-scarcity-bound --
+the mismatch that made Iteration 49 a no-op). On the reproduction case the
+fix visibly worked: Soldiers were built from multiple Archon locations for
+the first time, including the previously fully-starved one at `(38,11)`,
+and the enemy Archon died for the first time in any test of this exact
+matchup (previously 3-0 losses every time; this run traded 2-for-1).
+
+`g_iter28` mirror: **9/20 = 45%** -- squarely in this session's normal
+40-55% mirror range, not a collapse like Iterations 45 (5%) or 46 (30%).
+Proceeded to the full Gauntlet with real optimism for the first time on
+this thread.
+
+**Gauntlet 50 (step 2/3).** Peer: **162/300 = 54.0% < 60%** -- below the
+accept bar, but a genuinely different shape of rejection than 45/46: no
+opponent collapsed (worst was 35%, vs g_iter21 and g_iter27), and several
+mid-pack opponents improved (g_iter12 80%, g_iter13 75%, g_iter17 70%).
+Reverted per Step 6.5.
+
+### Outcome
+
+Closer than any other attempt on this thread, and for the first time
+showed clear, verified positive signal on the actual target mechanism
+(sandwich Archon starvation) rather than an unexplained regression. Still
+short of the bar -- the 15-round yield window is a guess, not tuned, and
+the softer lateral-cluster matchups (g_iter21-27, 35-45%) suggest the
+fairness mechanism may cost something elsewhere (an Archon voluntarily
+not building for 15 rounds is real downtime with its own opportunity
+cost) that roughly offsets the sandwich-shaped gains in aggregate.
+
+**Next:** this is the most promising unaccepted idea from the whole
+Iterations 39-50 thread -- worth a follow-up attempt tuning the yield
+window (shorter, so less downtime per yield; or scaled to team lead
+income rate rather than a fixed 15) rather than abandoning the mechanism
+outright. Also worth checking whether the yield should only engage when a
+sibling Archon is *actually* below quota/starved (readable via
+`myMinersSpawned`-style per-Archon state isn't visible across Archons, but
+`SA_MINERS`/`SA_SOLDIERS` team totals combined with `curArchons` could
+approximate "is anyone else waiting") rather than unconditionally on a
+timer, which may be needlessly costing games where no sibling is actually
+contention-starved.
