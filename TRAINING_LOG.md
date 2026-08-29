@@ -3605,3 +3605,14 @@ before trying anything else there). But treat "fix the coordination" and
 requiring different evidence before attempting either again -- this
 iteration's mistake was assuming the `maze` case was the same shape as
 `sandwich` without checking the map's own lead supply first.
+
+**Addendum (same session):** checked immediately -- `sandwich`'s starting
+lead map shows **738 Pb on 32 tiles**, roughly 3x `maze`'s 240 Pb on 12
+tiles. The two cases are *not* the same shape after all: `sandwich` has
+genuinely abundant lead and still starved one Archon for 97 rounds
+(contention/distribution, a real and plausibly-fixable bug), while `maze`
+simply doesn't have enough lead on the whole map to support much of an
+army for either team (likely map-inherent). Future attempts at the
+Iteration 45/46/48/49 coordination fixes should target `sandwich`-shaped
+cases (rich map, starved Archon) specifically, and check a candidate
+map's total starting Pb before assuming the same mechanism applies.
