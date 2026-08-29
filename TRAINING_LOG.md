@@ -3142,3 +3142,48 @@ which a "first Soldier becomes a guard" rule can't fix if that Archon never
 gets a first Soldier out in time. Worth reconsidering whether the fix
 belongs in the Archon's own build priority (build at least 1 Soldier early
 regardless of Miner quota) rather than in Soldier behavior at all.
+
+---
+
+## Iteration 41  —  richHome contact-exemption narrowed (REJECTED, no-op)
+
+### Step 4/5
+
+Followed Iteration 40's "Next" pointer directly: hypothesized that the
+doomed Archon at `(38,11)` in the `g_iter21/sandwich` reproduction case was
+a `richHome` Archon, whose contact-cut exemption (`!richHome &&
+...SA_ENEMY_SEEN...`) was written and tuned for `maptestsmall` (a
+single-Archon, lead-dense map where the full team's economy really is the
+whole game) but applies unconditionally per-Archon -- so on a multi-Archon
+map, one rich-local-lead Archon could roll `richHome` independently and
+build its full Miner quota with zero Soldiers, regardless of any sighted
+threat, while a teammate elsewhere gets no say in its defense.
+
+### Step 6 — Solution attempted, then reverted
+
+Narrowed the exemption to `curArchons > 1` (only fully exempt a richHome
+Archon from the contact cut when it's the *only* Archon on the team --
+`maptestsmall`'s actual case). Verified directly on the reproduction case
+before running anything else: `TEAM_A=bot TEAM_B=g_iter21
+tools/vm-match.sh sandwich` came back **byte-for-byte the same result**
+(r279, identical to the unpatched build) -- and `--all-actions` confirmed
+zero Soldiers were ever built at `(38,11)` either way. Checked the
+Archon's own indicator log (`r10 miners=6`, plateauing at 7 by r12) and
+found its own Miner count was already small (~7), not 18 -- meaning this
+Archon was never actually `richHome` in this game to begin with. The whole
+hypothesis was built on an untested assumption about *why* this specific
+Archon stalls; that assumption was wrong, so the fix was a no-op by
+construction. Reverted per Step 6.5 -- confirmed ineffective before
+touching the Gauntlet at all.
+
+**Next:** three iterations (36, 39, 40, 41) have now chased the
+`g_iter21/sandwich` Archon-(38,11)-never-builds-Soldiers case without
+landing a working fix, and the real gating condition for that specific
+Archon is still unidentified -- `richHome` is ruled out, `contact`'s
+`SA_ENEMY_SEEN` window is presumably being satisfied (soldiers exist
+team-wide by r15-20, just all built at the *other* Archon). The next
+attempt should stop guessing at the mechanism and instead trace this one
+Archon's own `needMiners`/`quota`/`floor` values directly (e.g. a temporary
+indicator string dump of those three numbers each round) rather than
+inferring them from aggregate counts -- this thread has cost four
+iterations on inference-only debugging without result.
