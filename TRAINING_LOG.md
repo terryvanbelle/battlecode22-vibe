@@ -3733,3 +3733,69 @@ the same way sandwich itself was diagnosed) rather than guessing at
 another tuning knob -- three iterations (49/50/51) have now shown the
 mechanism has a real, repeatable cost somewhere, and it needs to be found
 and addressed directly rather than averaged away by adjusting timing.
+
+---
+
+## Iteration 52  —  curArchons-gated fairness-yield (REJECTED, 58.7% -- closest miss on this thread)
+
+### Step 4/5
+
+Took Iteration 51's own advice literally: pulled a fresh
+`g_iter22/maptestsmall` loss from Gauntlet 51 (the fix active) instead of
+guessing at another window length. Found the real cost immediately:
+`maptestsmall` is a **single-Archon** map. With only one Archon, the
+fairness-yield mechanism has no sibling to benefit -- the lone Archon ends
+up yielding to *itself*, for nothing. Confirmed by comparing to the
+pre-fix baseline: `g_iter22/maptestsmall/botA` was a **win** (r234) in
+Gauntlet 37 with no fix; under Iterations 50/51's fix it became a **loss**
+(r118), and the existing `botB` loss got much faster (r207 -> r107). The
+mechanism was quietly sabotaging every single-Archon matchup in the pool
+while helping only the multi-Archon ones it was designed for.
+
+### Step 6 — Solution
+
+Gated the entire fairness-yield mechanism on `curArchons > 1`. Verified
+both target cases directly: `g_iter22/maptestsmall` restored to its
+original r234 win, and `g_iter21/sandwich` still won (r582, a second
+distinct win on that exact matchup with a fresh test).
+
+`g_iter28` mirror: 12/20 = 60% -- the best mirror result on this whole
+thread.
+
+**Gauntlet 52 (step 2/3).** Peer: **176/300 = 58.7% < 60%** -- the closest
+miss of the entire Iterations 39-52 thread, and unlike every prior attempt
+on this mechanism, **every single opponent improved or held** versus
+Gauntlet 51's numbers with no gate (g_iter12 75%->80%, g_iter16 65%->75%,
+g_iter21 -- the original sandwich target -- 55%->60%, and even the
+previously-regressed g_iter22-26 cluster recovered from 35% to 40%). No
+mixed tradeoff this time, just a uniform lift that fell 4 games short of
+the bar (176/300 vs. 180 needed) -- well within one standard deviation of
+noise for a Gauntlet this size (binomial SD ~2.8% at n=300).
+
+Tried one further refinement before deciding (shortening the yield window
+5 rounds instead of 8) but it lost the `sandwich` win back to the original
+r279 loss on direct reproduction-case testing -- reverted that specific
+change immediately without spending a Gauntlet run, keeping the
+already-verified 8-round/gated version.
+
+### Outcome
+
+Reverted per Step 6.5 and this project's own established precedent for
+marginal misses (Iterations 26 and 33 were both rejected without retry
+when they landed just under 60%) -- not treating this as a special case
+despite how promising the direction is. Six iterations (39-52, spanning
+two sessions) have now gone into this Archon-economy thread; this is by
+far the strongest result, the first with a *uniform* improvement pattern
+rather than a tradeoff, and the closest numerically.
+
+**Next:** this is the strongest candidate for a fresh re-attempt of
+anyone in the whole thread -- not by guessing at more window-length
+tweaks (already shown not to reliably help, and the 5-round attempt just
+made things worse), but either (a) re-running the identical Gauntlet 52
+code once the peer pool composition changes (a new opponent added, or a
+retirement), since 58.7% is close enough that ordinary game-to-game
+variance could plausibly clear it on a re-roll, or (b) a small, different
+refinement -- e.g. only yielding when a sibling Archon can be confirmed to
+actually still want a Soldier (not just unconditionally on a timer),
+which targets the residual cost more precisely than adjusting duration
+did.
