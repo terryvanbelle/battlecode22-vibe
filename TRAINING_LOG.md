@@ -3343,3 +3343,64 @@ ASCII-board reading, which proved too imprecise to pin down cleanly across
 several attempts this session. Logging this as a durable, confirmed engine
 fact for whoever picks this thread back up, and moving on rather than
 sinking further effort into a ninth attempt at the same specific bug.
+
+---
+
+## Iteration 45  —  Soldier-unaffordable Miner fallback (REJECTED, catastrophic)
+
+### Step 4/5
+
+Followed the addendum's own advice: added precise per-direction occupant
+instrumentation (`canBuildRobot` false -> either `offmap`, the actual
+`RobotInfo` at that tile via `senseRobotAtLocation`, or -- critically --
+`?` when the tile is genuinely empty and on-map but still fails) to the
+`g_iter21/sandwich` reproduction case. The "?" tiles turned out to be the
+whole story: printing team lead alongside cost showed `lead=0 cost=75`,
+`lead=12 cost=75`, `lead=17 cost=75` -- for the entire r15-112 window, team
+lead sat in the single/low-double digits, far under the 75 a Soldier costs.
+Not occupancy, not rubble, not fleeing Miners: this Archon's sibling
+(closer to richer lead) was continuously spending the *shared* team lead
+pool on its own cheaper (50-lead) Miners before this Archon ever got a
+round where 75 had accumulated.
+
+### Step 6 — Solution attempted, then reverted (severe regression)
+
+Added a fallback: if an Archon wants a Soldier but team lead is under 75,
+build an affordable Miner instead of contributing nothing that round.
+Verified the mechanism engaged on the reproduction case (team Miners
+climbed 7->17 instead of sitting flat at 6-7) -- didn't flip that specific
+game (same r112 death, defense timing unaffected by extra Miners), but
+looked like a strictly-better, low-risk change: it only fires when the
+alternative was already doing nothing.
+
+`g_iter28` mirror: **1/20 = 5%** -- the worst result of the entire session,
+worse even than Iteration 40's 30% guard collapse. Reverted immediately
+without running the Gauntlet. The likely mechanism, on reflection: the
+fallback has no patience. The instant team lead crosses 50, it gets spent
+on a Miner -- which structurally prevents lead from *ever* accumulating to
+75, since a Miner-hungry Archon (there's always at least one on most maps)
+will drain any surplus the moment it appears. What was meant as an
+occasional bonus became a standing lead-sink that suppresses Soldier
+production almost entirely, in *both* directions in a mirror match --
+degrading the whole match into an economy neither side ever converts into
+an army.
+
+### Outcome
+
+Reverted per Step 6.5. Nine sub-attempts (Iterations 39-45) have now gone
+into this one Archon's build-stall across two full diagnostic passes,
+landing on a real, well-confirmed root cause (shared lead contention
+between Archons) but no safe fix yet -- both attempts so far (standing
+guard, greedy fallback) shared the same failure shape: an unconditional
+behavior change with a real, non-obvious cost that only shows up at scale
+(mirror match), not in the single reproduction case used to verify it.
+
+**Next:** any fix here needs a patience mechanism, not a greedy one -- e.g.
+only fall back to a Miner if this Archon has been unable to afford its
+wanted Soldier for N consecutive rounds (giving lead a chance to actually
+accumulate first), or cap how many fallback Miners a single Archon will
+ever build this way. Verify not just on the single reproduction case but
+also watch team-wide Soldier *and* Miner counts across a full game before
+trusting a "looks like pure upside" argument again -- Iteration 45's fix
+looked strictly beneficial from the reproduction case alone and was
+actually the worst regression of the session.
