@@ -3949,3 +3949,47 @@ actually behaves (continuous investment as resources allow, not a fixed
 timer). Verify engagement with `--metrics` on more than one long game
 before spending a Gauntlet run, given how narrowly Iteration 55's r700
 gate missed mattering at all.
+
+---
+
+## Iteration 56  —  lead-surplus-gated 3rd Builder (REJECTED); Watchtower-scaling thread parked
+
+### Step 4/5/6
+
+Followed Iteration 55's own note: gated the 3rd Builder on team lead
+surplus (`>400`, recalibrated down from an initial `>600` guess after
+`--metrics` showed the actual observed peak lead in a representative long
+game topped out at 519) instead of round number. Verified engagement
+directly this time: Builder count climbed to 5 in the same long
+`g_iter25/highway` game that stayed flat at 4 under Iteration 55's
+never-firing round gate.
+
+`g_iter28` mirror: 10/20 = 50%, clean.
+
+**Gauntlet 56 (step 2/3).** Peer: **176/300 = 58.7%** -- and, notably, the
+*exact same per-opponent signature* as Iteration 54's multi-Watchtower
+attempt: `g_iter16` down (75%->70%), `g_iter17`/`g_iter18` up each
+(70%->75%), everything else unchanged. Reverted.
+
+### Outcome
+
+Three attempts at the camelcase mass-Watchtower lead (Iteration 54: more
+Watchtowers per Builder; 55: round-gated 3rd Builder, confirmed inert;
+56: lead-gated 3rd Builder, confirmed engaged) have now converged on the
+same small, roughly-neutral result whenever the mechanism actually fires.
+That consistency across three different trigger conditions suggests the
+lever itself -- more static Watchtowers, isolated from any other change --
+just isn't very impactful for this bot's playstyle, not that any
+particular gating was wrong. camelcase's 44-Watchtower doctrine likely
+only pays off as part of a broader, integrated strategy (Builder
+production, placement, and army composition all built around it from the
+start), not as an addition bolted onto an otherwise-unchanged Soldier/
+Miner economy.
+
+**Next:** parking the Watchtower-scaling thread -- not worth a 4th
+tuning attempt on the same isolated lever. If this gets picked up again,
+it should be as part of a genuinely different, larger doctrine change
+(e.g. Watchtowers built forward/offensively rather than only at home,
+which is closer to what camelcase's own Builder AI reportedly does) with
+its own dedicated verification, not another gating tweak on the current
+home-only placement.
