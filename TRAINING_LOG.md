@@ -4309,3 +4309,73 @@ against the *old* peer pool; worth re-testing against the new g_iter29
 baseline in case the sandwich fix changed the economic picture enough to
 make either one pay off now. Otherwise, Step 4 should pick a fresh losing
 game from Gauntlet 61 directly.
+
+## Iteration 62  —  late-game Miner-floor tuning for chessboard timeouts (REJECTED, both attempts)
+
+### Step 4 — losing games `g_iter12/chessboard/botA` and `g_iter13/chessboard/botB`
+
+Both hit the round-2000 cap, "the winning team won by having more Archons."
+Only 4/300 Gauntlet-61 games run this long (all chessboard vs. the two
+oldest peers, g_iter12/g_iter13) -- a narrow corner case, but a clean one
+to instrument.
+
+### Step 5 — Hypothesis
+
+`--metrics` on `g_iter12/chessboard/botA`: at game end, 42605 lead sat
+unmined on the map (never lead-constrained), yet in the r1500-2000 window
+our build queue split ~evenly between Miner (78) and Soldier (90) while
+g_iter12 built 100% Soldiers (154) and zero Miners in the same window --
+confirmed generalizing on `g_iter13/chessboard/botB` (our side: 39 Miner /
+70 Soldier / 2 Builder / 2 Watchtower vs. opponent's 171 Soldier / 0
+everything else). Hypothesis: the round-based Miner floor
+(`min(6+round/100,25)`) keeps consuming ~half our late-game build capacity
+that could go to Soldiers, directly costing us the army-size tiebreak.
+**Verified on both games → Step 6.**
+
+### Step 6 — Solution (attempt 1, REJECTED)
+
+Disabled Miner replenishment entirely past round 1200. Retest:
+still 0/4 on the g_iter12/g_iter13 chessboard reproduction set, all still
+r2000 losses. `--metrics` showed the hypothesis's framing was backwards:
+Miners aren't idly topping off a cap that round, they're under steady
+combat attrition (13 deaths in just the r1250-1700 window) even that late.
+With zero replacement, Miners crashed 18->0 by r1700 and stayed at zero
+for 300+ rounds -- lead income collapsed to near-nothing, which then
+starved Soldier production too (Soldiers cost lead), making the game
+strictly worse than the unmodified baseline. The "42605 unmined lead"
+reading was backwards: it sits unmined *because* there are no live Miners
+left to reach it, not because mining was already unnecessary.
+
+### Step 6 — Solution (attempt 2, REJECTED)
+
+Froze the floor's growth at round 1200 (`min(6+min(round,1200)/100,25)`)
+instead of disabling replenishment -- still replaces attrition losses,
+just stops climbing toward the 25 cap. Retest: still 0/4, all r2000
+losses. `--metrics`: Miners now held steady (17-18 the whole late game,
+economy didn't collapse this time) but Soldier counts were statistically
+indistinguishable from the unmodified baseline at every checkpoint
+(r1200-1900) -- the floor's *growth* past r1200 (18->25) turned out to be
+a small fraction of the ongoing replacement cost; steady-state attrition
+of ~18 Miners against this opponent's harassment consumes roughly the
+same build-turn share whether the cap is 18 or 25.
+
+### Outcome
+
+**REJECTED both attempts, reverted.** Two attempts is enough to show the
+Archon build-queue split isn't the right lever here: the real asymmetry is
+that g_iter12/g_iter13 sustain their economy on just 8-10 Miners total
+while we need ~18-25 to survive the same attrition, and no amount of
+reallocating *our* build queue closes that gap without either starving
+income (attempt 1) or barely moving Soldier output (attempt 2). Not
+spending a 3rd attempt -- this is a low-generality corner case (1.3% of
+Gauntlet-61 games) and the diagnosis now points somewhere build-queue
+tuning can't reach.
+
+**Next:** the real question this surfaces is Miner *survivability*, not
+Archon build allocation -- why do our Miners take enough combat attrition
+to need constant replacement while g_iter12/g_iter13's much smaller Miner
+count apparently doesn't? Worth a dedicated Step 4 pass on Miner death
+causes/locations in this exact matchup if revisited, but given the narrow
+scope (4/300 games), better ROI right now is a fresh Step 4 target from a
+higher-volume loss category (`valley`: 16 losses, `maptestsmall`: 14
+losses in Gauntlet 61) that could move aggregate peer WinPct more broadly.
