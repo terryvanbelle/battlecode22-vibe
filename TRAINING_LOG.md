@@ -3404,3 +3404,47 @@ also watch team-wide Soldier *and* Miner counts across a full game before
 trusting a "looks like pure upside" argument again -- Iteration 45's fix
 looked strictly beneficial from the reproduction case alone and was
 actually the worst regression of the session.
+
+---
+
+## Iteration 46  —  patient Soldier-starvation fallback (REJECTED); thread abandoned
+
+### Step 4/5/6
+
+Implemented the patient version Iteration 45 proposed: only fall back from
+an unaffordable Soldier to a Miner after 20+ *consecutive* rounds of
+starvation (not immediately), and reset the counter each time the fallback
+fires so lead gets a real recovery window between triggers -- directly
+targeting the "no patience, permanently suppresses Soldier production"
+mechanism Iteration 45 was rejected for. Verified on the reproduction case
+that Miner counts stayed bounded this time (peaked at 12, not runaway).
+
+`g_iter28` mirror: **6/20 = 30%** -- much better than Iteration 45's 5%,
+but still a clear, real regression from the normal 40-55% mirror range.
+Reverted immediately.
+
+### Outcome
+
+Two different tunings of the same core idea (immediate fallback: 5%
+mirror; patient fallback: 30% mirror) both regressed significantly. That
+pattern -- fixing the "no patience" mechanism only partially recovered the
+loss -- suggests the *concept* itself is unsound here, not just
+miscalibrated: building extra Miners has real costs beyond the lead they
+spend (more wandering units exposed to raids, diminishing mining returns
+once local deposits are saturated, avoidable turns near a possibly-
+contested build ring) that apparently outweigh the benefit of "not sitting
+idle" even when kept on a leash. Abandoning this fix direction --
+Iterations 39-46 (eight sub-attempts across two sessions) have now been
+spent on this one Archon's build-stall, landing on a solid, confirmed root
+cause (shared lead contention between Archons) but no safe fix.
+
+**Next:** stop trying to give the starved Archon something to spend on.
+The alternative angle from Iteration 30/31's own design (a second Builder/
+Watchtower once `lead > 300`) suggests the fix might belong upstream, in
+resource *allocation* between Archons rather than in what a starved Archon
+does with nothing -- e.g. a soft priority signal (shared array) that lets
+whichever Archon has been waiting longest for a Soldier claim the next
+sufficient lead surplus before a sibling's routine Miner spend grabs it.
+That's a bigger, riskier change than anything tried so far in this thread,
+better suited to a fresh iteration with its own dedicated verification
+rather than another quick patch.
