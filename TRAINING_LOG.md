@@ -6930,3 +6930,42 @@ structural review and the symmetry thread have both been extensively
 mined this session; the most promising remaining avenue is picking a
 fresh losing game from a peer/map pairing not yet individually
 examined, following the ordinary Step 4/5/6 process.
+
+### Diagnostic note — `valley`/botA losses vs g_iter27-36 extend the already-closed reinforcement-distance thread, not a new bug
+
+Following Iteration 88, the fresh 20-peer Gauntlet's loss list showed a
+striking pattern not previously called out: **all 10 of `g_iter27`
+through `g_iter36` beat us on `valley` as team A** (`gauntlet/
+20260830-104109/results.csv`), distinct from the already-closed
+`g_iter22-26`/valley opponent-family thread (Iterations 39-75) which
+covered an earlier opponent range. Round counts cluster tightly
+(752-753 for g27-30, 720 for g31-36), suggesting one consistent
+mechanism, not per-opponent noise -- worth checking before assuming
+it's just the same closed thread under a new name.
+
+Traced `g_iter27/valley/botA` (loss, r753) via `--metrics`: team A
+actually *leads* in Soldiers through r300 (14 vs 11), then crashes to 3
+by r380 (-11 in 80 rounds) while team B declines only mildly (12->8),
+Archon HP untouched on both sides the whole time -- pure field-combat
+attrition, not a raid or base assault. `--indicators` on the crash
+window (r320-335) showed the classic signature this session's
+reinforcement-thread already diagnosed at length: the overwhelming
+majority of Soldiers show `reinforce [15,20]` (marching toward the
+live fight) with only 1-2 actually `focus`-attacking at any time --
+checked via `--moves` that a sampled reinforcing Soldier is making
+genuine steady progress (not stuck/oscillating, ~1 tile/round toward
+the target), confirming this is real cross-map distance, not a
+targeting or pathing bug. This is exactly the shape Iterations 29, 33,
+37, 61, and 63/69-75 already characterized and tried (and failed) to
+fix via four different reinforcement-priority mechanisms, and exactly
+the shape Iterations 34 and 78 (Archon/Watchtower relocation, both
+accepted) were built to mitigate structurally.
+
+**Not a new lead.** `g_iter27-36` are later, more-developed snapshots
+than `g_iter22-26` (each includes further accepted iterations on top),
+so per the Iteration 79 "resistant cluster is just strong peers"
+reframing, this is the same phenomenon extending further down the
+peer-age gradient, not a distinct bug newly introduced. No fresh
+Gauntlet budget spent chasing it. Recording this so a future session
+doesn't re-diagnose the same signature from scratch on this specific
+opponent range and mistake it for something new.
