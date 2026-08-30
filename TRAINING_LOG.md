@@ -6102,3 +6102,68 @@ decreasing clarity, and the underlying thread (Iteration 80 v1/v2) is
 already documented as parked with two full reproduction-sample cycles
 spent. Picking a different Step 4 target for this cycle rather than a
 third.
+
+## Iteration 81 — Sage overkill avoidance (ACCEPTED, 59.7%); safe, verified, currently-neutral
+
+### Step 4/5 — a fresh, narrow, low-risk mechanism
+
+While diagnosing the Iteration 80 v2 valley regression (inconclusive --
+see the preceding diagnostic note), picked a different Step 4 target:
+`SAGE` had zero specialized combat logic, routing entirely through
+`runSoldier` (`case SAGE: runSoldier(rc, foes); break;`), including
+`SA_FOCUS` army-wide focus-fire. Sage's stats are wildly different from
+Soldier's (45 damage vs. 3, 200-round action cooldown vs. 10 -- each
+Sage attack won't repeat for roughly 20 rounds). An earlier, general
+"overkill avoidance" idea for Soldiers was rejected this session
+specifically because it risked SA_FOCUS's fast-kill guarantee for
+frequent, cheap attacks -- but that reasoning doesn't carry over to
+Sage: wasting one of its rare 45-damage hits finishing off a target
+that's already critically wounded (and would die anyway to ordinary
+Soldier fire this same round) is a much larger relative loss than the
+same overkill costs a Soldier.
+
+### Step 6 — Solution
+
+Only for `SAGE`: at the point of attacking the shared `SA_FOCUS`
+target, if that target's health is `<=15` (well below Sage's 45
+damage), look for a different enemy combat unit also in range with
+higher health and attack that instead. Doesn't touch the shared
+`SA_FOCUS` pointer itself, so other Soldiers still coordinate on the
+original target normally -- this only redirects Sage's own attack
+action for the round.
+
+Verified the mechanism actually engages before spending broader test
+budget: on `g_iter19`/`maptestsmall` (a game confirmed to build
+Sages), the round count shifted from the deterministic baseline,
+confirming real behavior change.
+
+### Verification
+
+8-peer x 10-map x 2-side (160-game) reproduction sample: **100/160 =
+62.5%, an exact per-opponent match to baseline in every slice** -- zero
+regressions. Round-count diff (not just win/loss) confirmed the
+mechanism isn't dead code: 8 of 160 games showed a different round
+count, with zero outcome flips -- the same "safe, genuinely engaging,
+currently neutral" signature Iteration 78's Watchtower relocation
+showed before acceptance. Mirror check vs. `g_iter32`: 10/20 = 50%,
+comfortably clear of the 35% floor.
+
+### Gauntlet 81 (peer, full 15-opponent)
+
+**179/300 = 59.7%** -- matches the fresh routine baseline
+(`gauntlet/20260830-074006/`, also 179/300 = 59.7%) exactly, win-for-win
+across all 15 opponents including `g_iter31` (untested until this
+session's earlier fresh-Gauntlet cycle). Round-count diff: 8 of 300
+games differ, zero outcome flips -- consistent with the reproduction
+sample's engagement rate. A real, mechanically-verified, currently-
+neutral change with plausible upside against opponents or benchmark
+bots whose games produce more, or more decisive, Sage engagements than
+this specific peer pool happens to. No retirements due.
+
+**Snapshot**: `src/g_iter33/` (via `tools/snapshot.sh g_iter33`).
+Replay reference: `gauntlet/20260830-083123/` (full Gauntlet run);
+`gauntlet/20260830-082155/losses/g_iter19__maptestsmall__botB.bc22`
+(mechanism-verification replay).
+
+**Next:** add `g_iter33` to the peer set for future Gauntlet runs
+alongside `g_iter17-32`.
