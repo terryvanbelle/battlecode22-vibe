@@ -6511,3 +6511,74 @@ moved from the high-50s to mid-60s), consider whether any prior
 that overall play quality has shifted -- though per this session's
 "resistant cluster is just strong peers" correction, that's likely
 still the right frame, just worth a glance at fresh Gauntlet data.
+
+### Diagnostic note — fresh 20-peer Gauntlet (g_iter17-36) reconfirms existing closed-thread conclusions; strong new evidence for the symmetry-detection thread's priority
+
+Ran a fresh routine Gauntlet (`gauntlet/20260830-104109/`, 20 peers
+`g_iter17-36` x 10 maps x 2 sides, 400 games) following Iteration 86's
+large jump, per that iteration's own "Next" suggestion. **256/400 =
+64.0%**, matching Gauntlet 86's 64.2% almost exactly -- confirms the
+jump held on a fresh, larger peer sample, not a fluke of the specific
+19-peer set.
+
+**Per-opponent:** a clean monotonic decline from `g_iter17-20` (70%)
+down to `g_iter29-36` (60%), exactly the expected near-mirror band
+this session's "resistant cluster is just strong peers" diagnostic
+(after Iteration 79) already explains -- later peers are more-developed
+ancestors, not a special weakness. No outliers. Nothing new here.
+
+**Per-map:** `sandwich` 35.0% (prev baseline on the same 19-peer subset:
+34.2% -- unchanged), `maptestsmall` 50.0% (prev: 50.0%), `chessboard`
+57.5% (prev: 57.9%) -- all three trace to the closed Iteration 61
+(Archon-starvation, fixed 39-61) / Iteration 67 (DIRS tie-break,
+confirmed real but net-regressive to fix) threads and are unchanged
+within noise. Nothing new here either.
+
+**Per-map-per-side, the one angle not previously broken out explicitly
+this session:** computed win rate split by side for every map.
+`maze` (50% A / 95% B), `intersection` (90% A / 35% B), `jellyfish`
+(100% A / 50% B), and `highway` (85% A / 65% B) all show a stark split
+-- and these are *exactly* the 4 maps Iteration 76 already identified
+as non-rotationally-symmetric (`maze`/`intersection`/`jellyfish` =
+horizontal, `highway` = vertical), where `armyObjective()`'s blind
+`(W-1-x, H-1-y)` rotational guess is provably wrong. Confirmed this is
+stable pre-existing behavior, not new: the immediately-prior baseline
+(`gauntlet/20260830-102640/`, same `g_iter37` bot, 19 peers) shows the
+identical proportions (e.g. `maze` 53% A / 95% B). No regression, no
+improvement -- Iteration 86's exploration fix didn't touch this.
+
+Traced one fresh instance directly to build evidentiary weight behind
+Iteration 76's mechanism (not previously done with the *current*,
+more-developed bot): `g_iter27/maze/botA` (loss, r600, from this
+Gauntlet's own `losses/` dir). `--metrics` shows both sides' Miner/lead
+economy tracking closely and symmetrically through r140-200 (identical
+shape, ~15 Miners each, +2-8 lead/round) -- but team B's *first*
+Soldier had already logged 13 attacks by r200 while team A's first two
+Soldiers had logged **zero**. Team A's Soldier count then grows far
+slower than B's for the rest of the game (5 vs 9 by r400, 1 vs 21 by
+r520) as B's early combat-contact head start compounds into a
+snowballing Archon-kill spiral by r600. This is the exact signature
+Iteration 76 predicted: on a non-rotationally-symmetric map, one side's
+mirrored spawn geometry makes the blind guess accidentally closer to
+correct (or reach real contact faster) than the other's, producing a
+structural, geometry-driven first-contact advantage independent of any
+opponent-specific trait -- consistent with the fact that `g_iter27` is
+just another peer snapshot of our own lineage, not a specially strong
+opponent (it scores a normal 65% on other maps).
+
+**Assessment.** Nothing crossed the bar for a new Step 4/5/6 attempt --
+every weak point in this fresh data traces cleanly to an already-closed
+thread. But this trace adds real weight to Iteration 76's own
+closing note ("worth revisiting... in case a future session wants to
+revisit this closure with this evidence in hand"): the symmetry bug
+now has concrete confirmation on *four* separate maps (worth roughly
+20% of all Gauntlet games), consistently reproducing the same
+mechanism, on the bot's current, much more developed state -- not just
+the single `g_iter22/highway/botB` instance Iteration 76 examined.
+Given this is now the single largest identifiable lever left (every
+other weak spot is either closed-and-accepted or already at 57%+),
+and per the standing "embrace high-risk iterations" guidance, this
+session is picking the terrain-based proactive symmetry-detection
+project back up as the next Step 4/5/6 target, sized as its own
+multi-step iteration rather than a quick patch -- rejection remains a
+perfectly fine outcome if the scouting cost doesn't pay for itself.
