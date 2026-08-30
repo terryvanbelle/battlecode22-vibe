@@ -7814,3 +7814,50 @@ the 80%-domination retirement threshold (max 70%, `g_iter17-20`).
 A clean, unremarkable confirmation that the current state is stable
 -- moving on to a different investigation angle rather than re-mining
 an already-well-characterized peer pool.
+
+### Diagnostic note — economy-timing thresholds ruled out as the sample_afinals bottleneck; the thread is now fully consolidated
+
+Tried two more quick, cheap threshold experiments on `runArchon`'s
+`needBuilder` gate against `sample_afinals/highway`, the matchup
+this session has repeatedly used to probe the gold-economy pipeline:
+
+1. Lowering the round gate from 100 to 30: **no effect** -- a Builder
+   still wasn't built until r500. Confirms the round threshold was
+   never the actual binding constraint in this matchup; `--metrics`
+   showed team lead rarely exceeding 120 early regardless, so the
+   *lead* threshold (Iteration 90's `>120`) is what actually gates it.
+2. Lowering the lead threshold from 120 to 60: **real effect, but the
+   wrong one** -- Builders now got built much earlier (2 by r150, up
+   to 4 over the game) and much more often. But **every single one of
+   the 4 Builders produced was killed by a Sage** (confirmed via
+   `--indicators`: `* B SAGE attacks A BUILDER` x4, one per Builder,
+   zero survivors) before completing anything -- `A_labs` stayed 0 the
+   entire 989-round game. Getting Builders built *faster* just
+   produces more victims for the same Sage-vision-gap mechanism
+   Iteration 92 already characterized (Sage's attack range exceeds a
+   Builder's own vision range, so a Builder can be killed by a threat
+   it structurally cannot see coming, no matter how quickly or how
+   many times it's rebuilt).
+
+Both reverted (confirmed clean diffs against `g_iter42`).
+
+**This consolidates the whole sample_afinals gold-economy thread**
+(Iterations 89, 90, 92, 93, plus this cycle's two threshold tests):
+every lever on the *supply side* of the pipeline -- when to start
+building, how cheaply, how many times to retry, whether the Builder
+can flee detectable threats, whether a dead investment gets replaced
+-- has now been tried and found insufficient, because none of them
+address the actual bottleneck: a Builder cannot survive long enough
+near a Sage-heavy front to ever finish a Watchtower or Laboratory,
+regardless of production rate. The bottleneck is fundamentally
+*survival*, not *supply*. Further progress here would need either (a)
+denying the Sage-vision-gap advantage itself (some form of early
+warning or escort, not just faster/cheaper Builder production), or
+(b) a completely different strategic response to a committed Sage-
+rush opponent (e.g. an aggressive early Soldier rush timed to punish
+the round-100+ window before `sample_afinals`'s own Sage count
+becomes overwhelming, rather than trying to out-economy them at
+their own game). Not pursuing further threshold or production-rate
+tuning on this thread -- it is now closed at the "supply side" level;
+any future attempt needs to target survival or an entirely different
+strategic answer, not another variant of "build more, faster."
