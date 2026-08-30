@@ -5039,3 +5039,67 @@ rather than every idle Soldier reading the same signal. Diagnose
 `g_iter21` specifically first (the -15 outlier) to see exactly what got
 pulled away and whether a distance-gated version would have avoided it,
 before spending another full Gauntlet on a variant.
+
+## Iterations 70-72  —  Miner-rescue gate calibration (3 more attempts, all REJECTED; thread closed)
+
+Followed up on Iteration 69's own recommendation with three further
+attempts at gating the raided-Miner rescue detour, each verified against
+a broadening reproduction sample before spending a full Gauntlet:
+
+- **Attempt 2** (relative gate: raid must be closer than the known live
+  fight, *plus* an absolute 200-distance-squared cap): fixed the
+  diagnosed `g_iter21` over-commitment case cleanly (4/4 on a small
+  check), but the absolute cap alone dragged the broader reproduction
+  sample back down to *exactly* the unmodified baseline (52.5%) --
+  it filtered out the beneficial rescues (the original `squer` case has
+  no live focus to compare against at all, so only the cap was doing
+  anything there) right along with the harmful over-commitment.
+- **Attempt 3** (relative gate only, cap dropped entirely): broader
+  sample looked promising (55% on `g_iter22`+`g_iter27`, `g_iter21`
+  improved to 50%), and the full Gauntlet landed at **59.6%** -- 0.4
+  points off `WinPct`. Still disqualified from the near-miss extension:
+  9 opponents improved, but `g_iter19`/`20`/`21`/`28` all dropped
+  (-10 each). Dropping the cap fixed part of `g_iter21`'s problem but let
+  `g_iter19`/`20` regress *more* than attempt 1 had -- they don't raid as
+  aggressively as `g_iter21`, so the 200 cap wasn't what had been hurting
+  them; something else was still over-committing.
+- **Attempt 4** (relative gate + a looser 500-distance-squared cap, a
+  middle ground): a 100-game reproduction sample looked like the best
+  balance yet (`g_iter19` apparently back to its baseline, `g_iter21`
+  further improved to 55%) -- but this was a **real analysis error**,
+  caught only when computing the full Gauntlet's per-opponent comparison
+  properly: I'd compared `g_iter19`'s new number against `g_iter21`'s
+  baseline (60%) by mistake, not `g_iter19`'s own baseline (75%). The
+  full Gauntlet (**59.3%**) showed `g_iter19`/`g_iter20` still dropping
+  -15 each, essentially identical in magnitude to every prior attempt.
+  Own mistake worth flagging plainly: even a 100-game reproduction sample
+  doesn't protect against a wrong-baseline comparison error, only against
+  sampling variance -- always diff against the *matching* opponent's own
+  number, not eyeballed from memory.
+
+### Outcome
+
+**All three further attempts REJECTED, reverted.** Four solution
+attempts total across Iterations 69-72 have now converged on the same
+underlying tension: this codebase's peer pool contains opponents with
+meaningfully different raid frequency/aggression (`g_iter19`-`21`
+noticeably more aggressive than `g_iter22`-`30`), and any single global
+gate (relative-only, absolute-only, or both combined at several
+different thresholds) trades one group's gain for another's loss rather
+than finding a setting that helps everyone. The mechanism itself remains
+correctly diagnosed and genuinely fixes a real bug (Iteration 37's exact
+structural trap, confirmed via direct trace) -- the difficulty is purely
+in calibrating *how aggressively* to respond to it, which single-
+parameter gating on distance can't cleanly solve.
+
+**Not spending a 5th attempt** -- four attempts at the same lever
+converging on the same "someone always regresses" shape is a strong
+enough signal that the fix needs a fundamentally different shape, not
+another threshold guess. A future attempt should consider something
+that scales with the *actual observed threat level* rather than a fixed
+distance cutoff -- e.g. track how many raid alerts have fired recently
+(a genuinely low-raid opponent naturally sends few signals, so a
+count-based throttle could self-calibrate per-opponent within a single
+game without needing a hand-tuned constant) -- but that's a more involved
+mechanism than fits as attempt 5 of the same basic idea. Picking a fresh
+Step 4 target next.
