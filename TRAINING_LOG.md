@@ -4695,3 +4695,63 @@ shortest-path direction `Dijkstra20` returns for a probe unit at
 carefully chosen rotationally-mirrored positions on one of the B-favored
 maps, ties included) rather than another speculative code change without
 having found the actual mechanism first.
+
+## Iteration 65  —  away-from-home explore bias (REJECTED, severe regression)
+
+### Step 4/5
+
+`g_iter22-26/maze/botB` (5 near-identical instances, r417 each): a board
+snapshot at r300 showed Miners clustered tight against the home Archons
+in a cramped maze pocket, and `--metrics` confirmed team B built **zero**
+Soldiers for the entire game up to r391 despite Miners meeting the floor
+by r271 -- the same class of build-ring occupancy-blocking bug
+characterized in the sandwich thread (Iterations 42-44) and hit again by
+Iteration 57's Laboratory. Hypothesis: `moveExplore` (called when an idle
+Miner has no lead target) was a pure random walk with no persistent bias,
+so in a confined maze pocket idle Miners kept drifting back near the
+Archon by chance, occupying its build-ring tiles.
+
+### Step 6 — Solution (REJECTED, severe regression)
+
+Biased `moveExplore` to move away from the nearest home Archon instead of
+a pure random direction. Verified on the `g_iter22/23/24`/`maze` reproduction
+set: Soldiers now actually got built (previously zero the whole game) and
+the loss was delayed from r417 to r547-547 -- real, if partial, progress.
+Mirror check vs. `g_iter30`: 10/20 = 50%, passed.
+
+**Gauntlet 65 (peer):** **140/280 = 50.0%** -- a severe drop from the
+routine baseline's 166/280 = 59.3%. Per-map breakdown showed why:
+`pillars` collapsed 57%->7% and `squer` 64%->7%, and even `maze` itself
+-- the map this was built to fix -- got *worse* in the larger sample
+(61%->21%), contradicting the small 3-opponent reproduction check.
+`sandwich`/`valley` improved (39%->68%/71%), an interesting but
+insufficient offset.
+
+### Outcome
+
+**REJECTED, reverted.** The fix's blast radius was badly underspecified:
+"move away from home" says nothing about *safety* -- unlike
+`moveToward`'s careful rubble-aware, obstacle-tracing pathing, this just
+picks whichever of 3 candidate directions increases distance from the
+Archon, with no regard for whether that direction walks a Miner toward
+the enemy or through contested territory. On `pillars`/`squer`
+specifically this apparently marched Miners into harm's way en masse.
+The 3-opponent maze-only reproduction sample was too narrow to catch
+this -- it only tested the exact scenario the fix targeted, not the
+much larger population of games where the same code path fires under
+completely different (and often adversarial) circumstances.
+
+**Next:** the maze build-ring occupancy diagnosis itself is still
+credible and well-evidenced (zero Soldiers for 300+ rounds is a real,
+severe bug) -- but the fix needs to be far more targeted than "move
+away from home" for *any* idle explorer. A better-scoped version might:
+only apply the bias when the Archon's own build actually failed due to
+occupancy that specific round (a precise trigger, not a standing
+behavior change for all idle Miners everywhere), and/or bias toward
+*known safe* directions (away from the last-seen enemy, not just away
+from home) rather than a context-free geometric heuristic. Given this
+session already spent two rejected attempts on adjacent Archon-
+build-priority issues (Iterations 62, 63), a future pass should verify
+any fix against a broader reproduction sample (multiple maps, not just
+the target one) before spending a full Gauntlet, given how narrow this
+iteration's own pre-Gauntlet check turned out to be.
