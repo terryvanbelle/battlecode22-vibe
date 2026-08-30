@@ -6438,3 +6438,76 @@ Watchtower, Laboratory) -- level 3 (gold-gated) remains untried given
 this session's repeated finding that gold rarely accumulates enough to
 matter; Iteration 84's closed gold-seeking attempt is the blocker
 there, not this mechanic itself.
+
+## Iteration 86 — exploration momentum v3 (ACCEPTED, 64.2%); resolves a parked thread with a strong, real win
+
+### Thread history
+
+Third and final attempt at the Iteration 80 thread (Miner exploration
+momentum). Recap:
+- **v1** (persistent direction, no memory): improved `valley` broadly
+  but regressed `pillars` sharply via confirmed local-trap oscillation
+  (`--moves` showed a Miner making 111 moves for 4.5 tiles net
+  displacement, trapped in a pillar-obstacle pocket). Net regression,
+  rejected.
+- **v2** (15-round/distance²<9 stuck-detector, falls back to the old
+  every-round-random walk when tripped): neutralized the `pillars`
+  regression exactly, but broke `valley` *below* its own pre-fix
+  baseline via an undiagnosed mechanism (checked for the same dramatic
+  trap signature that explained `pillars` -- not present; the specific
+  cause was never pinned down, only suspected as false-triggering on
+  ordinary slow-but-real progress). Net regression, rejected.
+
+### Step 6 — v3
+
+Same stuck-detector shape as v2, but *much* stricter and shorter:
+10-round window (was 15), `distanceSquared <= 4` i.e. 2 tiles of net
+progress or less counts as trapped (was `< 9`, i.e. under 3 tiles). The
+hypothesis: v2's bar was too easy to trip on ordinary imperfect
+progress (open terrain still has *some* obstacles), catching false
+positives on `valley` while still comfortably catching pillars-style
+dead stops (111 moves for 4.5 tiles is nowhere near either bar).
+
+### Verification
+
+8-peer x 10-map x 2-side reproduction sample, matched-subset comparison:
+**105/160 = 65.6% vs. 100/160 = 62.5% baseline (+5 games) -- a genuine
+net improvement**, the first of the whole thread. Both target maps
+improved *simultaneously* for the first time: `valley` 8/16 -> 12/16
+(+4), `pillars` 8/16 -> 10/16 (+2). Small regressions on `g_iter17/18/
+19` (-1 each) were clearly outweighed by gains on `g_iter23/26/29/30`
+(+2 to +3 each). Mirror check vs. `g_iter36`: 12/20 = 60%.
+
+### Gauntlet 86 (peer, full 19-opponent)
+
+**244/380 = 64.2% vs. the closest baseline's 209/360 = 58.1% -- a large,
+clean net improvement.** Per-opponent: only **4 of 18** established
+peers regressed, each by exactly 1 game (`g_iter17-20`); **14 of 18**
+improved, most by 2-3 games each (`g_iter22-27`, `g_iter29-34` all up).
+The 19th peer, `g_iter35` (new, no prior baseline), scored 12/20 = 60%.
+`valley` and `pillars` totals across all 18 comparable peers: `valley`
+15/36 -> 23/36 (+8), `pillars` 17/36 -> 26/36 (+9) -- both dramatically
+better. No retirements due (check next Gauntlet given the size of this
+jump).
+
+### Outcome
+
+**ACCEPTED.** Snapshot: `src/g_iter37/` (via `tools/snapshot.sh
+g_iter37`). Replay reference: `gauntlet/20260830-102640/` (full
+Gauntlet run). This closes the Iteration 80 thread with a genuine win
+after two rejected attempts -- the lesson for future threshold-tuning
+attempts this session has repeatedly needed: when a fixed-parameter
+fix shows a real but partial positive signal (unlike the fully-closed
+Miner-redirect thread, which never showed any net-positive signal
+across four attempts), a *stricter* version of the same mechanism is
+worth trying before abandoning it, not just accepting the first
+partial win/loss tradeoff as final.
+
+**Next:** add `g_iter37` to the peer set for future Gauntlet runs
+alongside `g_iter17-36`. Given the magnitude of this jump (peer WinPct
+moved from the high-50s to mid-60s), consider whether any prior
+"accepted as a cost of doing business" conclusions (e.g. the closed
+`g_iter22-26`/valley opponent-family thread) deserve a fresh look now
+that overall play quality has shifted -- though per this session's
+"resistant cluster is just strong peers" correction, that's likely
+still the right frame, just worth a glance at fresh Gauntlet data.
