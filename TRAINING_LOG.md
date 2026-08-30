@@ -7453,7 +7453,7 @@ bookkeeping needed). Updated periodically, not every iteration.
 
 ![cumulative accepted iterations](progress/cumulative_iterations.png)
 
-As of `g_iter40`: 40 accepted iterations (of 92 attempted) spanning
+As of `g_iter42`: 42 accepted iterations (of 94 attempted) spanning
 2026-08-27 through 2026-08-30.
 
 ### Diagnostic note — Iteration 92's Builder-flee limit confirmed one more layer deeper
