@@ -7081,3 +7081,94 @@ only "barely ever engage" per Iteration 58/64?) rather than continuing
 to build features on top of an economy that's never actually online.
 This is a bigger, more foundational target than a single iteration,
 similar in scope to the now-closed symmetry-detection project.
+
+## Iteration 90 — lower the Builder economy's lead-surplus gate (ACCEPTED, ~63%); Watchtower/Laboratory economy now reachable in contested games
+
+### Step 4/5 — following straight from Iteration 90's own diagnosis
+
+Iteration 89's rejection (Sage kiting unreachable, our gold economy
+flat 0 across an 803-round game) traced the root cause one level
+further: `runArchon`'s `needBuilder` gate requires
+`rc.getTeamLeadAmount(rc.getTeam()) > 300` -- a bar unchanged since
+Iteration 30, worth 4 un-built Soldiers sitting idle in the bank. Direct
+measurement (`bot` vs `sample_afinals`, 3 separate maps, `--metrics`)
+confirmed team lead never once exceeded 92 across any of the 3 full
+games -- Soldiers absorb income as fast as it arrives in a real
+contested economy, so a 300 surplus essentially never accumulates.
+This silently disables the entire Watchtower/Laboratory/Sage pipeline
+downstream (already confirmed *correctly functional* once it fires,
+per Iteration 64's fix) exactly against the opponents where its
+established value (Watchtower HP/damage from Iterations 78/82/83's
+mutate-leveling work) would matter most. Notably, every prior attempt
+in this area (Iterations 54/55/56/58/64) tuned Builder *count* or a
+separate 3rd-Builder threshold -- none touched this original bar.
+
+### Step 6 — Solution
+
+Lowered the threshold from `> 300` to `> 120` (Builder itself costs
+only 40 lead; 120 leaves headroom above a single Soldier's 75 without
+requiring an unrealistic surplus).
+
+### Verification
+
+Re-ran `bot` vs `sample_afinals` on `highway` with the change: a
+Builder got built for the first time (was 0 the entire game before) --
+though late (~r500) and it died to enemy Sage fire before completing
+anything, since the game was already collapsing by then. Confirms the
+gate genuinely engages now; this specific matchup still loses (scale
+mismatch against a doctrine built around gold from round 1, per
+Iteration 64's own "Next" note -- not something one threshold change
+fixes), but the real target is ordinary contested *peer* games that
+don't collapse as badly.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample: **104/160 vs.
+105/160 baseline**, with a full game-by-game diff showing exactly
+**one** flip (`g_iter21/chessboard/botA`: win->loss, a long ~1000+
+round grinding game already in the well-documented "chessboard/
+intersection/pillars timing-sensitivity" family from Iteration 61 --
+plausible opportunity-cost signature but not conclusive, and this
+specific map/opponent combination is known-chaotic). Given 159/160
+unchanged, proceeded to a full 21-peer (`g_iter17-37`) x 10-map x
+2-side (420-game) Gauntlet to check at scale, following Iteration 78's
+own verification depth.
+
+### Gauntlet 90 (peer, full 21-opponent)
+
+**265/420** overall. The `g_iter17-36` subset: **255/400 vs. 256/400
+baseline**, and a full game-by-game diff against
+`gauntlet/20260830-104109/results.csv` found **the exact same single
+flip and no others** -- the wider peer range (`g_iter20/22/24/25/27/
+28/31-36`, not covered by the 8-peer sample) introduced zero new
+regressions. `g_iter37` (essentially this same bot pre-Iteration-90,
+now a valid peer since `bot` has diverged from it): 10/20 = 50%,
+squarely in the expected near-mirror band. No opponent reached the
+80%-domination retirement threshold this Gauntlet.
+
+### Outcome
+
+**ACCEPTED.** A single flipped game out of 400 tested is a clean,
+minimal-footprint cost for unlocking a mechanism with established,
+independently-verified value (the Watchtower/Laboratory economy was
+already proven non-regressive and genuinely useful once it fires --
+Iterations 64, 78, 82, 83, 85 all built on top of it) in exactly the
+contested-game scenarios where it previously never engaged at all.
+Matches the Iteration 78 acceptance template: mechanically verified to
+actually fire (not dead code), matches baseline closely, plausible
+unproven upside beyond what this specific peer pool's mirror-matches
+can demonstrate (benchmark bots, or future opponents with heavier
+gold investment).
+
+**Snapshot**: `src/g_iter38/` (via `tools/snapshot.sh g_iter38`).
+Replay reference: `gauntlet/20260830-125333/` (full Gauntlet run).
+
+**Next:** add `g_iter38` to the peer set for future Gauntlet runs
+alongside `g_iter17-37`. This doesn't fully close the gold-economy
+thread -- the threshold is now *reachable*, but Iteration 64's own
+"barely engages... too small in scale" finding against
+doctrine-committed opponents like `sample_afinals` likely still holds;
+a future session could check whether 120 is itself still conservative
+(the sample size here is thin on how often it actually fires across
+the full peer pool) or whether the downstream Sage-kiting fix
+(Iteration 89, well-verified but shelved only for lack of a live Sage
+to apply it to) is now worth revisiting given Builders/Labs should
+fire somewhat more often.
