@@ -8019,3 +8019,38 @@ threat and have their own retreat logic, so the marginal value there
 is smaller) -- Miners and Builders were the two unit types with zero
 existing Sage-awareness and the clearest exposure, and both are now
 covered.
+
+### Diagnostic note — fresh benchmark tally after Iterations 96/97: no matchup-level flip, as expected
+
+With `g_iter44` (both Sage early-warning fixes) as the working state,
+ran fresh full 20-game tallies against both benchmark bots to check
+whether the survival-side fixes moved the win rate:
+
+- `sample_afinals`: **3/20 (15%)**, `gauntlet/20260830-214619/`.
+  Won `maptestsmall` (both sides) and `jellyfish` (B side); lost
+  everywhere else, including `highway` and `valley` -- the exact maps
+  where the Sage-blind-spot dynamics were traced this session. Within
+  the historical 10-20% (2-4/20) band this matchup has sat in for the
+  whole project; not a regression, not a breakthrough.
+- `sample_camelcase`: **0/20 (0%)**, `gauntlet/20260830-214814/`.
+  Consistent with the project-long pattern (never beaten more than
+  once in any 20-game tally).
+
+**Not surprising, and not a negative result for Iterations 96/97**:
+the traced Builder death case earlier this cycle showed the Sage
+early-warning fix changed *what* killed the Builder (Soldiers instead
+of a Sage) but the Builder still died before completing its task. A
+matchup-level flip needs the unit to actually survive to complete the
+gold economy, not just die to a different, more "ordinary" threat.
+Iterations 96/97 are real, verified improvements to Builder/Miner
+survival mechanics, but they were never expected to single-handedly
+close the `sample_afinals` gap on their own -- closing it fully likely
+needs a further step (e.g. actually out-running/out-maneuvering the
+Sage rather than just noticing it sooner, or a structural change to
+how the gold economy is defended). No Gauntlet budget spent chasing
+this further right now; recorded as the expected outcome and a
+baseline for judging any future Sage-survivability work.
+
+Added this pair as a new `BENCHMARK_HISTORY` point in
+`tools/plot_progress.py` (`2026-08-30T14:50:07-07:00`, camelcase=0,
+afinals=3) and regenerated the progress chart.

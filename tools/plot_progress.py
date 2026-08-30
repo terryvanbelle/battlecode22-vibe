@@ -71,6 +71,7 @@ BENCHMARK_HISTORY = [
     ("2026-08-29T01:05:31+00:00", 0, 4),
     ("2026-08-29T22:33:36+00:00", 0, 3),   # Iteration 61
     ("2026-08-30T14:52:55+00:00", 0, 4),   # this session's full 60-game tally
+    ("2026-08-30T14:50:07-07:00", 0, 3),   # post-Iteration-97 check (Sage early-warning)
 ]
 
 
