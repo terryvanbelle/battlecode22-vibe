@@ -5932,3 +5932,73 @@ than "confirmed fine."
 **Next:** neither of these turned into an actionable Step 4 target this
 cycle. Continuing the search for a genuinely fresh, general-improvement
 lever next.
+
+## Iteration 80 — Miner exploration momentum (REJECTED; promising signal, real regression elsewhere)
+
+### Step 4/5 — deeper structural re-read surfaces a genuinely fresh lead
+
+After 3+ cycles unable to find a new Step 4 target via targeted probing
+(and a fresh routine Gauntlet with the current 15-peer set turning up
+nothing new -- every number matched already-understood baselines,
+`g_iter31` included), did a from-scratch re-read of `runSoldier`/
+`runMiner`/`moveExplore` with no prior hypothesis. `moveExplore()`
+(used when a Miner has no live-vision lead, no known beacon, and
+`nearestLead()` also returns null) re-randomizes its movement direction
+*every single round* -- a pure "drunkard's walk" with zero persistence,
+unlike `moveToward()`'s own `lastDir` momentum tracking.
+
+Added a temporary diagnostic indicator and ran it on `valley`/`pillars`
+(flagged lead-sparse since Iteration 7) against `g_iter22`: **on one
+`g_iter22`/`valley` loss, ~4900 of ~7700 possible Miner-turns (~64%)
+were spent in this branch.** These are also our two weakest maps at
+baseline (`valley` 40%, `pillars` 47% peer win rate) -- a real,
+substantial, previously invisible time sink.
+
+### Step 6 — Solution
+
+Gave `moveExplore` directional persistence: commit to a direction and
+keep moving in it until blocked or a 1-in-15 chance per round triggers
+a redirect, instead of re-randomizing every round. Single-game check
+(`g_iter22` on `valley`+`pillars`) was promising: valley flipped from
+0/2 wins to 2/2; pillars still lost both sides but with different round
+counts (real behavior change, no flip there).
+
+### Verification
+
+8-peer x 10-map x 2-side (160-game) reproduction sample, with careful
+matched-subset comparison against the same 8 opponents' baseline
+(not the full-14-peer baseline, to avoid an apples-to-oranges
+comparison): **valley genuinely improved broadly, 8/16 -> 12/16 (+4)
+across all 8 opponents, confirming the single-game signal generalizes**
+-- but **pillars regressed sharply, 8/16 -> 3/16 (-5)**, more than
+offsetting the valley gain, plus softer regressions on most other
+individual opponents (`g_iter17/18/19/21/23/26` all down, `g_iter29/30`
+unchanged). Overall: **81/160 = 50.6% vs. 100/160 = 62.5% baseline -- a
+clear net regression.**
+
+### Outcome
+
+**REJECTED, reverted** (confirmed clean diff against `g_iter32`). Unlike
+the closed Miner-redirect thread, this one has a *genuinely positive,
+verified, broadly-confirmed* result on one map (valley) -- the
+underlying insight (Miners waste the majority of their turns in a
+zero-persistence random walk on lead-sparse maps) is real and worth
+keeping. The regression is plausibly specific to *why* pillars is
+obstacle-dense (its name): a persistent-direction walk that works well
+in open terrain (valley) may cluster multiple Miners into the same
+corridor or trap them oscillating locally against a pillar cluster
+before the blocked-check redirects, in a way the old (inefficient but
+naturally self-spreading) pure-random walk didn't. Not diagnosed in
+detail this cycle -- reverted rather than spend a second full
+reproduction sample mid-hypothesis in an already long cycle.
+
+**Next:** worth a v2 attempt with a hypothesis specifically targeting
+the pillars regression rather than re-tuning the redirect-chance
+constant blindly -- e.g. bias the direction pick to avoid crowding
+(check for nearby friendly Miners already exploring, and skip a
+candidate direction that's already someone else's `exploreDir`), or
+verify directly via `--moves`/`--indicators` on a pillars replay
+whether the failure mode is clustering, local-trap oscillation, or
+something else before designing the fix. Don't just widen or narrow the
+1-in-15 redirect constant without first confirming which failure mode
+it's actually hitting.
