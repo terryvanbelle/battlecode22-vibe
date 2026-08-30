@@ -6582,3 +6582,125 @@ session is picking the terrain-based proactive symmetry-detection
 project back up as the next Step 4/5/6 target, sized as its own
 multi-step iteration rather than a quick patch -- rejection remains a
 perfectly fine outcome if the scouting cost doesn't pay for itself.
+
+## Iteration 87 — Miner enemy-Archon reporting (REJECTED; real narrow win, net regression on broad sample)
+
+### Hypothesis
+
+Cheaper alternative to a full dedicated-scout symmetry-detection system
+(the "next Step 4/5/6 target" flagged above): `run()`'s
+`reportEnemyArchons(rc, foes)` call has excluded `RobotType.MINER`
+since Iteration 3, when Miners never left the immediate home area.
+Iteration 86's exploration-momentum fix now sends Miners wandering
+broadly across the whole map hunting for lead -- exactly the kind of
+coverage that could stumble onto an enemy Archon well before any
+Soldier does. Since `armyObjective()` already prefers a known enemy
+Archon location over the blind mirror guess whenever one is reported
+(line ~248, pre-existing since Iteration 3), letting Miners report too
+should let real sightings override the wrong blind guess earlier on
+the 4 non-rotationally-symmetric maps identified in Iteration 76
+(`maze`, `intersection`, `jellyfish`, `highway`) -- for free, reusing
+existing code, no new scouting behavior.
+
+### Step 6 — Solution attempt 1: remove the MINER exclusion
+
+`run()`: moved `reportEnemyArchons(rc, foes)` outside the
+`if (rc.getType() != RobotType.MINER)` guard (kept `checkHomeThreat`
+Miner-excluded, unrelated to this hypothesis).
+
+### Verification
+
+Mechanism confirmed directly on the exact target case from this
+session's own fresh-Gauntlet diagnostic note above
+(`g_iter27/maze/botA`, documented loss at r600): re-ran via
+`TEAM_A=bot TEAM_B=g_iter27 tools/vm-match.sh maze` -- **flipped to a
+win, r509**. `--metrics` confirmed the mechanism, not luck: team A
+logged 7 attacks by r200 (was 0 in the baseline loss) and was
+damaging enemy Archon HP by r320-360 (enemy Archons stayed at full
+1800 HP the entire game in the baseline loss) -- the exact early-
+contact head start Iteration 76 predicted a real sighting would
+provide.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample (`g_iter17/18/
+19/21/23/26/29/30`, matched against this exact subset's numbers from
+the fresh `gauntlet/20260830-104109/` baseline, 105/160 = 65.6%):
+**103/160 = 64.4% -- a net regression of 2 games**, but not a clean
+"helps one, hurts everywhere" collapse like the closed Miner-redirect
+thread. Per-map: `maze` improved (+1, the intended target), `highway`/
+`intersection`/`jellyfish` (the other 3 symmetry-broken maps) were
+flat -- no improvement despite being equally eligible, suggesting the
+mechanism only fires often enough to matter on some maps/opponents,
+not universally. `squer` (a *rotational* map, where the blind guess was
+already exactly correct) regressed sharply: **-3**, all three flips
+(`g_iter21/23/26`, all as team A) losing 20-30 rounds *earlier* than
+their baseline wins, not later -- a premature-commitment signature, not
+attrition.
+
+### Diagnosis of the squer regression
+
+Traced `g_iter21/squer/botA` (new loss, r357; baseline had won r371)
+via `--metrics`: team A gets real early attacks in (10 by r120, ahead
+of team B's 0) but fields only 1-2 Soldiers the whole time it's
+trading blows, while team B's Soldier count climbs steadily (3->12) and
+eventually overwhelms. Squer has 2 Archons per side; `armyObjective()`
+has always returned the *first populated* `SA_ENEMY_ARCHON_0..3` slot
+(whichever got discovered first), a detail that used to barely matter
+because only combat units near the front ever discovered anything.
+With Miners also reporting, a Miner wandering far from the front can
+now report a real enemy Archon well before any Soldier reaches the
+area a Soldier-only discovery would have found first -- shifting *which*
+of the two enemy Archons the whole army heads for, weeks earlier than
+before, with too small a force to survive contact once it arrives.
+
+**Attempted fix:** changed `armyObjective()`'s enemy-Archon pick from
+"first populated slot" to "nearest known enemy Archon to our own home"
+(a single fixed reference point every unit agrees on, preserving the
+"one shared objective" invariant) -- a plausible, narrowly-scoped
+correctness fix independent of the Miner-reporting change itself.
+**Broke the primary target case**: re-running
+`TEAM_A=bot TEAM_B=g_iter27 tools/vm-match.sh maze` flipped from the
+freshly-confirmed win (r509) back to a **loss (r656)** -- on
+`maze` (3 Archons per side, non-rotationally symmetric), the enemy
+Archon the wandering Miner happened to discover first was the
+*correct* early-contact target, while "nearest to our home" picked a
+different, worse one. This is the same tension in miniature: "nearest
+by raw distance" is the right heuristic exactly on the *rotational*
+maps (`squer`) where the blind guess was already correct anyway, and
+wrong on the *non-rotational* ones (`maze`) that are the whole point of
+this thread -- there is no map-agnostic tie-break rule between multiple
+known enemy Archons that works for both symmetry classes without
+actually knowing which class the current map is.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter37`). The core hypothesis was
+real and cleanly confirmed on its intended target (a genuine,
+mechanically-verified win on exactly the kind of loss Iteration 76
+predicted), but the broad reproduction sample came back net negative,
+and the one candidate refinement tried made the primary target worse,
+not better -- the same "wrong-guess correction" and "wrong-target
+selection" problems turn out to be two faces of the same underlying
+issue (not knowing the map's true symmetry class), which this
+cheap approach has no way to distinguish. This is genuine, useful
+evidence for the parked Iteration 76 thread, not a wasted cycle: it
+confirms a *shortcut* around real symmetry detection (piggybacking on
+existing Miner exploration instead of dedicated scouting) doesn't
+work, because the problem isn't really "how do we learn the enemy
+Archon location sooner" (this fix does that, cheaply, and it still
+regresses) -- it's "how do we know which of several plausible pieces
+of information to trust," which fundamentally requires knowing the
+symmetry class, not just having more sightings.
+
+**Next:** the real terrain-based symmetry-detection project (comparing
+observed rubble/terrain at candidate mirror-pair tiles via dedicated
+early scouting, sized as its own multi-step iteration per Iteration
+76's original closing note) remains the only approach identified so
+far that could resolve this properly -- this iteration's failure
+narrows the search by ruling out "just report more/earlier" as a
+substitute. Not attempting further quick patches on this specific
+lever (Miner reporting, enemy-Archon tie-break order) -- both are now
+demonstrated dead ends independently. Picking a different Step 4
+target for the next cycle; the symmetry-detection project itself is a
+candidate for a future dedicated cycle with more design room than a
+single autonomous iteration comfortably affords.
