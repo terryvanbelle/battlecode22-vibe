@@ -4800,3 +4800,58 @@ direction the following round. Without that direct confirmation, further
 parameter tweaks are guessing blind at a mechanism whose basic operation
 hasn't been verified. This diagnostic step should come *before* the next
 Gauntlet-spending attempt, not after.
+
+## Diagnostic note  —  Dijkstra20's tie-break mechanism found; likely root cause of the per-map A/B split (not fixed -- high risk, needs a dedicated pass)
+
+Three consecutive rejected attempts (Iterations 63, 65, 66) all targeted
+Archon-priority/build-allocation symptoms of the same repeated shape:
+armies start even, then one side's production quietly out-paces the
+other's over 100-300 rounds until an Archon dies and the game snowballs.
+That exact shape has now shown up on `sandwich`, `valley`, `maze`, and
+(checked this pass) `intersection` (`g_iter22/intersection/botB`: 10 v 11
+Soldiers at r61, drifting to 43 v 0 by r421). Given three point-fixes on
+the *build-priority* side failed or were inert, and given the earlier
+`maptestsmall` mirror-match finding already implicated the pathfinder,
+read `Dijkstra20.java`'s actual decision logic instead of guessing at
+another economy tweak.
+
+Found the mechanism: `getBestDirection` (the whole function is ~2100
+lines, an unrolled BFS/Dijkstra over every tile within radius-squared 20)
+ends in a long, flat chain -- `if (maxScore == scoreN) return directionN`
+-- checked in a **fixed, hardcoded, compile-time-generated order** (31
+candidates in just the final tie-break block; similar chains exist for
+each closer "radius shell" earlier in the function). `maxScore` is the
+max of all candidates' `(currentDistance - distanceToTarget) / pathCost`
+scores. On genuinely symmetric terrain -- exactly the situation on a
+freshly-spawned, rotationally-mirrored map -- **exact ties between
+multiple equally-good tiles are common**, and every tie resolves to
+whichever candidate happens to appear first in this arbitrary generated
+sequence, which has no relationship to team identity or map rotation.
+This is a strong, mechanistic explanation for why the same code produces
+a different winner depending on which map (i.e. which specific 180-degree
+rotational offset) it's mirrored across: the fixed tie-break order
+happens to point toward useful territory for one spawn corner's
+geometry and away from it for the mirrored one, and that flips per map
+depending on the exact rotation -- matching the empirically observed 6-4
+split from the `g_iter30`-vs-itself mirror-match data.
+
+**Not fixed this pass.** This is vendored (`jmerle/battlecode-2022`,
+MIT-licensed camelcase pathfinder), the single most heavily-used
+navigation function in the whole bot (every `moveToward` call for every
+unit type goes through it), and reordering or randomizing a 31+ branch
+tie-break chain by hand risks subtle correctness bugs in code this
+project didn't write and doesn't fully understand the invariants of --
+exactly the kind of underestimated blast radius that burned Iteration 65
+(a much smaller change to a single call site still caused severe,
+map-specific collateral damage). A safe fix needs: (a) confirming the
+tie-break theory directly (instrument a probe to log how often
+`maxScore` ties occur and which candidate wins, on both a heavily
+A-favored and heavily B-favored map), (b) a properly-scoped change (e.g.
+seeding the tie-break scan order per-robot-ID or per-round rather than
+using a fixed compile-time order, so ties resolve unpredictably rather
+than systematically) verified in isolation before it touches live
+gameplay, and (c) a much broader Gauntlet check than any single
+iteration in this session has used, given the mechanism potentially
+touches every game on every map. Recording as the top-priority lead for
+a dedicated future session with room for that scope, rather than a
+change squeezed into this one's remaining budget.
