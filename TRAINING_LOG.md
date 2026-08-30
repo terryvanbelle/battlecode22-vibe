@@ -5309,3 +5309,63 @@ isolated units simply have no mechanism to call for reinforcement the
 way raided Miners do via `SA_ECON_THREAT` -- the latter, if true, would
 be a natural, well-precedented next mechanism (a "Soldier in a losing
 fight cries for help" signal, mirroring Iteration 73's raid throttle).
+
+## Iteration 75  —  Soldier distress-reinforcement signal (REJECTED, mixed regression); valley/g22-26 thread closed
+
+### Step 6 — Solution
+
+Implemented the diagnostic note's own suggested next step: `SA_DISTRESS`
+-- a Soldier currently fighting while locally outnumbered (enemy combat
+units in vision >= friendly combat units + 2) broadcasts its location;
+other Soldiers with nothing more urgent (checked above `SA_ECON_THREAT`,
+since a fight actively being lost is more urgent than a raided Miner)
+converge to reinforce. Deliberately no distance cap or responder-count
+limit, unlike the Miner-rescue mechanism -- multiple Soldiers converging
+on an outnumbered fight is the actual fix, not overkill.
+
+Verified on the target case: the signal fired 482 times in one game
+(extremely frequent) and the loss was delayed (r853->r914), but Soldier
+mortality stayed at exactly 100% -- no survival-rate improvement despite
+heavy engagement. Best explanation: once an army is already smaller than
+the opponent's (as ours was by the time this triggers), "locally
+outnumbered" becomes a near-permanent background state rather than a
+genuine emergency signal, so the mechanism can't distinguish "help, we're
+about to lose a unit we could save" from "we're just chronically behind
+in numbers" -- grouping alone doesn't manufacture more Soldiers.
+
+Broad reproduction (5 opponents incl. `g_iter22`, all 10 maps, 100
+games): **54/100** vs. baseline **60/100** -- a real net regression. Per-
+opponent: `g_iter22` (the exact target) improved sharply, 10/20 -> 13/20
+(+15) -- a genuine partial win -- but `g_iter19`/`21`/`27`/`30` all
+dropped (-5/-15/-10/-15). The same "helps the target, hurts broadly"
+shape seen repeatedly this session (Iterations 63, 69, 74), most likely
+because "outnumbered by 2" is common enough in ordinary, otherwise-fine
+fights across many matchups that the signal fires far too promiscuously
+outside the one matchup it was diagnosed on.
+
+### Outcome
+
+**REJECTED, reverted.** This closes the `g_iter22-26`/`valley`
+investigation (Iterations 74-75, following on from 63 and 69-73's
+adjacent repair/rescue work): four distinct mechanisms now tried against
+this general shape of problem (fixed repair-skip, combat-unit-only
+repair-skip, self-calibrating repair throttle, distress-based
+reinforcement), all rejected, two (Iteration 63 attempt 1, Iteration 75)
+sharing the exact same signature of "real win on the diagnosed matchup,
+real loss everywhere else." The underlying diagnosis (Soldiers dying at
+100% vs. ~43% mortality due to isolated, unreinforced skirmishes) is
+almost certainly correct and well-evidenced -- but every mechanism tried
+to act on it either doesn't move survival at all (Iteration 74) or moves
+it at an unacceptable cost elsewhere (Iteration 75).
+
+**Next:** not spending further attempts on Soldier-level reinforcement
+mechanisms for this specific matchup family. The `g_iter22-26` cluster on
+`valley` (and, per Iteration 61's original finding, on chessboard/
+intersection/pillars too) is now well-supported as a genuine instance of
+opponent-family timing-sensitivity that resists every lever tried across
+two extended investigation threads (39-61's sandwich thread found a real
+fix eventually; this one, spanning Iterations 63/69-75, has not). Treat
+it the same way Iteration 61 already treats the chessboard/intersection/
+pillars instances of this pattern: acknowledged, accepted as a cost of
+doing business with this specific snapshot family, not chased further.
+Picking a target with no history of resisting fixes next.
