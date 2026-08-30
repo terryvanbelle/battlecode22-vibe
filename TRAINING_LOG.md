@@ -5103,3 +5103,83 @@ count-based throttle could self-calibrate per-opponent within a single
 game without needing a hand-tuned constant) -- but that's a more involved
 mechanism than fits as attempt 5 of the same basic idea. Picking a fresh
 Step 4 target next.
+
+## Iteration 73  —  self-calibrating raid-count throttle (ACCEPTED, 60.4%); Miner-rescue thread resolved
+
+### Step 6 — Solution
+
+Picked up the closed thread's own recommendation: instead of a fixed
+distance/priority threshold (four rejected attempts, Iterations 70-72),
+throttle the Miner-rescue response by *observed raid frequency*. New
+mechanism: `SA_RAID_COUNT`/`SA_RAID_BUCKET` track how many *distinct*
+raid events (not every round of the same ongoing siege -- gated on a
+fresh Miner location or a stale previous alert) have fired within the
+current round/50 bucket. A Soldier only takes the rescue detour while
+the count is `<=3`; against a low-raid opponent the count never climbs
+that high, so response stays effectively unconditional, while a
+high-raid opponent (`g_iter21`, this thread's worst regression) hits the
+cap and further raids get ignored until the next bucket -- no hand-tuned
+constant, the threshold tracks each opponent's own behavior within the
+game itself.
+
+First check (`g_iter21`/`g_iter22`, 3 maps) showed `g_iter21` jumping to
+5/6 = 83%, the best single result this whole thread produced -- but the
+*original* `squer` target case regressed back to the unfixed baseline.
+Traced directly: all 3 of our available Soldiers were converging on the
+same single rescue signal every round (nothing limits responder count
+per raid, a different problem than raid *frequency*), and `squer`'s
+small unit counts meant "the whole army becomes the rescue squad" was
+costly regardless of the throttle. Added a modest distance cap intended
+to limit simultaneous responders -- it didn't move `squer` specifically
+(the map's units are already clustered close together, so distance
+doesn't differentiate there), but didn't hurt either.
+
+### Verification
+
+Broad reproduction (5 opponents incl. the two troublesome ones,
+`g_iter19`/`g_iter21`, x all 10 maps, 100 games), diffed carefully
+against each opponent's own correct baseline this time (the lesson from
+the prior attempt's analysis-error near-miss): **zero regressions across
+all five opponents**, with `g_iter21` and `g_iter30` each +5 points.
+Mirror check vs. `g_iter30`: 11/20 = 55%, passed.
+
+### Gauntlet 73 (peer)
+
+**169/280 = 60.4%** -- clears `WinPct` outright. Per-opponent comparison
+against the last-accepted baseline: **every single one of the 14
+opponents either matched baseline exactly or improved** --
+`g_iter21`/`g_iter29`/`g_iter30` each +1 win, everything else unchanged.
+`tools/compare_gauntlets.py` showed 13 outcome flips, 8 favorable (the
+`g_iter21/chessboard` win this thread was chasing, `sandwich` recovering
+across `g_iter22-26`, `pillars` wins for `g_iter29`/`30`) against 5
+unfavorable (a `pillars` cluster for `g_iter22-26`) -- a real, if modest,
+net gain with no opponent left worse off. No retirements due (nothing
+crosses 80%).
+
+### Outcome
+
+**ACCEPTED.** Snapshot `g_iter31`. Replay:
+`replays/iter73_g_iter21_chessboard_botA_WIN.bc22` (loss r777 -> win
+r1084 against `g_iter21`, the opponent this whole thread's regressions
+centered on).
+
+This resolves the Miner-rescue thread that ran from Iteration 69 through
+73 (5 iterations). Summary of the arc: Iteration 69 correctly diagnosed
+and fixed a real structural bug (raided-Miner cry for help unreachable
+once any Soldier had a live combat focus, the same class of trap
+Iteration 37 fixed for home-Archon threats) but its unconditional
+version caused a mixed regression. Four single-parameter distance/
+priority gating attempts (70-72) each traded one opponent group's gain
+for another's loss, because opponents in this peer pool raid at
+meaningfully different frequencies and no fixed constant fits all of
+them. The winning insight: throttle by *counting observed raid events
+within the game*, not by guessing a spatial constant -- a mechanism that
+self-calibrates per-opponent without needing to know in advance which
+opponent it's facing.
+
+**Next:** the responder-count problem found on `squer` (multiple
+Soldiers converging on one rescue signal in a small-army game) is still
+real but didn't cost anything net this iteration -- worth a dedicated
+look if `squer`'s specific loss pattern is revisited, but not urgent
+given the clean accept. Otherwise, back to picking a fresh Step 4 target
+from the current peer pool.
