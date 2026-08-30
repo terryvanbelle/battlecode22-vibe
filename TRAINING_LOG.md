@@ -7738,3 +7738,44 @@ Not pursuing a second attempt this cycle; recording the negative
 result (fixed-direction escape doesn't work) so a future attempt
 starts from a genuine open-space search rather than re-trying the
 same shape of fix.
+
+### Diagnostic note — reactive search (even moveExplore) also fails; this thread is now closed
+
+Tried a second variant of the Watchtower-placement escape, reusing
+already-proven infrastructure instead of a hand-rolled fixed-direction
+walk: once genuinely stuck (>15 consecutive in-range-but-blocked
+rounds), hand off to `moveExplore()` -- the same momentum/stuck-
+detection wanderer Iteration 86 verified effective at navigating
+obstacle-dense terrain for Miners -- checking for a build opportunity
+every round regardless of where exploration wanders. Verified on the
+same `chessboard` case: the round count changed (957 vs. 893,
+confirming real behavioral difference), and the Builder explored
+persistently (904 of 957 rounds spent in the `"exploring for
+watchtower slot"` state) -- but **still never found a valid build
+tile anywhere**, across nearly the entire game.
+
+This is strong evidence the problem isn't a search-algorithm
+limitation at all: even a proven, general-purpose wanderer covering
+essentially the whole accessible game for 900+ rounds couldn't find
+one open tile to build a Watchtower next to. The likely explanation:
+on `chessboard`, the whole army (not just the home compartment) is
+funneled through the same narrow single-tile corridors between cells
+all game long, so *any* cell the Builder reaches is plausibly also
+crowded by other friendly units passing through -- a persistent,
+map-wide congestion condition, not a localized one near the Archon
+that a wider search could route around.
+
+**Reverted** (`git checkout -- src/bot/RobotPlayer.java`, confirmed
+clean diff against `g_iter42`). **Closing this thread**: two
+structurally different reactive-search approaches (fixed-direction
+escape, and general-purpose stuck-aware exploration) have both failed
+on the motivating case, converging evidence that no *reactive*
+movement strategy will solve this. A real fix would need to attack
+the problem proactively instead -- e.g. building the Watchtower much
+earlier (before the map fills up with mobile traffic), or picking a
+placement site before congestion sets in rather than searching for
+one after the fact. Not worth a third reactive-search attempt without
+a genuinely different, proactive idea; `chessboard`'s Watchtower
+placement is not worse off than before Iteration 94 (which still
+holds and helps in less pathological cases), it just remains unsolved
+on this specific map.
