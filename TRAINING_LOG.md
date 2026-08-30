@@ -7861,3 +7861,94 @@ their own game). Not pursuing further threshold or production-rate
 tuning on this thread -- it is now closed at the "supply side" level;
 any future attempt needs to target survival or an entirely different
 strategic answer, not another variant of "build more, faster."
+
+## Iteration 96 — Sage early-warning for Builders (ACCEPTED, ~61%); the first genuine survival-side fix on the sample_afinals thread
+
+### Step 4/5
+
+Directly follows the "survival not supply" consolidation from the
+previous cycle: every supply-side lever on the Builder pipeline had
+been exhausted, and the actual bottleneck was identified as Builder
+*survival*, specifically the confirmed mechanical gap
+`SAGE.actionRadiusSquared` (25) `> {SOLDIER,MINER,BUILDER}.
+visionRadiusSquared` (20) -- a Builder can be killed by a Sage it
+structurally cannot see coming, no matter how quickly or cheaply it
+was produced. This is the first attempt this session that targets
+that gap directly rather than working around it.
+
+### Step 6 — Solution
+
+Added `SA_SAGE_SEEN`/`SA_SAGE_SEEN_RND` (packed location + round of
+the most recent enemy Sage sighting by *any* unit). Archon and
+Watchtower have a larger `visionRadiusSquared` (34) than a Builder
+(20), so they'll often spot an approaching Sage well before a nearby
+Builder ever could. `runBuilder`'s existing flee check (Iteration 92,
+direct vision only) now falls back to this shared report when no
+threat is directly visible -- an 8-round freshness window and a
+bounded `distanceSquared` radius (60) keep it from reacting to a
+stale or long-gone sighting.
+
+### Verification
+
+Re-ran `bot vs sample_afinals/highway` (the same matchup used
+throughout this thread): the `"builder flee (reported sage)"`
+indicator fired 24 times -- the mechanism genuinely engages. More
+importantly, `--indicators` on the Builder's actual death showed a
+real, qualitative change: it was killed by **two Soldiers** this
+time, not a Sage -- every single prior test this session (Iterations
+89 through the previous cycle's threshold experiments) showed
+Builders dying specifically to Sages. This is direct evidence the fix
+works as designed: it doesn't make the Builder invincible (still too
+fragile to survive prolonged exposure to a determined, visible pursuit),
+but it does close the specific blind-spot kill this whole thread has
+been chasing.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample against the
+`g_iter42` baseline: **104/160, exact match, zero game-by-game
+diffs** -- expected, since Sages are rare enough in ordinary peer
+play that the mechanism has little opportunity to matter there.
+Two more `sample_afinals` spot-checks (`squer`, `valley`) showed no
+Builder ever gets built in those specific matchups at all (lead never
+crosses the production threshold), so the fix had no chance to engage
+there either -- confirms it's a safe no-op when inapplicable, not a
+regression.
+
+### Gauntlet 96 (peer, full 26-opponent)
+
+**315/520 = 60.6%**, identical to the immediately-prior routine
+health-check Gauntlet. The `g_iter17-36` subset: **255/400**, and a
+full game-by-game diff against the `104109` baseline showed **only
+the same single, already-known `g_iter21/chessboard/botA` flip** --
+no new flips anywhere. `g_iter37`-`g_iter42`: 10/20 = 50% each,
+reasonable near-mirror scores. No opponent reached the 80%-domination
+retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A genuinely new mechanism (not a rehash of a prior
+attempt), directly motivated by this session's own consolidated
+diagnosis, with a verified, qualitative behavioral improvement (death
+cause changes from an unavoidable blind-spot kill to an ordinary
+visible-threat engagement) and zero measurable cost on the peer pool.
+Same acceptance basis as this session's other structural fixes:
+correct, low-risk, with value concentrated in scenarios (Sage-heavy
+opponents) this specific peer pool can't exercise much, but real
+nonetheless.
+
+**Snapshot**: `src/g_iter43/` (via `tools/snapshot.sh g_iter43` --
+note Iteration 95, the reverted moveExplore-based Watchtower-escape
+attempt, never got a snapshot, so the numbering has an intentional
+gap, consistent with how every rejected iteration this session is
+still counted).
+Replay reference: `gauntlet/20260830-205505/` (full Gauntlet run).
+
+**Next:** add `g_iter43` to the peer set for future Gauntlet runs
+alongside `g_iter17-42`. This doesn't fully close the sample_afinals
+thread -- the traced Builder still died (to Soldiers instead of a
+Sage), so survival is improved, not guaranteed. A natural follow-up,
+if this area is revisited, would be extending the same `SA_SAGE_SEEN`-
+style reporting to other fragile unit types (Miners already flee
+combat directly but have the same vision-gap blind spot against
+Sages specifically), or reconsidering whether Soldiers/Watchtowers
+should actively escort a Builder through contested territory rather
+than relying on the Builder's own reactive survival instincts alone.
