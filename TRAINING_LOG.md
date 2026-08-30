@@ -7172,3 +7172,20 @@ the full peer pool) or whether the downstream Sage-kiting fix
 (Iteration 89, well-verified but shelved only for lack of a live Sage
 to apply it to) is now worth revisiting given Builders/Labs should
 fire somewhat more often.
+
+**Follow-up, same cycle:** re-tested that last question immediately.
+Re-added Iteration 89's Sage-kiting code on top of `g_iter38` and
+re-ran the same 3-map `sample_afinals` check -- still **0 Sages built**
+in any of the 3 games; the Builder still doesn't survive long enough
+to complete a Watchtower+Laboratory against this specific strong,
+aggressive opponent even with the lowered gate. An 8-peer/160-game
+reproduction sample confirmed this generalizes: **104/160, exactly
+matching the `g_iter38` baseline with zero game-by-game diffs across
+all 160 games** -- a true no-op, not just a small effect. Reverted
+(`git checkout -- src/bot/RobotPlayer.java`, confirmed clean diff
+against `g_iter38`). Iteration 90 alone was enough for this cycle;
+the Sage-kiting interaction needs either a larger threshold drop or a
+different mechanism (e.g. prioritizing Builder survival/escort, or a
+faster Watchtower/Laboratory build sequence) to actually reach a live
+Sage against contested opponents -- closing this specific follow-up
+question rather than iterating further on it same-cycle.
