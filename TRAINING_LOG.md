@@ -5505,3 +5505,70 @@ Iteration 67, in case a future session wants to revisit that closure
 with this evidence in hand (worth ~5% of total Gauntlet games -- all 14
 maptestsmall/B losses -- plus a smaller slice of the pattern visible on
 6 other maps).
+
+### Diagnostic note — three more angles considered and set aside this cycle
+
+Continuing the search for a fresh Step 4 target after Iteration 76:
+
+**Pillars g_iter17-21 losses** (distinct from the closed g_iter22-26
+cluster on the same map): checked whether these share a root cause.
+They don't look like the same thing -- g17-21 only lose as `botB` (all
+wins as `botA`), matching the ordinary mild team-A tempo bias visible
+on almost every map and already traced to the closed Iteration 67
+movement-tie-break thread. `g22-26`/pillars, by contrast, loses on
+*both* sides, matching Iteration 61's original "opponent-family
+timing-sensitivity" finding. Not a new lead; both trace to already-
+closed threads.
+
+**Sage `envision()` / anomaly mechanics** (CHARGE/FURY/ABYSS/VORTEX):
+confirmed via `javap` against the actual game jar that `RobotController.
+envision(AnomalyType)` exists and is never called anywhere in
+`RobotPlayer.java` -- Sage units are built (`wantSage`) but only ever
+use their base `attack()`, never their special ability. Pulled the real
+enum field values via a small probe program on the VM (`AnomalyType.
+values()`): all 4 anomalies are global-schedule events; ABYSS/CHARGE/
+FURY are also Sage-triggerable locally (`isSageAnomaly=true`), with
+sagePercentage 0.99/0.22/0.10 respectively (Sage's local Abyss is
+almost as strong as the global one; local Charge/Fury are much weaker).
+Direct replay inspection of a global ABYSS trigger (round 250,
+`g_iter22__highway__botB`) showed no dramatic unit-death spike --
+inconclusive from one data point, and neither the client jar nor
+GameConstants expose what the percentages actually *do* mechanically
+(unit destruction chance? resource loss? no docs bundled, official
+specs site inaccessible, and the one on-disk 2022 postmortem PDF
+(`2022-5-musketeers.pdf`) can't be rendered locally -- no `pdftoppm`/
+`fitz` available in this environment). Implementing an offensive use of
+`envision()` without being confident what it does risks a real
+regression (e.g. friendly-fire on an area effect). **Set aside**: this
+needs either a working PDF-render path to read the 2022 postmortem
+properly, or enough replay samples across multiple anomaly triggers to
+reverse-engineer the effect empirically -- more foundational research
+than fits one iteration. Worth revisiting if either becomes cheap.
+
+**Sage-build priority timing**: `wantSage` in `runArchon` has
+unconditional top priority over Soldier/Builder/Miner whenever gold is
+affordable, and Sage competes with Soldier for the same scarce
+Archon-build-turn (gold and lead are parallel resources, but the build
+action itself isn't). Counted actual occurrences in the maptestsmall
+collapse (`g_iter19__maptestsmall__botB`, rounds 150-259, the same game
+diagnosed in the earlier maptestsmall note): 5 Sage builds vs. 68
+Soldier builds in that window -- a real but modest ~7% diversion during
+the exact stretch the army was collapsing from ~30 Soldiers to 0.
+Checked the obvious low-risk gate (defer Sage while `SA_HOME_THREAT` is
+active) against this same game first, per the standing "verify before
+implementing" practice: `SA_HOME_THREAT` never fires once in this
+entire window (0 "defend home" indicator hits) -- the fighting happens
+away from the Archon, so that particular gate would be a no-op on
+exactly the game it's meant to help. No other cheap, low-risk trigger
+condition (that reliably engages during a real reinforcement crunch
+without misfiring elsewhere) was identified in the time available.
+**Set aside** rather than force a gate that doesn't verifiably engage;
+a self-calibrating throttle (the pattern that worked for Iteration 73)
+is a more promising direction here than a fixed condition, but needs
+more design work than fits this cycle.
+
+**Next:** none of the three landed a testable fix this cycle. Still
+open for a future cycle: the anomaly/envision mechanic (once its real
+effect can be confirmed), and Sage-timing (once a reliable, verifiably-
+engaging trigger condition is designed). Continuing the search for a
+different Step 4 target.
