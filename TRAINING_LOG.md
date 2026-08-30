@@ -7952,3 +7952,64 @@ combat directly but have the same vision-gap blind spot against
 Sages specifically), or reconsidering whether Soldiers/Watchtowers
 should actively escort a Builder through contested territory rather
 than relying on the Builder's own reactive survival instincts alone.
+
+## Iteration 97 — Sage early-warning extended to Miners (ACCEPTED, ~60%); same mechanism, broader exposure
+
+### Step 4/5
+
+Direct follow-up on Iteration 96's own "Next" note: Miners have the
+identical Sage-vision-gap blind spot as Builders (Sage's
+`actionRadiusSquared` exceeds a Miner's own `visionRadiusSquared`),
+and wander even more widely than Builders thanks to Iteration 86's
+exploration momentum -- if anything, more exposed to it, not less.
+
+### Step 6 — Solution
+
+Added the same `SA_SAGE_SEEN` fallback check `runMiner` already has
+for direct threats: if no threat is directly visible but a recent
+(8-round), nearby (`distanceSquared<60`) Sage report exists, flee it.
+Deliberately simpler than the existing direct-threat branch (which
+also cries for help via `SA_ECON_THREAT` and feeds the Iteration 73
+raid-count throttle) -- a report from another unit is a precautionary
+dodge, not a confirmed close-range raid on this specific Miner, so it
+skips the raid-alarm bookkeeping.
+
+### Verification
+
+8-peer x 10-map x 2-side (160-game) reproduction sample against the
+`g_iter43` baseline: **104/160, exact match, zero game-by-game
+diffs**. A `sample_afinals`/`highway` spot-check showed 0 `"reported
+sage"` hits in that specific game (expected variance -- Archon/
+Watchtower sightings depend on the exact game trajectory, not every
+game triggers it). Given Miners are far more numerous than Builders
+and present in essentially every game (unlike the rarer Builder),
+went straight to a full 27-peer (`g_iter17-43`) x 10-map x 2-side
+(540-game) Gauntlet for extra scrutiny before accepting.
+
+### Gauntlet 97 (peer, full 27-opponent)
+
+**325/540.** The `g_iter17-36` subset: **255/400**, and a full
+game-by-game diff against the `104109` baseline showed **only the
+same single, already-known `g_iter21/chessboard/botA` flip** -- no
+new flips anywhere despite this change touching Miner behavior
+broadly. `g_iter37`-`g_iter43`: 10/20 = 50% each. No opponent reached
+the 80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** Same low-risk, high-confidence basis as Iteration 96:
+a well-motivated extension of an already-verified mechanism, zero
+measurable cost at full scale despite broader applicability (every
+Miner, not just the rare Builder), with value concentrated in
+Sage-heavy matchups this peer pool doesn't exercise much.
+
+**Snapshot**: `src/g_iter44/` (via `tools/snapshot.sh g_iter44`).
+Replay reference: `gauntlet/20260830-212211/` (full Gauntlet run).
+
+**Next:** add `g_iter44` to the peer set for future Gauntlet runs
+alongside `g_iter17-43`. The `SA_SAGE_SEEN` mechanism could in
+principle extend further (Soldiers already treat Sage as a `combat()`
+threat and have their own retreat logic, so the marginal value there
+is smaller) -- Miners and Builders were the two unit types with zero
+existing Sage-awareness and the clearest exposure, and both are now
+covered.
