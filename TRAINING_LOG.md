@@ -6073,3 +6073,32 @@ peer/map mix," a genuinely different mechanism (rather than tuning the
 stuck-detector's thresholds) may be needed -- e.g., distinguishing
 "trapped in an obstacle pocket" from "moving slowly but fine" via some
 signal other than raw displacement (nothing concrete identified yet).
+
+### Diagnostic note — Iteration 80 v2's valley regression: displacement metric is ambiguous, not chased further
+
+Quick follow-up before deciding whether to attempt a v3: checked the
+specific low-net-displacement Miners from a v2 valley loss
+(`g_iter17__valley__botB`) that motivated the "stuck-detector actively
+hurts valley" concern. Found the diagnostic method itself is flawed:
+of 8 low-displacement Miners checked, several had simply **died in
+combat** after only a handful of moves (e.g. one killed at move 6) --
+trivially low displacement, nothing to do with exploration or the
+stuck-detector. Of the ones that survived, at least two (`#10777`,
+`#10662`) showed genuine local oscillation between 2-3 adjacent tiles
+-- but one of those had only **9 total moves across an 800+ round
+game**, which is ambiguous by itself: it could mean genuinely stuck-
+and-gave-up (bad), or it could mean the Miner found a small,
+sub-threshold lead deposit and correctly settled into mining it
+indefinitely without needing to move again (fine, not a bug -- looks
+identical to "stuck" from a pure position-trace perspective, since both
+produce "few moves, low net displacement").
+
+Distinguishing "trapped, doing nothing productive" from "correctly
+settled and mining" needs a different signal than raw displacement --
+e.g. tracking whether the Miner's own lead-mined counter is
+incrementing during a low-displacement window. Not implemented this
+cycle; the diagnostic path has become progressively more expensive for
+decreasing clarity, and the underlying thread (Iteration 80 v1/v2) is
+already documented as parked with two full reproduction-sample cycles
+spent. Picking a different Step 4 target for this cycle rather than a
+third.
