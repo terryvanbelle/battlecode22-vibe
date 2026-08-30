@@ -6249,3 +6249,55 @@ alongside `g_iter17-33`. Worth a future look: extending this to
 Watchtower/Laboratory mutation too (same `BUILDER.canMutate` mechanic,
 not attempted this iteration -- Archon was the highest-value target
 given it's the win condition).
+
+## Iteration 83 — Watchtower leveling via Builder mutate() (ACCEPTED, 58.5%); safe, verified
+
+### Step 4/5/6
+
+Direct extension of Iteration 82's `BUILDER.canMutate()` discovery to
+the Watchtower this Builder already built (same mechanic, confirmed via
+the earlier `RobotType.canMutate` cross-product probe: `BUILDER
+canMutate WATCHTOWER` is real). Level 2 costs **150 lead** (half the
+Archon's cost) for **150->270 HP (+80%)** and **4->8 damage (doubled)**
+-- an even cheaper, arguably higher-leverage upgrade than the Archon
+one, on the unit whose entire job is dealing and soaking damage. The
+Watchtower sits adjacent to home (built within 8 tiles of it), so the
+Builder parking near home for the Archon-mutate check (Iteration 82) is
+naturally in range of it too, unlike the Laboratory (built 7 tiles out,
+not attempted this iteration -- would need its own travel logic).
+
+Added right after the Archon-mutate check in `runBuilder`: scan nearby
+friendly robots for a `WATCHTOWER` and mutate it if affordable.
+Verified directly on `g_iter19`/`maptestsmall` (already known to build
+both structures): both `"mutate archon"` and `"mutate watchtower"`
+indicator hits confirmed in the same replay.
+
+### Verification
+
+8-peer x 10-map x 2-side reproduction sample: **100/160 = 62.5%, exact
+per-opponent match to baseline** -- zero regressions. Round-count diff:
+19 of 160 games differ, zero outcome flips -- the same engagement/
+safety profile as Iteration 82. Mirror check vs. `g_iter34`: 10/20 =
+50%.
+
+### Gauntlet 83 (peer, full 17-opponent)
+
+**199/340 = 58.5%.** Per-opponent comparison against the closest
+baseline (16 previously-established peers, `gauntlet/20260830-090501/`):
+**exact match, win-for-win, on all 16** -- zero regressions. The 17th
+peer, `g_iter33` (new, no prior baseline), scored 10/20 = 50%,
+consistent with the established near-mirror pattern. Round-count diff
+across the 16 comparable peers: 12 of 320 games differ, zero outcome
+flips. No retirements due.
+
+**Snapshot**: `src/g_iter35/` (via `tools/snapshot.sh g_iter35`).
+Replay reference: `gauntlet/20260830-092833/` (full Gauntlet run);
+`gauntlet/20260830-091837/losses/g_iter19__maptestsmall__botB.bc22`
+(mechanism-verification replay, both mutate indicators confirmed).
+
+**Next:** add `g_iter35` to the peer set for future Gauntlet runs
+alongside `g_iter17-34`. Laboratory mutation (same mechanic, 150 lead
+for 100->180 HP) remains untried -- would need the Builder to travel
+back to the Lab site (7 tiles from home) rather than just parking near
+the Archon/Watchtower, a bigger behavioral change than this iteration's
+scope.
