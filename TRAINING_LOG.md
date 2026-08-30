@@ -5258,3 +5258,54 @@ opponent-family timing-sensitivity (Iteration 61's "ordinary
 timing-sensitivity" finding, previously seen on chessboard/intersection/
 pillars, now confirmed to extend to valley too). Picking a fresh,
 unrelated Step 4 target next.
+
+## Diagnostic note  —  g_iter22-26/valley: the real bottleneck is Soldier survival, not Archon-turn allocation
+
+Follow-up to Iteration 74's rejection, before moving to a fresh target.
+Instrumented `runArchon` directly (temporary, pure-diagnostic build, no
+behavior change -- confirmed via identical round numbers to the unfixed
+baseline) to find out where the "missing" Archon-turns Iteration 74
+freed up were actually going, rather than guessing at a 4th repair-vs-
+build mechanism blind:
+
+- **Occupancy-blocking (`best == null`, nothing to repair either): 0
+  occurrences** the entire game. Ruled out.
+- **Sibling-hunger fairness-yield (Iteration 61's mechanism,
+  `yieldSoldier == true`): 0 occurrences.** Ruled out -- valley's
+  specific traffic pattern never actually triggers it.
+- **Archon relocation (Iteration 34, `RobotMode.PORTABLE`): only 24
+  turns total** (3 round-trips x ~8 steps each) out of a ~850-round,
+  3-Archon game. Real, but far too small to be the primary driver.
+- **Lead affordability: not the constraint either** -- `--metrics`
+  showed A_lead and B_lead in comparable ranges throughout (both
+  sides regularly banking, spending, and re-banking lead in the same
+  rough tens-to-hundreds range; B was never starved relative to A).
+
+None of the four candidate mechanisms explain the gap. Recomputed the
+actual asymmetry directly instead: B built 44 Soldiers and **all 44
+eventually died** (100% mortality); A built 99 and roughly 56 survived
+to game end (~43% mortality). The dominant asymmetry isn't *production
+rate* at all -- it's *survival rate*. Traced one death directly: a lone
+B Soldier, isolated from the rest of its 10-11-strong army, got
+focus-fired down 2-3-to-1 by grouped A Soldiers while B's other units
+were engaged (or not engaged) elsewhere and never reinforced it -- the
+classic "isolated unit destroyed in detail" failure mode, distinct from
+(and likely a better explanation for) the production-side hypotheses
+this thread (and Iteration 63 before it) spent most of its effort on.
+
+**Not pursuing a fix this pass.** This reframes the target as army
+grouping/cohesion -- whether Soldiers converge into a coordinated mass
+before engaging, or trickle into contact piecemeal and get picked off
+individually -- which is a genuinely different mechanism than anything
+tried in the repair-vs-build or Miner-rescue threads. It's also exactly
+the class of problem this session's Iteration 65 disaster (a "small"
+movement-behavior change causing a severe, broad regression) warns
+against attempting without very careful, narrow scoping and a wide
+reproduction sample. Recording the corrected diagnosis for whoever picks
+this up next, rather than guessing at a fix under time pressure: check
+whether `SA_FOCUS` reliably pulls *all* nearby idle Soldiers toward a
+live fight once one starts (an army-wide convergence check), or whether
+isolated units simply have no mechanism to call for reinforcement the
+way raided Miners do via `SA_ECON_THREAT` -- the latter, if true, would
+be a natural, well-precedented next mechanism (a "Soldier in a losing
+fight cries for help" signal, mirroring Iteration 73's raid throttle).
