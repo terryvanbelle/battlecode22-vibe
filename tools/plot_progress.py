@@ -22,6 +22,23 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Process/policy changes worth marking on the timeline, as (label, commit).
+# Resolved to dates via `git log` at runtime rather than hardcoding dates, so
+# this stays correct even if history is rewritten. Add new entries here as
+# other policy changes happen (e.g. future retirement-threshold tweaks).
+MILESTONES = [
+    ("retirement threshold 90%->80%", "c90a718"),
+    ("MaxHypothesis/SolutionIterations 5->10", "73248a4"),
+]
+
+
+def commit_date(commit):
+    out = subprocess.run(
+        ["git", "log", "-1", "--format=%aI", commit],
+        cwd=REPO_ROOT, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    return datetime.fromisoformat(out) if out else None
+
 
 def snapshot_dirs():
     src = REPO_ROOT / "src"
@@ -72,6 +89,20 @@ def main():
     fig.autofmt_xdate(rotation=30)
     for name, d, c in [(rows[0][0], rows[0][1], 1), (rows[-1][0], rows[-1][1], len(rows))]:
         ax.annotate(name, (d, c), textcoords="offset points", xytext=(5, -12), fontsize=8, color="gray")
+
+    # policy/process milestones, as vertical markers
+    milestone_colors = ["#dc2626", "#16a34a", "#9333ea", "#ea580c"]
+    for i, (label, commit) in enumerate(MILESTONES):
+        d = commit_date(commit)
+        if d is None:
+            continue
+        color = milestone_colors[i % len(milestone_colors)]
+        ax.axvline(d, color=color, linestyle="--", linewidth=1.2, alpha=0.8, zorder=1)
+        ax.annotate(
+            label, (d, 0), xycoords=("data", "axes fraction"),
+            textcoords="offset points", xytext=(4, 8 + 14 * (i % 2)),
+            rotation=90, va="bottom", ha="left", fontsize=7.5, color=color,
+        )
     fig.tight_layout()
 
     out_path = Path(args.output)
