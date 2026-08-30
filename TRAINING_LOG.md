@@ -4664,3 +4664,34 @@ map's worth of games, and would need to help on whichever side we end up
 on without knowing in advance which that'll be. Recording the finding in
 full since it's a real, well-evidenced piece of project knowledge, but
 parking any fix attempt.
+
+### Correction: not an engine team-order artifact -- it's per-map, pointing back to our own pathfinder
+
+Checked the `g_iter30`-vs-itself (true mirror, byte-identical code) result
+across **all 10 maps**, not just `maptestsmall`: A wins `chessboard`,
+`highway`, `intersection`, `jellyfish`, `maptestsmall`, `squer` (6 maps);
+B wins `maze`, `pillars`, `sandwich`, `valley` (4 maps). If team A
+genuinely resolved before team B at the engine level, A should win every
+mirror match, not 6 of 10 -- this cleanly falsifies the "engine team-
+order" theory from directly above. The real mechanism has to be
+map-dependent, which is much more consistent with the earlier-suspected
+absolute-coordinate bias in our own movement/pathfinding code (ruled out
+too hastily after Iteration 63's diagnostic pass) -- something that
+happens to align favorably with team A's spawn corner under some maps'
+specific 180-degree rotational offset and unfavorably under others,
+rather than a fixed per-team engine fact.
+
+The likely remaining suspect is `Dijkstra20.java`, the primary pathfinder
+(vendored, unmodified, from `jmerle/battlecode-2022`, generated/unrolled
+code, 2388 lines) -- not yet audited; `moveToward`'s greedy fallback and
+`nearestLead()`'s tie-break were already checked and ruled out earlier.
+Given the scope (10 maps' worth of outcomes potentially riding on one
+mechanism) this is likely the single highest-value remaining lead in the
+codebase, but auditing 2388 lines of generated pathfinding logic by hand
+is a large, uncertain-payoff task that doesn't fit the remainder of this
+session -- flagging it as the top candidate for a dedicated future Step
+4/5 pass (ideally with a purpose-built tracer comparing the exact
+shortest-path direction `Dijkstra20` returns for a probe unit at
+carefully chosen rotationally-mirrored positions on one of the B-favored
+maps, ties included) rather than another speculative code change without
+having found the actual mechanism first.
