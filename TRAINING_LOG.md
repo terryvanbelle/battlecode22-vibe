@@ -4855,3 +4855,83 @@ iteration in this session has used, given the mechanism potentially
 touches every game on every map. Recording as the top-priority lead for
 a dedicated future session with room for that scope, rather than a
 change squeezed into this one's remaining budget.
+
+## Iteration 67  —  per-robot DIRS tie-break decorrelation (REJECTED, confirmed mechanism but net regression)
+
+### Step 5 — Verification (safe, zero code changes)
+
+Confirmed the Dijkstra20 diagnostic note's theory directly, from existing
+data alone: fetched both sides of a fresh `g_iter30`-vs-itself mirror
+match on `pillars` (byte-identical code) and compared early Miner moves
+under the map's 180-degree rotational symmetry. Found a concrete
+divergence: team A's Miner moved SOUTHWEST from a position; its exact
+mirror counterpart on team B, facing the geometrically equivalent
+situation, moved NORTH instead of the expected mirror direction
+NORTHEAST. Same mechanism, different manifestation than Dijkstra20
+itself: `RobotPlayer.java` has its own instance of the identical bug --
+5 places (`runArchon` build direction, `runBuilder` Watchtower/Laboratory
+placement, `repositionForRubble`, `moveToward`'s greedy fallback) all
+iterate the fixed `DIRS` array (NORTH first) to break ties, an absolute
+order with no team/rotation awareness. This part is safely fixable
+(simple, hand-written code, not the 2388-line vendored pathfinder).
+
+### Step 6 — Solution (attempt 1, superseded)
+
+`myDirs(rc)`: each robot gets `DIRS` rotated by `rc.getID() % 8`, used at
+all 5 call sites instead of the raw array. Broad reproduction test (3
+opponents x 8 maps, 48 games): confirmed the mechanism matters a lot
+(17/48 outcome flips) but wasn't neutral -- `valley`/`pillars`/`sandwich`
+consistently improved while `highway`/`intersection` consistently
+worsened across all 3 opponents, suggesting raw ID%8 still carries a
+residual team-level correlation (IDs are assigned sequentially as units
+are built).
+
+### Step 6 — Solution (attempt 2, REJECTED)
+
+Hashed the ID (Knuth multiplicative hash) before taking the offset to
+decorrelate from build-order sequentiality. Same 48-game reproduction
+sample: 21/48 flips this time, and the map-level clustering from attempt
+1 was gone (flips looked genuinely mixed, not map-clustered) -- but the
+aggregate win rate was *exactly* unchanged (14/32, identical before and
+after) on this narrow "hardest maps" slice. Mirror check vs. `g_iter30`
+passed (8/20 = 40%, within the expected 40-55% near-mirror band).
+
+**Gauntlet 67 (peer):** **140/280 = 50.0%** -- well below `WinPct` and
+not within `NearMissMargin` of it (would need >=55%). Every single
+opponent's win rate against us dropped, uniformly, by roughly 5-10
+points (e.g. `g_iter17` 75%->70%, `g_iter22` 50%->45%, `g_iter30`
+50%->40%) -- not a chaotic, matchup-specific collapse like Iteration 65,
+but a broad, consistent decline. Checked the two maps not covered by the
+reproduction sample (`chessboard`, `jellyfish`) specifically: both
+regressed too (57%->36%, 86%->64%), confirming this wasn't sampling luck
+in the narrower test -- the full 10-map picture is a genuine, uniform
+net negative.
+
+### Outcome
+
+**REJECTED, reverted.** The mechanism is real and confirmed (this is not
+in doubt), but decorrelating it produced a broad regression rather than
+an improvement. Best current explanation: the entire peer pool (`g_iter17`
+through `g_iter30`) descends from the same codebase lineage and has
+always shared this exact fixed-order tie-break bias -- 67 iterations of
+tuning happened *with* it present. It's plausible other mechanisms (Miner
+targeting, army positioning, build-ring placement) implicitly evolved
+compatibly with that consistent bias over the whole project's history,
+even though the bias itself has no principled justification. Removing it
+this late doesn't recover a "correct" baseline so much as it disrupts
+accumulated fit across dozens of other tuned mechanisms, with no
+compensating benefit since ties are (by definition) situations where the
+bias's target-progress heuristic was already indifferent between options.
+
+**Next:** this significantly downgrades the practical priority of the
+Dijkstra20 pathfinder lead too -- if fixing the *known, simpler* instance
+of this bug (the `DIRS` tie-breaks in our own code) produces a net
+regression against the current peer pool, there's no strong reason to
+expect fixing the vendored pathfinder's much larger version would fare
+differently. Not pursuing either further as a standalone fix. If
+revisited, it would need to happen as part of a broader, deliberate
+re-tuning pass (letting other mechanisms re-adapt via the normal
+iteration loop afterward) rather than a single isolated change expected
+to pay off immediately -- a fundamentally different, much larger-scope
+project than incremental Step 4/5/6 iteration is suited for. Back to
+picking ordinary Step 4 losses from the peer pool for continued work.
