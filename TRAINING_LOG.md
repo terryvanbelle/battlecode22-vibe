@@ -7797,3 +7797,20 @@ bot's own lineage, and per the Iteration 79 "resistant cluster is
 just strong peers" reframing, a close contest against one's own
 immediate predecessor is the expected outcome, not a bug. No Gauntlet
 budget spent chasing it further.
+
+### Diagnostic note — routine health-check Gauntlet (26 peers, g_iter17-42): stable, nothing new
+
+Ran a fresh routine full Gauntlet (`gauntlet/20260830-195705/`, 26
+peers x 10 maps x 2 sides, 520 games) now that `g_iter42` has been
+standing for a few diagnostic-only cycles. **315/520 = 60.6%**
+overall. The `g_iter17-36` subset matches the `104109` baseline
+exactly except for the one already-known, already-accepted
+`g_iter21/chessboard/botA` flip -- no new flips anywhere. Per-map
+picture unchanged and fully consistent with everything already
+characterized this session: `sandwich` 38.5%, `maptestsmall` 50.0%,
+`chessboard` 53.8% remain weakest (all tracing to closed threads),
+`highway`/`jellyfish`/`pillars`/`squer` all ~69%. No opponent reached
+the 80%-domination retirement threshold (max 70%, `g_iter17-20`).
+A clean, unremarkable confirmation that the current state is stable
+-- moving on to a different investigation angle rather than re-mining
+an already-well-characterized peer pool.
