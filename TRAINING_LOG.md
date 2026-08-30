@@ -7697,3 +7697,32 @@ free (no code change, no Gauntlet spend), and a clean result on a
 lifecycle-trace check is exactly the kind of finding worth a one-line
 record so a future session doesn't re-run the same check from
 scratch, without needing the full weight of an iteration entry.
+
+### Diagnostic note — fixed-direction "escape congestion" doesn't solve chessboard's Watchtower problem
+
+Attempted the Watchtower-placement redesign flagged in Iteration 94's
+own "Next" note: if the Builder stays genuinely stuck (not just one
+unlucky round) trying to find a Watchtower build slot near home,
+give up and walk 5 tiles clear of the congested zone before retrying,
+the same escape-the-ring idea the Laboratory already uses. Verified
+the mechanism engages correctly on the exact `chessboard` case that
+motivated Iteration 94 (`bot vs g_iter19`): the Builder does walk the
+full 5-tile escape sequence, multiple times -- but **still never
+finds a valid build slot**, spending 554 further rounds stuck in the
+post-escape fallback. `chessboard`'s maze compartments are apparently
+too cramped, and too irregularly connected, for a single fixed
+"straight line away from home" walk to reliably land somewhere with
+open space -- it likely just re-enters another wall or an equally
+congested adjacent compartment.
+
+**Reverted** (`git checkout -- src/bot/RobotPlayer.java`, confirmed
+clean diff against `g_iter42`) rather than ship added state-machine
+complexity with no demonstrated benefit on the case it was built for.
+A real fix would need genuine multi-directional or BFS-style
+"nearest actually-open tile" search, not a fixed-direction walk --
+a meaningfully bigger undertaking than this attempt, consistent with
+Iteration 94's own framing of this as needing "real design thought."
+Not pursuing a second attempt this cycle; recording the negative
+result (fixed-direction escape doesn't work) so a future attempt
+starts from a genuine open-space search rather than re-trying the
+same shape of fix.
