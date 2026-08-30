@@ -8054,3 +8054,92 @@ baseline for judging any future Sage-survivability work.
 Added this pair as a new `BENCHMARK_HISTORY` point in
 `tools/plot_progress.py` (`2026-08-30T14:50:07-07:00`, camelcase=0,
 afinals=3) and regenerated the progress chart.
+
+## Iteration 98 — active gold-scout Miners (REJECTED; mechanically verified, but real economic cost outweighs the payoff)
+
+### Step 4/5
+
+Revisited Iteration 84's shelved conclusion (`git log`: "active
+gold-seeking... rejected... near-zero real-world engagement... would
+need genuinely active search behavior... a properly-scoped future
+attempt"). This bot has never collected a single unit of gold in any
+recorded game across the whole project (confirmed flat 0 again this
+cycle on a fresh `sample_afinals/highway` check) -- Iteration 84's own
+diagnosis was that passive "publish what you happen to see" detection
+(the pattern that works for abundant lead) has essentially no chance
+of finding gold, since gold tiles are extremely sparse (1-3/map) and
+a lead-chasing Miner's vision rarely crosses one by chance.
+
+### Step 6 — Solution
+
+Added `SA_GOLD_0`/`SA_GOLD_N` (slots 40-41), a `publishGold`/
+`nearestGold` pair mirroring the existing lead-beacon system exactly,
+and a new mechanism in `runMiner`: a fixed, stable 1-in-10 slice of
+Miners (`rc.getID() % 10 == 0`), once the economy is past its opening
+(`round > 150`), permanently abandon lead-chasing and instead sweep
+the map's four quadrants in rotation (`scoutQuadrantTarget`, using
+`W`/`H` and round/ID to stagger which quadrant each scout is
+currently walking toward), publishing any gold they see along the
+way. Any other Miner that runs out of known lead now checks a gold
+beacon before falling back to `moveExplore()`, so a scout's find can
+be collected by the broader (non-scout) population.
+
+### Verification
+
+Mechanically confirmed working, cleanly: on a `bot vs g_iter22/valley`
+match, indicator strings showed 554 "gold scout" hits (scouts do
+engage, substantially), and `--metrics`/`--all-actions` showed
+**`A_gold` going from a flat 0 for the entire rest of the project's
+history to a nonzero, climbing value (0 -> 17 by game end)**, with a
+genuine `MINER #10041 mines gold at (16,33)` action -- notably, that
+Miner's ID (`10041 % 10 == 1`) was *not* itself a scout, confirming
+the intended two-part design actually worked end-to-end: a scout
+found and published the tile, and an ordinary out-of-lead Miner
+walked over and mined it. **This is the first verified gold
+collection in this bot's entire history.**
+
+Per the Iteration 91 lesson (any change touching continuously
+fluctuating economy/timing state needs full-scale verification, not
+just a clean-looking small sample -- an 8-peer sample already caught
+a real issue here, so this didn't even need to reach full-Gauntlet
+scale to be conclusive), ran the standard 8-peer x 10-map x 2-side
+(160-game) reproduction sample: **95/160 (59.4%)**, a matched-subset
+diff against the `104109` baseline showed **20 diffs out of 160
+games** -- 15 win->loss, 5 loss->win, net -10. Diffs concentrated
+almost entirely on `highway`, `valley`, `maze`, and `pillars` -- the
+same long, grindy, economy-heavy maps the Iteration 91 lesson itself
+was originally learned from.
+
+### Root cause of the regression
+
+Permanently pulling 10% of Miners off lead duty for the whole
+back-half of a game is a real, substantial economic sacrifice on maps
+where total cumulative mining output over 500-1000+ rounds decides
+the game -- exactly the maps most affected here. The payoff (one
+scout finding ~17 gold once, in the single game actually checked) is
+nowhere near large enough to offset that cost: `sample_afinals`, the
+one benchmark bot whose whole doctrine depends on gold, had banked
+311 gold and built 111 Sages in a game where this bot's Builders
+never got the chance to bank any meaningful gold at all even with
+scouts running. A rare, small gold find doesn't change what our own
+economy can *do* with it.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter44`). Unlike Iteration 84 (which
+was rejected before spending any Gauntlet budget, on the grounds that
+the mechanism essentially never engaged), this one **did** engage and
+**did** work exactly as designed -- the rejection here is a genuine
+cost/benefit call, not a "doesn't work" verdict. This fully closes the
+active-gold-seeking thread for good: passive detection doesn't fire
+(Iteration 84) and active detection isn't worth its cost (Iteration
+98) at the fraction tested. A much smaller, temporary, or
+economy-gated scout allocation (e.g. only 1 scout total regardless of
+Miner count, or scouts that return to lead duty after N rounds without
+a find, or only activating once the lead economy is already
+saturated) might change this calculus, but that's a different,
+more carefully-scoped design, not a quick follow-up -- not pursued
+further this cycle given the two prior attempts (84, 98) have now
+each independently confirmed gold's practical unreachability from two
+different angles.
