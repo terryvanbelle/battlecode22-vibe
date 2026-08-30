@@ -36,6 +36,43 @@ MILESTONES = [
     ("RESEARCH.md added", "d3d2e5c"),
 ]
 
+# Benchmark-bot win tallies (out of 20 games) over time, as recorded in
+# TRAINING_LOG.md at the time each check was made. Dates are the exact
+# commit timestamps for the TRAINING_LOG.md line reporting each tally
+# (`git blame -L <line>,<line> -- TRAINING_LOG.md`), so this reflects when
+# the check actually happened, not an estimate. Hand-curated from the log
+# rather than derived automatically, since benchmark tallies are prose, not
+# a structured file -- update this list when a new full (20-game) tally is
+# run and reported in the log (informal spot-checks on 1-3 maps don't
+# count; only add a point here for a real, reported /20 tally).
+# (date_iso, camelcase_wins_of_20, afinals_wins_of_20)
+BENCHMARK_HISTORY = [
+    ("2026-08-27T17:50:53-07:00", 0, 2),
+    ("2026-08-27T22:13:28-07:00", 0, 2),
+    ("2026-08-28T03:32:28-07:00", 0, 2),
+    ("2026-08-28T03:56:02-07:00", 0, 2),
+    ("2026-08-28T05:56:30-07:00", 0, 2),
+    ("2026-08-28T08:32:41-07:00", 0, 2),
+    ("2026-08-28T17:05:11+00:00", 0, 2),
+    ("2026-08-28T17:24:53+00:00", 0, 2),
+    ("2026-08-28T17:50:33+00:00", 0, 2),
+    ("2026-08-28T18:12:22+00:00", 0, 2),
+    ("2026-08-28T18:31:50+00:00", 0, 2),
+    ("2026-08-28T19:03:13+00:00", 0, 2),
+    ("2026-08-28T19:57:16+00:00", 0, 2),
+    ("2026-08-28T21:05:11+00:00", 0, 2),
+    ("2026-08-28T21:24:25+00:00", 1, 2),   # first sample_camelcase win
+    ("2026-08-28T21:44:19+00:00", 1, 3),
+    ("2026-08-28T22:12:49+00:00", 1, 3),
+    ("2026-08-28T22:35:57+00:00", 1, 3),
+    ("2026-08-28T23:01:11+00:00", 1, 3),
+    ("2026-08-29T00:06:10+00:00", 1, 3),
+    ("2026-08-29T00:34:58+00:00", 0, 4),
+    ("2026-08-29T01:05:31+00:00", 0, 4),
+    ("2026-08-29T22:33:36+00:00", 0, 3),   # Iteration 61
+    ("2026-08-30T14:52:55+00:00", 0, 4),   # this session's full 60-game tally
+]
+
 
 def commit_date(commit):
     out = subprocess.run(
@@ -89,7 +126,7 @@ def main():
     dates = [r[1] for r in rows]
     cum = list(range(1, len(rows) + 1))
 
-    fig, ax = plt.subplots(figsize=(11, 6))
+    fig, ax = plt.subplots(figsize=(13, 7))
     ax.step(dates, cum, where="post", color="#2563eb", linewidth=2)
     ax.scatter(dates, cum, color="#2563eb", s=18, zorder=3)
     ax.set_title("Cumulative Accepted Iterations Over Time (Battlecode 2022 bot)", fontsize=13)
@@ -111,9 +148,23 @@ def main():
         ax.axvline(d, color=color, linestyle="--", linewidth=1.2, alpha=0.8, zorder=1)
         ax.annotate(
             label, (d, 0), xycoords=("data", "axes fraction"),
-            textcoords="offset points", xytext=(4, 8 + 14 * (i % 2)),
+            textcoords="offset points", xytext=(4, 8 + 30 * (i % 4)),
             rotation=90, va="bottom", ha="left", fontsize=7.5, color=color,
         )
+
+    # benchmark-bot win rate, on a second y-axis sharing the same time axis
+    bdates = [datetime.fromisoformat(d).astimezone(PACIFIC) for d, _, _ in BENCHMARK_HISTORY]
+    camel_pct = [100 * w / 20 for _, w, _ in BENCHMARK_HISTORY]
+    afinals_pct = [100 * w / 20 for _, _, w in BENCHMARK_HISTORY]
+    ax2 = ax.twinx()
+    ax2.plot(bdates, camel_pct, color="#b91c1c", linewidth=1.6, marker="o", markersize=4,
+              label="vs sample_camelcase (win % of 20)")
+    ax2.plot(bdates, afinals_pct, color="#059669", linewidth=1.6, marker="s", markersize=4,
+              label="vs sample_afinals (win % of 20)")
+    ax2.set_ylabel("Benchmark win rate (%, out of 20 games)")
+    ax2.set_ylim(-5, 105)
+    ax2.legend(loc="center left", fontsize=8, framealpha=0.9)
+
     fig.tight_layout()
 
     out_path = Path(args.output)

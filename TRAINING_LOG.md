@@ -7446,15 +7446,27 @@ further.
 
 ### Progress chart
 
-Cumulative accepted iterations over time (regenerate with
-`tools/.venv/bin/python3 tools/plot_progress.py`, which walks
-`src/g_iterN/` snapshot creation dates via git history -- no manual
-bookkeeping needed). Updated periodically, not every iteration.
+Cumulative accepted iterations over time, plus benchmark-bot win rate
+(`sample_camelcase`, `sample_afinals`) on a second axis, same time
+axis (regenerate with `tools/.venv/bin/python3 tools/plot_progress.py`
+-- iteration dates walk `src/g_iterN/` snapshot creation dates via git
+history automatically; benchmark tallies are hand-curated in the
+script's `BENCHMARK_HISTORY` list from every full 20-game tally
+recorded in this log, dated via `git blame` on the reporting line --
+add a new entry there whenever a fresh full tally is run and reported).
+Updated periodically, not every iteration.
 
 ![cumulative accepted iterations](progress/cumulative_iterations.png)
 
 As of `g_iter42`: 42 accepted iterations (of 94 attempted) spanning
-2026-08-27 through 2026-08-30.
+2026-08-27 through 2026-08-30. `sample_camelcase` has never been
+beaten more than once in any 20-game tally across the whole project;
+`sample_afinals` has oscillated in a 10-20% band the entire time, with
+no clear upward trend despite dozens of accepted peer-facing
+iterations -- a visual confirmation of this session's own conclusion
+that closing the benchmark gap needs targeted work (gold economy,
+combat AI), not incidental improvement from unrelated peer-focused
+fixes.
 
 ### Diagnostic note — Iteration 92's Builder-flee limit confirmed one more layer deeper
 
