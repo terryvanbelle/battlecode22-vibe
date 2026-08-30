@@ -5781,3 +5781,63 @@ Replay reference: `gauntlet/20260830-070713/` (full Gauntlet run);
 
 **Next:** add `g_iter32` to the peer set for future Gauntlet runs
 alongside `g_iter17-31`.
+
+## Iteration 79 — self-calibrating Miner-redirect throttle (REJECTED; thread closed for good)
+
+### Solution
+
+Fourth attempt at the Miner lead-redirect thrashing fix (see Iteration
+77 and 77 v2/v3 entries for the first three, all rejected). This
+attempt followed the closed thread's own recommendation: instead of a
+fixed lead-amount margin, self-calibrate it the same way Iteration 73
+did for the raid-rescue throttle. Tracked, per Miner, how many times it
+has already redirected `myLeadTarget` within a round/30 bucket, and
+required a linearly escalating margin for each further redirect in that
+window (5, 10, 15, ...) -- cheap for a single well-justified switch,
+increasingly reluctant for a Miner caught oscillating between near-equal
+options.
+
+### Verification
+
+Single-game check on the usual target (`g_iter17`/`intersection`) was
+the most promising result of any attempt in this thread: oscillation
+down to 8.3% (baseline 12.3%, best prior attempt v2 was 9.1%), and
+*both* games flipped to wins (baseline was 1 win, 1 loss). Given this
+thread's history -- v2 also looked good on this exact game before
+regressing net -- ran the same 8-peer x 10-map x 2-side (160-game)
+reproduction sample before drawing any conclusion: **83/160 = 51.9% vs.
+100/160 = 62.5% baseline -- a net regression, and a *worse* one than
+v2's 88/160.** Same signature as every other attempt: `g_iter17`/`18`
+held steady, but `g_iter19/21/23/26/29/30` all regressed, some
+severely (`g_iter29`/`30` dropped from 11/20 to 7/20 each).
+
+### Outcome
+
+**REJECTED, reverted** (confirmed clean diff against `g_iter32`). Four
+fundamentally different designs -- absolute stickiness, two different
+fixed hysteresis margins, and now a self-calibrating escalating margin
+modeled directly on the one pattern (Iteration 73) that's worked
+elsewhere this session -- have all failed with the identical "helps
+`g_iter17-18`, hurts `g_iter19/21/23/26/29/30`" signature. That the
+self-calibrating approach *specifically* also failed is the important
+new data point: it rules out "wrong shape of fix" (fixed vs. adaptive)
+as the explanation and points instead to something more fundamental --
+whatever's actually different about the `g_iter19-30` cluster's own
+Miner/army behavior isn't something a *targeting-margin* lever, of any
+shape, can fix. (Notably, `g_iter19`, `21`, `23`, `26`, `29`, `30`
+significantly overlap the same "g_iter22-26/valley" opponent-family
+timing-sensitivity already closed earlier this session for a completely
+different mechanism -- plausibly the same underlying, currently
+unidentified root cause is what's resisting *every* lever tried against
+this specific opponent cluster, not something specific to Miner
+targeting.)
+
+**This closes the Miner lead-redirect thread for good.** The underlying
+oscillation (12.3% of Miner moves on the target game) remains real and
+un-fixed, but four well-reasoned, properly-verified attempts have found
+no lever that helps broadly without hurting this same opponent cluster
+elsewhere. Not a good target for a fifth attempt without first
+understanding *why* `g_iter19-30` specifically resist every Miner/
+Soldier-behavior change tried against them (a question bigger than this
+thread; see the standing `g_iter22-26`/valley closure notes for the
+closest existing lead on that).
