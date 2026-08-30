@@ -5183,3 +5183,78 @@ real but didn't cost anything net this iteration -- worth a dedicated
 look if `squer`'s specific loss pattern is revisited, but not urgent
 given the clean accept. Otherwise, back to picking a fresh Step 4 target
 from the current peer pool.
+
+## Iteration 74  —  self-calibrating repair-vs-build throttle (REJECTED, no net improvement)
+
+### Step 4/5
+
+`g_iter22-26/valley` (both sides, all 5 opponents): a clean **0/10** sweep in
+Gauntlet 73's results -- not the usual mixed/noisy pattern, a total loss
+against this whole snapshot family on this one map. Traced directly:
+neither side's Archons take real damage until very late (both still
+near-full HP past r700), yet Soldier counts diverge sharply in that same
+window (opponent 11->56, us 11->0) with B's Soldier *builds* exactly
+matching B's Soldier *deaths* (44 = 44, zero net growth all game) against
+the opponent's 99 builds. Root cause: our Archons spent 45 actions on
+repair to the opponent's 2 in the same game (16 on Miners, 29 on
+Soldiers) -- the same general repair-vs-build tradeoff Iteration 63
+already investigated and rejected twice (a blanket "skip repair under
+fire" and a combat-unit-only variant), both causing broad regressions
+elsewhere in the peer pool.
+
+### Step 6 — Solution
+
+Rather than retry either of Iteration 63's fixed-rule variants, applied
+the pattern that resolved the Miner-rescue thread (Iteration 73):
+self-calibrate instead of hand-tuning a threshold. Track repairs and
+builds team-wide in a round/50 bucket (`SA_REPAIR_BUCKET`/
+`SA_REPAIR_COUNT`/`SA_ARCHON_BUILD_COUNT`); only skip a repair once
+repairs have *already* consumed more of the current bucket's Archon
+actions than builds have, and only once there's a real sample (>=4
+repairs) to avoid throttling off early-game noise. The idea: a matchup
+generating heavy repair pressure (like `g_iter22-26`/`valley`) backs off
+automatically once the imbalance is demonstrated, while a matchup with
+light, occasional repair needs never throttles at all.
+
+Verified the mechanism engaged on the target case: repairs dropped
+45->23 (nearly halved) and the loss round shifted (r853->r790,
+r711->r799) -- but Soldier build *rate* barely moved (0.0516 -> 0.0519
+builds/round), suggesting the freed Archon-turns weren't clearly
+converting into more Soldiers. Broad reproduction (5 opponents incl.
+`g_iter22` itself, all 10 maps, 100 games): **59/100** vs. baseline
+**60/100** -- essentially flat, and critically **zero net change on
+`g_iter22` itself** (10/20 both before and after) despite the repair
+count genuinely halving in the checked game. `g_iter19`/`g_iter21`
+dropped (-5/-10) while `g_iter27`/`g_iter30` improved (+5/+5) -- the same
+"redistributes rather than helps" signature seen in several of this
+session's other near-miss attempts.
+
+### Outcome
+
+**REJECTED, reverted.** This is the third distinct mechanism tried in
+the repair-vs-build allocation space this session (blanket skip,
+combat-unit-only skip, self-calibrating throttle) and the third to fail
+to produce a net improvement, including on the exact matchup it was
+built to fix. Unlike the Miner-rescue thread, where the self-calibrating
+pattern was the missing piece, here it doesn't appear to be -- the
+mechanism visibly engages and changes behavior (repairs genuinely halve)
+without that translating into more Soldiers or better outcomes, which
+suggests repair time was never really the bottleneck on the build side;
+something else consumes the freed capacity (a `best == null` occupancy
+block, a still-throttled `needBuilder`/`needMiners` gate, or genuine
+lead-affordability limits are the untested remaining candidates, matching
+the same "freed capacity doesn't convert" pattern first seen in
+Iteration 62's Miner-floor attempts).
+
+**Next:** treating the entire repair-vs-build allocation space as
+exhausted for this session -- three mechanisms, three rejections, one
+of them (self-calibration) proven to work well on an analogous problem
+elsewhere. If revisited, the next step should be instrumenting *why* a
+freed Archon-turn doesn't become a build (log `best == null` occurrences
+directly) before trying a fourth mechanism blind. The `g_iter22-26`
+sweep on `valley` itself remains unsolved and is likely best understood
+as a genuine, if extreme, instance of the already-documented
+opponent-family timing-sensitivity (Iteration 61's "ordinary
+timing-sensitivity" finding, previously seen on chessboard/intersection/
+pillars, now confirmed to extend to valley too). Picking a fresh,
+unrelated Step 4 target next.
