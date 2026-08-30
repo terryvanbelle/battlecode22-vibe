@@ -5369,3 +5369,93 @@ it the same way Iteration 61 already treats the chessboard/intersection/
 pillars instances of this pattern: acknowledged, accepted as a cost of
 doing business with this specific snapshot family, not chased further.
 Picking a target with no history of resisting fixes next.
+## Iteration 76 — blind rotational-symmetry assumption in armyObjective (REJECTED, reverted)
+
+### Hypothesis (RESEARCH.md-motivated)
+
+RESEARCH.md sec. 3 (synthesized from Gone Fishin' 2023's postmortem)
+flags a known Battlecode failure pattern: assuming rotational map
+symmetry without detecting it, which "backfired quite heavily" for that
+team. Grepped `armyObjective()`'s no-information fallback (the guess the
+whole army marches toward before any real enemy sighting) and confirmed
+it unconditionally computes `(W-1-x, H-1-y)` -- pure rotational mirror,
+with zero detection. Direct inspection of our 10-map pool's `symmetry:`
+header field (via `bc22_replay.py`) showed 4 maps (maze, intersection,
+jellyfish = horizontal; highway = vertical) are NOT rotationally
+symmetric, meaning this guess is provably wrong on 40% of our maps.
+
+Verified concretely on `g_iter22__highway__botB` (vertical symmetry):
+our Archon at (44,5) has a true mirror partner at (5,5) (confirmed --
+that's exactly where the enemy Archon sits), but the blind rotational
+guess computes (5,44) -- 39 tiles off on a 50-tall map, sending the army
+to the opposite end of the map from the real enemy.
+
+### Solution attempt 1: reactive detection
+
+Added `SA_SYMMETRY` (0=undetermined, 1/2/3=rotational/horizontal/
+vertical) and `detectSymmetry()`: the first time any unit sights a real
+enemy Archon, test all 3 transforms against every known own-Archon
+location and lock in whichever one lands exactly on the sighting (exact,
+not a guess, since map generation applies one global transform to
+everything). `armyObjective()`'s two fallback lines switched to a
+`mirror(loc, sym)` helper using the detected type (defaulting to
+rotational -- identical to old behavior -- while undetermined).
+
+Re-ran `g_iter22__highway__botB`: **identical result, round-for-round
+(r691, still a loss)**. Root cause: this mechanism is reactive-only, and
+in this exact game the wrong guess is *itself* what prevents contact
+from ever happening -- 718 "objective [5,44]" indicator hits, constant
+for the entire 691-round game, zero Archon sightings ever recorded. A
+chicken-and-egg failure: the fix can only correct the guess after real
+contact, but the bad guess is what's blocking contact.
+
+### Solution attempt 2: time-based cycling
+
+While `SA_SYMMETRY` is undetermined, cycle the assumed type every 200
+rounds (rotational -> horizontal -> vertical -> repeat) instead of
+freezing on rotational forever, so every hypothesis eventually gets a
+turn driving the army somewhere it can make contact.
+
+Re-ran the target game: still lost at r691 (unfixable for this
+particular game -- turned out real, non-Archon combat contact happens
+around r139, which routes Soldiers into a "reinforce" state that never
+consults `armyObjective()` again, so no later cycle phase ever gets a
+chance to steer toward the true Archon location; this game's loss isn't
+actually decided by the initial march direction at all).
+
+Tested on an 8-peer x 10-map x 2-side (160-game) reproduction sample
+against the matching slice of Gauntlet 73's baseline: **98/160 vs.
+100/160 -- a net regression**, with the exact "helps one, hurts another"
+signature that has now killed every threshold/timing-based fix attempted
+this session (Iterations 69-72, 74, and now this one). Per-game diff
+showed the regression wasn't confined to the target maps -- 3 of the 7
+flipped games were on **chessboard**, a *rotational* map where the old
+permanent-rotational default was already correct. Cycling away from it
+after round 200 on long (800-1200+ round) chessboard games caused
+repeated wasted oscillation with no compensating benefit, since
+rotational was never wrong there to begin with.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter31`). The underlying bug is real and
+confirmed via direct replay math (not a theoretical concern) -- but
+fixing it cheaply is harder than it looks: a purely reactive fix is a
+no-op on precisely the pathological games it matters most for, and a
+naive time-based hedge disrupts the 6-of-10 rotational maps where the
+old default was already correct, for a net loss. A real fix would need
+either (a) genuine terrain-based symmetry elimination (comparing
+observed rubble/wall values at simultaneously-visible mirror-candidate
+tiles, as Gone Fishin' 2023's `MapRecorder` and confused 2025's
+bytecode-efficient technique both do) -- a materially bigger investment
+than a single iteration, since it requires dedicated scout routing to
+get both sides of a candidate mirror pair into vision -- or (b) some
+other cheap signal not yet identified. Not a good target for further
+quick-refinement attempts; the failure mode here is structural, not a
+tuning problem.
+
+**Next:** picking a different Step 4 target. Not revisiting: this
+symmetry-detection avenue (would need the bigger terrain-based
+investment above to be worth another attempt), the `g_iter22-26`/valley
+matchup family, movement/pathing/directional tie-break fixes, Watchtower
+placement/scaling, or the repair-vs-build-priority lever.
