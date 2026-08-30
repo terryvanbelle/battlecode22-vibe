@@ -8143,3 +8143,89 @@ more carefully-scoped design, not a quick follow-up -- not pursued
 further this cycle given the two prior attempts (84, 98) have now
 each independently confirmed gold's practical unreachability from two
 different angles.
+
+## Iteration 99 — Archon Miner-floor deprioritized under direct siege (ACCEPTED, 59.8%)
+
+### Step 4/5
+
+Traced a fresh `sample_afinals/sandwich` loss (from this cycle's own
+20-game tally, `gauntlet/20260830-214619/losses/`) in detail --
+distinct from the highway/valley "Builder sniped by an unseen Sage"
+story Iterations 96/97 already targeted. `--metrics` showed one
+Archon dying outright by r161 while the other bled from 600 HP to
+216 HP over the rest of the game, `B_soldiers` flat at 0-3 the entire
+back half despite `B_lead` never running out (fluctuating 1-100,
+never zero), while `A_sages` climbed steadily 0->19. `--indicators`
+confirmed lead dipping by ~47 (a Miner's marginal cost) in lockstep
+with the Miner count incrementing during exactly this siege window --
+the Archon's build turns were going to Miner replacements, not
+Soldiers, while under direct, sustained attack.
+
+Root cause: `runArchon`'s Miner floor (`Math.min(6 + round/100, 25)`,
+line 381) is completely threat-blind. Unlike `quota` (the opening
+Miner count, already shrunk by `contact` during an early rush), the
+floor keeps demanding replacements up to 25 regardless of an active
+siege, competing every build turn with Soldier production -- the one
+thing that could actually contest the threat killing the Archon in
+the first place.
+
+### Step 6 — Solution
+
+`localThreat` (a combat foe within 40 distSq of this Archon) was
+already computed earlier in `runArchon` for the relocation gate.
+Reused it as a one-line gate on the floor clause only (the opening
+`quota` clause is untouched -- early economy-building should still
+proceed normally):
+```java
+boolean needMiners = myMinersSpawned < quota || (miners < floor && !localThreat);
+```
+
+### Verification
+
+Re-ran the exact motivating case (`sample_afinals`/`sandwich`, bot as
+B) directly: still a loss (r337 vs the original r335) -- confirmed
+via `--metrics` that Soldier counts barely changed. Traced why: Sage
+deals 45 damage against a Soldier's 50 max HP, and by the time this
+siege reaches double-digit Sage counts any Soldier that spawns dies
+almost on contact regardless of production priority -- this specific
+matchup is a genuine economic mismatch (per Iterations 64/89's
+already-established conclusion) that a build-priority fix alone can't
+flip, not evidence the fix itself is wrong.
+
+The fix is a real, general threat-responsiveness improvement
+independent of that one hardest-case matchup, so verified broadly
+instead, per the Iteration 91 lesson (any change touching
+continuously-fluctuating economy/timing state needs full-scale
+verification): 8-peer x 10-map x 2-side (160-game) reproduction --
+**104/160 (65.0%)**, matched-subset diff against the `104109`
+baseline showed **only the single, already-known
+`g_iter21/chessboard/A` flip** -- clean. Went straight to a full
+28-peer (`g_iter17-44`) x 10-map x 2-side (560-game) Gauntlet given
+the economy-timing risk: **335/560 (59.8%)**, `g_iter17-36` subset
+(**255/400**) diffed against the same baseline with **again only that
+one identical flip**, zero new diffs. `g_iter37-44`: 10/20 = 50% each,
+consistent band. No opponent reached the 80%-domination retirement
+threshold.
+
+### Outcome
+
+**ACCEPTED.** A genuine bug (threat-blind economy replenishment
+competing with defense during an active siege), fixed with a minimal,
+already-computed signal, verified clean at full peer-Gauntlet scale.
+Doesn't flip the specific `sample_afinals/sandwich` case that
+motivated it (that matchup's Sage-count mismatch is too large by the
+time the siege matures), but should help any less extreme raid/siege
+scenario across the peer pool and future benchmark attempts where the
+threat is survivable if reinforced faster.
+
+**Snapshot**: `src/g_iter45/` (via `tools/snapshot.sh g_iter45`).
+Replay reference: `gauntlet/20260830-224043/` (full Gauntlet run).
+
+**Next:** add `g_iter45` to the peer set for future Gauntlet runs.
+`localThreat`'s 40-distSq bar is essentially "any combat foe in this
+Archon's own vision" (`ARCHON.visionRadiusSquared` = 34 < 40) --
+already a low, easy-to-trigger bar, so no further tuning attempted
+here. If a future trace finds this *too* eager (e.g. suppressing
+Miner replenishment on a single harmless stray unit passing through,
+not a real siege), a stricter/sustained-threat version could be worth
+a follow-up, but nothing in this cycle's verification suggested that.
