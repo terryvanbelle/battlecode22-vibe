@@ -7443,3 +7443,15 @@ new lead** -- confirms the pattern extends across yet another map,
 consistent with everything already understood about this bot's own
 peer-lineage self-play dynamics. No Gauntlet budget spent chasing it
 further.
+
+### Progress chart
+
+Cumulative accepted iterations over time (regenerate with
+`tools/.venv/bin/python3 tools/plot_progress.py`, which walks
+`src/g_iterN/` snapshot creation dates via git history -- no manual
+bookkeeping needed). Updated periodically, not every iteration.
+
+![cumulative accepted iterations](progress/cumulative_iterations.png)
+
+As of `g_iter40`: 40 accepted iterations (of 92 attempted) spanning
+2026-08-27 through 2026-08-30.
