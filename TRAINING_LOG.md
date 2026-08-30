@@ -6370,3 +6370,71 @@ chance of finding gold tiles at all -- a much bigger design than a
 passive detection mirror of the lead-beacon system. Given gold's
 established value (unlocking Sage/level-3 upgrades), this might still
 be worth a properly-scoped future attempt, but not as a quick add-on.
+
+## Iteration 85 — Laboratory leveling via Builder mutate() (ACCEPTED, 58.1%); safe, verified
+
+### Step 4/5/6
+
+Third extension of the `BUILDER.canMutate()` discovery (Iterations
+82-83), applied to the Laboratory. Unlike Archon/Watchtower (built
+adjacent to home, naturally in range of where the Builder parks
+afterward), the Laboratory is built 7 tiles out -- but the Builder
+already lingers right next to it for several rounds after building,
+repairing it out of `PROTOTYPE` mode via the existing loop at the top
+of `runBuilder`, before ever starting the multi-round walk back home.
+Rather than add dedicated travel logic (which the prior iteration's
+writeup flagged as the likely cost/complexity blocker), this just
+extends the same `senseNearbyRobots` scan Iteration 83 already added
+for `WATCHTOWER` to also match `LABORATORY`, catching the mutate
+opportunity in that pre-existing idle window. Level 2 costs 150 lead
+for 100->180 HP (+80%, no damage benefit since the Laboratory doesn't
+attack).
+
+Verified directly on `g_iter19`/`maptestsmall`: all three mutate
+mechanisms (`"mutate archon"`, `"mutate WATCHTOWER"`, `"mutate
+LABORATORY"`) fire once each in the same replay.
+
+A separate hypothesis this cycle (Iteration 84, active gold-seeking --
+mirroring the lead-beacon system for the never-used `senseGold()`/
+`senseNearbyLocationsWithGold()` API) was tested and rejected *before*
+spending any Gauntlet budget: a direct diagnostic showed the
+gold-seeking fallback is reached constantly but never once finds gold
+across an 853-round game with confirmed gold present on the map --
+gold tiles are too sparse (1-3 per map) for passive vision-based
+detection to ever encounter one under normal lead-driven movement. See
+the "Iteration 84" entry for detail; a real fix there would need active
+dedicated search behavior, not attempted.
+
+### Verification
+
+8-peer x 10-map x 2-side reproduction sample: **100/160 = 62.5%, exact
+per-opponent match to baseline** -- zero regressions. Round-count diff:
+20 of 160 games differ, zero outcome flips. Mirror check vs. `g_iter35`:
+10/20 = 50%.
+
+### Gauntlet 85 (peer, full 18-opponent)
+
+**209/360 = 58.1%.** Per-opponent comparison against the closest
+baseline (17 previously-established peers, `gauntlet/20260830-092833/`):
+**exact match, win-for-win, on all 17** -- zero regressions. The 18th
+peer, `g_iter34` (new, no prior baseline), scored 10/20 = 50%,
+consistent with the established near-mirror pattern. Round-count diff
+across the 17 comparable peers: 34 of 340 games differ, zero outcome
+flips -- the highest engagement count of the three mutate-mechanic
+iterations (78 gave 7/280, 81 gave 8/160, 82 gave 27/300, 83 gave
+12/320, this one 34/340), consistent with all three structures now
+being covered. No retirements due.
+
+**Snapshot**: `src/g_iter36/` (via `tools/snapshot.sh g_iter36`).
+Replay reference: `gauntlet/20260830-100030/` (full Gauntlet run);
+`gauntlet/20260830-095101/losses/g_iter19__maptestsmall__botB.bc22`
+(mechanism-verification replay, all three mutate indicators confirmed
+in one game).
+
+**Next:** add `g_iter36` to the peer set for future Gauntlet runs
+alongside `g_iter17-35`. The `BUILDER.canMutate()` mechanic is now
+fully exploited across all three eligible structure types (Archon,
+Watchtower, Laboratory) -- level 3 (gold-gated) remains untried given
+this session's repeated finding that gold rarely accumulates enough to
+matter; Iteration 84's closed gold-seeking attempt is the blocker
+there, not this mechanic itself.
