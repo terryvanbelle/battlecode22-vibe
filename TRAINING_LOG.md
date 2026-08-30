@@ -5646,3 +5646,65 @@ margin richer than the current one, or if the current one is more than
 some distance away) rather than an absolute stickiness rule, and verify
 the fix doesn't just trade one failure mode (thrashing) for another
 (rigidity) before spending a broad reproduction sample on it again.
+
+### Iteration 77 v2/v3 -- hysteresis-margin refinements (also REJECTED; thread closed)
+
+Two further attempts at the Miner sticky-lead-target fix (see the
+Iteration 77 entry above for the original bug and the v1 failure):
+
+**v2**: instead of absolute stickiness, only redirect `myLeadTarget` to
+a newly-spotted tile if it's a clear margin richer (`bestLead >
+curLead + 10`) than the current commitment, using `curLead = -1` as a
+sentinel when the current target isn't currently visible. Single-game
+check on the original target (`g_iter17`/`intersection`) looked
+promising -- oscillation down to 9.1% (from 12.3% baseline) and `botA`
+flipped from a baseline loss to a win. An 8-peer x 10-map x 2-side
+(160-game) reproduction sample told a different story: **88/160 = 55.0%
+vs. 100/160 = 62.5% baseline -- still a net regression**, with a mixed
+pattern (g_iter17-19 improved +1 each; g_iter21/23/26/29/30 all
+regressed -2 to -4 each) -- the same "helps one cluster, hurts another"
+signature that has now killed essentially every fixed-parameter
+threshold attempted this entire session.
+
+**v3**: hypothesized the `-1` sentinel was the specific problem (any
+found tile with `bestLead > 9` would unconditionally override an
+out-of-vision commitment, however good that commitment was, causing
+instability). Removed the sentinel entirely: only compare/redirect when
+the current target is *currently visible*; if it's out of vision, stick
+with it unconditionally, no comparison at all. Ran a cheaper, targeted
+40-game check against specifically the two worst-regressing opponents
+from v2 (`g_iter21`, `g_iter29`, all 10 maps x 2 sides) before spending
+another full sample: **g_iter21 stayed at 8/20 = 40% (v2 was 9/20 =
+45%, baseline 13/20 = 65%) -- no improvement, if anything slightly
+worse. g_iter29 moved to 9/20 = 45% (v2 was 8/20 = 40%, baseline 11/20
+= 55%) -- a marginal uptick, still well short of baseline.** The
+sentinel hypothesis doesn't explain the regression; something more
+fundamental about the margin-based redirect approach doesn't suit these
+specific opponents.
+
+### Outcome
+
+**REJECTED, reverted** (all three attempts; confirmed clean diff
+against `g_iter31`). The underlying oscillation bug (12.3% of Miner
+moves on the original target game) is real, and the general design
+insight from v1's failure is sound and worth keeping for a future
+attempt: absolute stickiness is wrong (loses greedy redirect to
+genuinely better finds), but a *fixed* hysteresis margin doesn't
+generalize across the peer pool either -- two different tunings (v2,
+v3) both produced the same "helps some, hurts more" mixed-regression
+signature this session has already seen from every other fixed-
+threshold approach (Iterations 69-72, 74, the Iteration 76 cycling
+attempt). The one mechanism that *has* reliably worked for this failure
+signature elsewhere this session is a self-calibrating throttle
+(Iteration 73's round-bucketed counter, gated off actually-observed
+behavior rather than a guessed constant) -- a fixed lead-amount margin
+is the wrong shape of fix for this bug, by the same logic.
+
+**Next:** if revisiting Miner lead-target redirect, design a self-
+calibrating version instead of tuning the margin further (e.g. track
+how often a Miner's current tile richness undercuts newly-spotted
+options in a given map/game, and adjust the redirect bar accordingly,
+rather than a hardcoded lead-amount constant). Given three attempts (v1
+absolute-stickiness, v2 margin=10, v3 margin=10-no-sentinel) have all
+failed with variations on the same signature, treating this as closed
+for quick-tuning purposes -- picking a different Step 4 target next.
