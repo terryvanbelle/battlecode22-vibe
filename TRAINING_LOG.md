@@ -5572,3 +5572,77 @@ open for a future cycle: the anomaly/envision mechanic (once its real
 effect can be confirmed), and Sage-timing (once a reliable, verifiably-
 engaging trigger condition is designed). Continuing the search for a
 different Step 4 target.
+
+## Iteration 77 — Miner sticky lead-target unification (REJECTED, reverted)
+
+### Hypothesis
+
+`runMiner`'s live-vision lead scan re-picks the single richest
+*currently visible* tile fresh every round via an unconditional early
+return (`if (goal != null && !goal.equals(me)) { moveToward(rc, goal);
+... return; }`), bypassing the sticky `myLeadTarget` mechanism Iteration
+35 added specifically to stop this exact class of thrashing for the
+published-beacon fallback case. Verified via `--moves` on
+`g_iter17__intersection__botA` (a baseline loss): 452 of 3677 total
+Miner move events (12.3%) were an immediate A->B->A reversal; the worst
+single Miner recorded 31 in one game, with visible multi-round
+back-and-forth between adjacent tiles (e.g. `(6,4)<->(6,3)<->(7,3)<->
+(6,2)` for a dozen+ rounds with no net progress).
+
+### Solution attempt 1: route the live-vision scan through myLeadTarget
+
+Removed the separate early-return branch and fed the live-vision scan's
+`goal` into the same sticky-target logic as the beacon fallback: once
+`myLeadTarget` is set (from either source), keep moving toward it until
+it drops below 6 lead or is reached, instead of re-evaluating "richest
+visible" every round.
+
+Single-game check on the exact target game raised an immediate red
+flag: `g_iter17`/`intersection` botB flipped from a baseline win to a
+loss (r416), while the oscillation-rate improvement was only modest
+(12.3% -> 11.5%, and the remaining oscillation on inspection was mostly
+combat-fleeing thrashing, a separate already-closed movement-tie-break
+issue, not the lead-picking bug this fix targeted). Ran an 8-peer x
+10-map x 2-side (160-game) reproduction sample to get a statistically
+reliable read rather than judging off one game: **68/160 = 42.5% vs.
+100/160 = 62.5% baseline -- a severe, uniform regression, not the usual
+mixed "helps one hurts another" signature.** Every single one of the 8
+opponents got worse (e.g. g_iter21: 13/20 -> 7/20, g_iter29: 11/20 ->
+6/20, g_iter30: 11/20 -> 6/20) -- a decisive, unambiguous reject.
+
+### Root cause of the regression
+
+The original unconditional early-return wasn't just "the source of
+thrashing" -- it was *also* the mechanism that let a Miner immediately
+redirect toward whatever's richest nearby, every round, even mid-march
+toward an older, farther sticky target. Removing it in favor of pure
+`myLeadTarget` stickiness meant a Miner now commits to its *first* found
+tile and marches straight to it, ignoring richer deposits it passes
+along the way, until that one tile is nearly fully depleted (<6 lead)
+or reached. That's a much more restrictive, far less greedy mining
+policy than intended -- the fix conflated "stop flip-flopping between
+similarly-ranked options" (Iteration 35's actual, narrow fix) with
+"never redirect toward something better," which is a large, blanket
+loss to mining throughput, not a narrow fix to a narrow bug.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter31`). The underlying oscillation
+this iteration set out to fix is real and measurable (12.3% of Miner
+moves), but a fix needs to preserve "redirect toward something
+genuinely better, right now" while still damping flip-flopping between
+near-equal options -- e.g. only committing to the live-vision `goal` as
+`myLeadTarget` when it's meaningfully richer than the current sticky
+target (a hysteresis/threshold gate), not making stickiness absolute.
+Not attempted this iteration; the severity of this first attempt's
+regression means a follow-up needs careful design and its own fresh
+verification pass, not a quick tweak.
+
+**Next:** picking a different Step 4 target for the next cycle. If
+revisiting this specific lead, design a hysteresis-based redirect gate
+(e.g. only switch `myLeadTarget` to a newly-found tile if it's some
+margin richer than the current one, or if the current one is more than
+some distance away) rather than an absolute stickiness rule, and verify
+the fix doesn't just trade one failure mode (thrashing) for another
+(rigidity) before spending a broad reproduction sample on it again.
