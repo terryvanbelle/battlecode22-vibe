@@ -5459,3 +5459,49 @@ symmetry-detection avenue (would need the bigger terrain-based
 investment above to be worth another attempt), the `g_iter22-26`/valley
 matchup family, movement/pathing/directional tie-break fixes, Watchtower
 placement/scaling, or the repair-vs-build-priority lever.
+
+### Diagnostic note — maptestsmall: 14/14 team-B losses, likely traces to the closed movement-tie-break thread
+
+While picking the next Step 4 target after Iteration 76, a much starker
+pattern than anything chased this session turned up: on `maptestsmall`
+specifically, **every one of the 14 peer opponents beats us when we
+play as team B (0/14), and we beat all 14 as team A (14/14)** -- a
+total, opponent-independent sweep, versus the mild 60-75%-vs-25-40%
+team-A tempo edge visible on most other maps (chessboard, highway,
+intersection, jellyfish, maze, pillars, sandwich all show the same
+directional bias, just far less extreme; `squer` and `valley` are the
+only exceptions, and `valley` is already closed per the g_iter22-26
+thread).
+
+Traced one instance (`g_iter19__maptestsmall__botB`, r259, single-Archon
+map, "annihilating enemy Archons"): both sides' economies and army sizes
+are byte-identical for the first ~90 rounds (a mirror match, as expected
+-- all 14 "opponents" here are just earlier snapshots of this same bot
+lineage), then diverge over a long (~150-round) attritional grind --
+team A's Soldier count climbs from 20 to 76+ while team B's declines
+from a peak of ~30 to 0, ending in Archon death. Not a single decisive
+battle; a slow, compounding trade-efficiency loss.
+
+Checked for a code-level explanation: `betterTarget()` (combat
+target-priority tie-break) is positional-bias-free (unit-type priority,
+then lowest HP) -- not the cause. `moveToward()`'s final greedy-scan
+tie-break, however, does favor whichever `Direction` comes first in the
+fixed `DIRS` array (`score > bestScore`, strict inequality, so North
+wins ties) -- exactly the mechanism the already-closed "movement/
+pathing/directional tie-break fixes (Iteration 67)" thread covered. On
+a rotationally-symmetric map, team B's mirrored orientation means a
+fixed, non-team-relative directional bias would land asymmetrically,
+and `maptestsmall`'s small size + single Archon (no redundancy, fast
+close-quarters engagement) plausibly amplifies a marginal per-round tie
+edge into a total sweep, the same way it's a smaller but still-visible
+edge on every other rotationally-adjacent map.
+
+**Not pursued further this iteration** -- the likely root cause is the
+same lever already investigated and closed under Iteration 67; retrying
+it here would be reopening a thread the standing instructions say not
+to. Recording this because it's a genuinely different, starker
+data point on the same underlying issue than whatever motivated closing
+Iteration 67, in case a future session wants to revisit that closure
+with this evidence in hand (worth ~5% of total Gauntlet games -- all 14
+maptestsmall/B losses -- plus a smaller slice of the pattern visible on
+6 other maps).
