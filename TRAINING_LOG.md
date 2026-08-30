@@ -5888,3 +5888,47 @@ same as always -- find genuinely general improvements (like Iteration
 overall play quality, which then compounds into better peer WinPct
 across the board, rather than searching for an opponent-cluster-specific
 trick.
+
+### Diagnostic note — bytecode limits ruled out; Laboratory placement shows no evidence of trouble
+
+**Bytecode usage**: RESEARCH.md flags bytecode/communication efficiency
+as a recurring cross-year design theme, and this session had never
+directly measured our own bot's actual bytecode consumption (only
+confirmed no runtime exceptions occur). Enabled the engine's profiler
+(`-Dbc.engine.enable-profiler=true`, normally off in `gauntlet.sh`) for
+one demanding test game (`bot` vs `g_iter22`/`highway`, ~90 units/side
+by the late game) and wrote a one-off parser against `tools/
+bc22_schema.py`'s `ProfilerFile`/`ProfilerProfile`/`ProfilerEvent`
+classes (not currently exposed by `bc22_replay.py`) to extract true
+per-round bytecode usage: for each robot, track open/close deltas
+specifically on its own `run<Type>()` frame (the outer `run()` loop
+never returns, so naively diffing that frame's events gives a
+lifetime-cumulative number in the millions, not a per-round one -- the
+inner per-type method is what's called and returns fresh every round).
+Result: **the worst-case robots (Miners and Soldiers in the most
+crowded, longest-running match tested) topped out around 48-50% of
+their type's bytecode limit** (e.g. Miner: max 4968/10000). Comfortable
+headroom, not remotely bytecode-limited even under a stress case. This
+rules out an entire category of "maybe we're silently losing actions to
+bytecode overrun" speculation with real data instead of assumption --
+worth remembering so a future session doesn't re-derive this.
+
+**Laboratory placement**: checked whether the fixed "walk 7 steps away
+from home, then place" logic (Iteration 58/64) ever leaves a Builder
+stuck searching for a valid tile on obstacle-dense maps. The one replay
+checked with a confirmed, completed Laboratory build (`g_iter19`/
+`maptestsmall`) showed a perfectly clean sequence -- exactly 7 "to lab
+site N/7" indicator hits, zero "finding lab site" (the fallback path
+for "no open tile found yet") hits. Checked 3 more replays on
+different, more obstacle-dense maps (`pillars`, `valley`) for
+comparison, but none of those particular losses ever reached the
+economic maturity needed to attempt a Laboratory at all (0 lab-related
+indicator hits either way) -- inconclusive rather than a clean bill of
+health, since the sample doesn't cover a genuinely obstacle-heavy
+successful placement. Not pursued further without a positive signal of
+an actual problem; recording as "checked, no evidence found" rather
+than "confirmed fine."
+
+**Next:** neither of these turned into an actionable Step 4 target this
+cycle. Continuing the search for a genuinely fresh, general-improvement
+lever next.
