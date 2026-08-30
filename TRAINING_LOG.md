@@ -7308,3 +7308,80 @@ keeping in mind for any future threshold-tuning iteration -- consider
 going straight to a fuller peer check, or explicitly including at
 least one `highway`-heavy opponent range, when a change touches
 economy timing rather than a discrete event.
+
+## Iteration 92 — Builder self-preservation (ACCEPTED, ~62%); a genuine bug fix with no measurable peer effect
+
+### Step 4/5
+
+Continuing the "trace a benchmark loss" methodology from Iteration 91:
+`runBuilder` receives the `foes` parameter but **never uses it
+anywhere in the function** -- a Builder had zero self-preservation
+behavior, unlike Miners (flee combat) or Soldiers (retreat when
+critical). This directly explains a death observed during Iteration
+89's investigation: a Builder walking home to build a Watchtower
+against `sample_afinals` was killed by a Sage mid-walk, wasting the
+entire Watchtower/Laboratory investment (nothing else ever finishes
+that job once the Builder dies).
+
+### Step 6 — Solution
+
+Added the same flee pattern Miners already use (move away from the
+nearest sighted combat threat), checked first, ahead of every other
+priority in `runBuilder` -- a dead Builder can't repair, build, or
+mutate anything, so survival comes first.
+
+### Verification
+
+Mechanism confirmed engaging: re-ran `bot vs sample_afinals` on
+`highway`, `--indicators` showed `"builder flee [10,7]"` firing twice
+before the Builder resumed its task -- but it was still later killed
+by a Sage. Diagnosed why: `SAGE.actionRadiusSquared` (25) exceeds a
+`BUILDER`'s own `visionRadiusSquared` (20) -- the same range-gap
+asymmetry that motivated the still-shelved Iteration 89 Sage-kiting
+fix. A Builder structurally cannot see an incoming Sage attack in time
+to flee from it specifically; no behavioral change can fix not being
+able to sense the threat. This fix can't save Builders from Sage
+assassination (dominant in `sample_afinals`-style Sage-swarm
+matchups), but should help against ordinary detectable threats
+(raiding Soldiers), the much more common case in typical peer games.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample against the
+`g_iter39` baseline: **104/160, exact match, zero game-by-game
+diffs** -- a true no-op on this sample. Given Iteration 91's lesson
+(an 8-peer sample can miss a real regression), went straight to a
+full 23-peer (`g_iter17-39`) x 10-map x 2-side (460-game) Gauntlet
+before deciding.
+
+### Gauntlet 92 (peer, full 23-opponent)
+
+**285/460.** The `g_iter17-36` subset: **255/400**, and a full
+game-by-game diff against the `104109` baseline showed **only the
+same single, already-known `g_iter21/chessboard/botA` flip** from
+Iteration 90 -- no new flips anywhere. `g_iter37`/`g_iter38`/
+`g_iter39`: 10/20 = 50% each, reasonable near-mirror scores. No
+opponent reached the 80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A genuine, well-motivated bug fix (dead `foes`
+parameter, zero self-preservation on a unit whose death wastes a real
+economic investment) with a clean full-scale verification (the one
+already-known unrelated flip, nothing else) -- accepted on the same
+basis as Iterations 78/91: correct, low-risk, and plausibly valuable
+in situations (raided Builders in ordinary contested games) that this
+specific 23-peer mirror-match pool doesn't happen to exercise measurably,
+rather than on a demonstrated peer-pool win-rate jump.
+
+**Snapshot**: `src/g_iter40/` (via `tools/snapshot.sh g_iter40`).
+Replay reference: `gauntlet/20260830-152818/` (full Gauntlet run).
+
+**Next:** add `g_iter40` to the peer set for future Gauntlet runs
+alongside `g_iter17-39`. The Sage range-gap limitation found here
+(Builders, like Soldiers/Miners, can't see an incoming Sage attack in
+time to react) is now confirmed as a structural property affecting
+multiple unit types, not a one-off -- reinforces that any future
+attempt to make Sage-heavy matchups (`sample_afinals`) less lopsided
+needs to attack it from the Sage side (kiting/positioning, already
+designed in Iteration 89 but shelved on our own weak gold economy) or
+the economy side (getting Sages built at all), not from hardening
+individual victim unit types further.
