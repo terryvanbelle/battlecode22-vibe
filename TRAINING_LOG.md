@@ -6797,3 +6797,136 @@ movement/pathing functions (`moveToward`, `moveExplore`,
 this session. Picking a different Step 4 target next cycle: a fresh
 losing game from a peer/map pairing not yet examined, since the
 structural-review angle is now largely exhausted for this file.
+
+## Iteration 88 — genuine terrain-based symmetry detection (REJECTED; correct but net-negative, closes the whole symmetry thread)
+
+### Design
+
+The real fix Iterations 76/87/87v2 all converged on needing: instead
+of inferring the map's symmetry class reactively (from unit sightings)
+or guessing blindly, determine it proactively via terrain comparison,
+before the army ever commits to a march direction.
+
+Added `SA_SYMMETRY` (0=undetermined, 1=rotational, 2=horizontal/flip-y,
+3=vertical/flip-x) and `SA_SCOUT_CLAIMED`/`SA_SCOUT_RND`. Exactly one
+Miner claims a "symmetry scout" role via compare-and-set on
+`SA_SCOUT_CLAIMED` (same idiom as the existing `publishStart`), with a
+30-round expiry so a fresh Miner takes over if the scout dies
+mid-mission. The scout picks 2 small sample points near the map's
+geometric center (offsets ~W/12 and ~W/8 from center, both axes
+nonzero so all 3 candidate mirrors are distinct and none coincide),
+walks to observe rubble at each point and its 3 candidate mirrors, and
+locks in `SA_SYMMETRY` once exactly one hypothesis's rubble matches at
+*both* sample points (2 independent points to guard against a
+coincidental single-tile match) -- falling back safely to rotational
+(byte-identical to every prior iteration's behavior) if 0 or >1
+hypotheses survive, or after a 150-round budget. `armyObjective()`'s
+two blind-guess call sites now route through a new `mirror(loc, sym)`
+helper; `sym` 0 or 1 reproduce the original formula exactly.
+
+### Verification
+
+Single-game checks (`tools/vm-match.sh` + `bc22_replay.py` against
+`examplefuncsplayer`) confirmed the mechanism is genuinely correct, not
+just inert: on `maze` (ground truth "horizontal" per the replay's own
+map header), the scout resolved `SA_SYMMETRY=2` within ~26 rounds, and
+the resulting `armyObjective()` output was checked directly against
+the board -- it exactly matched the true enemy Archon location (a
+location the old rotational-default formula would have gotten
+completely wrong, off by more than half the map). On `squer` (ground
+truth "rotational"), resolution was likewise correct and the game
+played out identically to old-formula behavior, as designed.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample: **96/160 =
+60.0% vs. 105/160 = 65.6% baseline -- a clear net regression (-9)**,
+worse than either Iteration 87 variant. Per-map breakdown told a messy
+story, not the clean "helps target maps, neutral elsewhere" outcome
+hoped for: `highway` improved sharply (+3, matching the hypothesis --
+this is one of the 4 target maps), but `intersection` (-2) and `maze`
+(-5) -- the *other two* target maps -- both got **worse** despite
+verifiably correct information, and two purely rotational maps with
+zero informational benefit to gain (`pillars` -2, `valley` -3) also
+regressed. A full game-by-game diff against baseline showed 39 outcome
+flips (not just net win/loss count -- real, widespread churn): several
+were genuine directional wins (`chessboard` A-side: 3/3 loss->win,
+despite chessboard being rotational and thus receiving *zero*
+informational change -- a real economic-cost-driven regression
+avoided, or possibly just intrinsic per version noise) or losses
+(`intersection` B-side: 4/4 win->loss, `maze`: 5/5 win->loss), but many
+others were simple A-side/B-side result swaps for the same opponent
+(`squer`/`valley`/`intersection` vs `g_iter29`/`g_iter30`: one side
+flips to a win, the other to a loss, net zero for that matchup) -- the
+classic signature of added chaos/variance in already-close mirror
+games rather than a clean directional shift.
+
+### Diagnosis
+
+Traced `g_iter23/maze/botA` (new loss, r567; baseline had won) via
+`--metrics`: both sides' Soldier counts stay near 0 through r150 (the
+scout's detour window on this small 20x20 map), then B's climbs
+steadily faster than A's from r200 onward (2 vs 2 at r200, but 4 vs 6
+by r250, 10 vs 13 by r400, 19 vs 26 by r550) until A's Archons fall.
+`g_iter23` itself predates this iteration and still uses the old
+blind rotational guess (wrong on this map) -- so *only* our side had
+correct information, yet still lost. This rules out "wrong information
+hurt us" and points instead at the scout's real, unavoidable economic
+cost: one Miner diverted from mining for up to ~150 rounds (resolved
+in ~26 on this map, but games run 1000+ rounds and the diversion still
+lands in the economically-critical opening). That cost is paid on
+*every* map regardless of symmetry class -- including the 6 of 10 maps
+that are already rotational, where the scout provides zero benefit
+(the guess was already correct) but still pays the full Miner-diversion
+cost. `pillars`/`valley`'s regressions with no informational upside at
+all are the clearest evidence for this: pure cost, no compensating
+benefit. Even on the genuine target maps, the benefit (a materially
+different, correct march destination) turns out not to reliably
+outweigh the cost -- sometimes because marching correctly toward the
+true enemy sooner exposes the army to unfavorable early contact that a
+wrong guess's incidental delay had been protecting against (a rush-vs-
+turtle timing tradeoff, not a bug), sometimes because the added
+timing variance just flips already-close near-mirror games in either
+direction unpredictably.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter37`). This is the most
+mechanically successful of the four symmetry-thread attempts (76, 87,
+87v2, 88) -- a real, verified, general-purpose terrain-based detector
+that correctly identifies horizontal/vertical/rotational symmetry from
+first principles, not a shortcut or a hack -- and it still nets
+negative. That is strong evidence the underlying problem doesn't
+reduce to "the blind guess is sometimes wrong, fix the guess": even
+with the guess made genuinely, verifiably correct, the change in
+early-game timing and commitment it produces is a wash at best,
+because (a) any information-gathering costs real economy on every
+map whether or not that map benefits, and (b) correct information
+doesn't uniformly help even on the maps it's aimed at, since the old
+wrong guess's incidental early-game passivity was sometimes itself
+beneficial (protecting a still-forming army from early contact) in a
+way this session's existing mass-gate and reinforcement logic doesn't
+fully compensate for.
+
+**This closes the entire symmetry-detection thread** (Iterations 76,
+87, 87v2, 88 -- reactive detection, time-cycling, information-sharing
+with and without a gate fix, and now genuine proactive terrain
+detection). Four structurally different approaches, one of them fully
+correct and verified, all net neutral-to-negative. Not attempting a
+fifth variant (e.g. a cheaper single-point scout, or scaling the
+scout's budget to map size) without new evidence -- the pattern across
+all four attempts suggests the ~35-50% floor on `maze`/`intersection`/
+`jellyfish`/`highway`'s weaker side is not, in the end, a simple
+"wrong guess" bug with a clean fix, but an intrinsic property of how
+this bot's early-game economy/army-mass tradeoffs interact with those
+specific maps' geometry -- closer in spirit to the already-accepted
+`g_iter22-26`/valley opponent-family timing-sensitivity than to a
+fixable defect. Future sessions: don't re-open this without a
+genuinely new angle (e.g. a design that makes the scouting cost-free,
+not just cheaper, or that changes how the army responds to a corrected
+destination rather than just correcting the destination itself).
+
+**Next:** picking a different Step 4 target. The RESEARCH.md-driven
+structural review and the symmetry thread have both been extensively
+mined this session; the most promising remaining avenue is picking a
+fresh losing game from a peer/map pairing not yet individually
+examined, following the ordinary Step 4/5/6 process.
