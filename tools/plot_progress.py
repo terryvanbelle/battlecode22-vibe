@@ -31,6 +31,7 @@ MILESTONES = [
     ("MaxHypothesis/SolutionIterations 5->10", "73248a4"),
     ("mirror-check gate + near-miss extension", "9dd8da6"),
     ("round-count tracking (secondary metric)", "48ab983"),
+    ("RESEARCH.md added", "d3d2e5c"),
 ]
 
 
@@ -93,7 +94,7 @@ def main():
         ax.annotate(name, (d, c), textcoords="offset points", xytext=(5, -12), fontsize=8, color="gray")
 
     # policy/process milestones, as vertical markers
-    milestone_colors = ["#dc2626", "#16a34a", "#9333ea", "#ea580c"]
+    milestone_colors = ["#dc2626", "#16a34a", "#9333ea", "#ea580c", "#0891b2"]
     for i, (label, commit) in enumerate(MILESTONES):
         d = commit_date(commit)
         if d is None:
