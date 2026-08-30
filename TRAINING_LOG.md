@@ -7668,3 +7668,32 @@ Watchtower should get the same treatment, trading a little
 defense-in-depth for a guaranteed build in cramped maps -- a
 reasonable candidate for a future iteration, distinct from this one's
 narrower "don't freeze" fix.
+
+### Diagnostic note — lifecycle sweep of relocation and Miner lead-targeting: clean
+
+Continuing Iteration 93/94's "trace the full lifecycle" pattern onto
+two more candidate mechanisms, both came back clean:
+
+**Archon/Watchtower relocation** (`relocateSteps`/`wtRelocateSteps`,
+Iterations 34/78): already structurally immune to the Iteration 94
+freeze pattern, on inspection -- the step counter increments every
+round movement is *cooldown-ready*, regardless of whether `moveToward`
+actually finds a valid step that round. A relocation stuck against an
+obstacle still counts rounds toward its 6-step cap and forces a
+transform-back on schedule, unlike the Builder's old logic (fixed in
+Iteration 94), which had no time-based escape at all. No bug found.
+
+**Miner sticky lead-beacon targeting** (`myLeadTarget`, Iteration 35):
+spot-checked the lowest-move-count Miners in the same `chessboard`
+game that exposed the Builder freeze (16 of 98 Miners moved 3 or fewer
+times across an 893-round game -- initially looked suspicious). Traced
+one (`#10682`, 2 moves total) via `--all-actions`: it moved twice,
+found a rich lead tile, and mined it 5 times, then kept mining in
+place -- correct, efficient behavior (a Miner that found a good spot
+early has no reason to move further), not a stuck unit. No bug found.
+
+**Not logged as a formal iteration** -- both checks were genuinely
+free (no code change, no Gauntlet spend), and a clean result on a
+lifecycle-trace check is exactly the kind of finding worth a one-line
+record so a future session doesn't re-run the same check from
+scratch, without needing the full weight of an iteration entry.
