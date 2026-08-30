@@ -6002,3 +6002,74 @@ whether the failure mode is clustering, local-trap oscillation, or
 something else before designing the fix. Don't just widen or narrow the
 1-in-15 redirect constant without first confirming which failure mode
 it's actually hitting.
+
+## Iteration 80 v2 — self-calibrating stuck-detection (REJECTED; thread parked, not closed)
+
+### Diagnosis
+
+Before designing v2, diagnosed v1's pillars regression directly:
+re-implemented the persistent-direction fix with a diagnostic indicator
+and ran `--moves` analysis on the target `g_iter22`/`pillars` loss.
+Confirmed **local-trap oscillation, not clustering**: several Miners
+made 100+ total moves for under 10 tiles of net displacement (e.g. one
+made 111 moves netting only 4.5 tiles). Root cause: a persistent-
+direction walker only reconsiders its heading when explicitly blocked,
+giving it *fewer* independent random draws per unit time than the old
+every-round-random walk -- so it's *less* likely to stumble onto the
+specific escape sequence a dead-end pillar-pocket needs, exactly
+backwards from what makes persistence help on open terrain like valley.
+
+### Solution (v2)
+
+Self-calibrating stuck-detector: track each Miner's position over a
+rolling 15-round anchor window; if net displacement in that window is
+under 3 tiles, treat it as trapped and fall back to the old high-
+entropy every-round-random walk for 15 rounds (maximizing escape
+attempts) before resuming persistent exploration.
+
+### Verification
+
+Single-game check (`g_iter22` pillars+valley) was mixed: pillars/A
+flipped loss->win, but valley/B regressed from a v1 win to a loss --
+already a yellow flag. 8-peer x 10-map x 2-side reproduction sample,
+matched-subset comparison: **88/160 = 55.0% vs. 100/160 = 62.5%
+baseline -- still a net regression, though less severe than v1's
+81/160.** The map-level picture flipped in an unhelpful way: **pillars
+landed exactly at baseline (8/16, the stuck-detector genuinely
+neutralized v1's regression there)**, but **valley dropped *below*
+baseline (6/16, worse than doing nothing)** -- the stuck-detector fixed
+the map it was designed for and broke the one the *original* fix (v1)
+had genuinely improved. Per-opponent: `g_iter17/18/19/21/29/30`
+regressed, `g_iter23/26` improved -- the same "helps one cluster, hurts
+another" signature as v1 and the closed Miner-redirect thread.
+
+Checked the new valley loss for the same "100+ moves, <10 tiles
+displacement" pattern that explained the pillars regression -- **not
+present**: Miners in the sampled valley loss moved only a handful of
+times each (single digits), nothing resembling the dramatic pillars
+trap signature. The valley regression's specific mechanism wasn't
+identified this cycle; the stuck-detector may be misfiring in some
+subtler way there (e.g. false-triggering during ordinary slow
+progress), but this wasn't confirmed, only suspected.
+
+### Outcome
+
+**REJECTED, reverted** (confirmed clean diff against `g_iter32`). This
+thread is **parked, not closed for good** like the Miner-redirect
+thread -- two attempts (v1, v2) have each shown a genuine, confirmed
+positive component (v1: valley; v2: pillars neutralized) traded for a
+new negative elsewhere, a materially different pattern from the
+Miner-redirect thread's four attempts that never showed *any* net-
+positive signal. The core insight (Miners spend the majority of their
+turns in a zero-persistence random walk once known lead runs out, most
+visible on our two weakest maps) remains real and unexploited.
+
+**Next, if revisited:** diagnose the v2 valley regression specifically
+before another attempt (why does the stuck-detector, which measurably
+helped pillars, hurt valley below its *own* pre-fix baseline?) -- don't
+just retune the 3-tile/15-round constants blindly. Given this session's
+now-repeated pattern of "fixed constants generalize poorly across this
+peer/map mix," a genuinely different mechanism (rather than tuning the
+stuck-detector's thresholds) may be needed -- e.g., distinguishing
+"trapped in an obstacle pocket" from "moving slowly but fine" via some
+signal other than raw displacement (nothing concrete identified yet).
