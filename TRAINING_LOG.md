@@ -7416,3 +7416,30 @@ the combat-AI skill gap, not a new mechanical bug. The benchmark-
 tracing methodology (which found 3 real bugs this session) has hit
 diminishing returns for now; not spending further budget on more
 benchmark replays without a new angle.
+
+### Diagnostic note — `squer`/botA losses vs g_iter27-39 are the same near-mirror timing-sensitivity, not a new pattern
+
+Gauntlet 92's loss list surfaced something that looked new at first:
+`squer` (a rotational, previously-strong map, 72.7% aggregate) loses
+**every single one of 13 straight `botA` games against `g_iter27`
+through `g_iter39`**, with round counts identical within sub-groups
+(g27-30 all r386, g31-36 all r428, g37-39 all r345) suggesting one
+consistent mechanism, not per-opponent noise.
+
+Traced `g_iter39/squer/botA` (loss, r345) via `--metrics`: both sides
+field nearly identical Miner counts (7-10) and modest, comparable lead
+the entire game -- a genuinely close, slow, near-mirror slugfest, not
+an economic collapse. Our Archon HP starts dropping around r200 while
+the opponent's stays full until r280 -- a small early first-strike
+disadvantage that compounds over the rest of a long, close game. This
+is exactly the `g_iter22-26`/valley "opponent-family timing-
+sensitivity" signature (Iterations 39-75, and the `g_iter79`
+"resistant cluster is just strong peers" reframe) -- `g_iter27-39` are
+simply the next, more-developed stretch of the bot's own lineage past
+`g_iter22-26`, and the identical round counts within sub-groups point
+to code-similarity-driven determinism (near-identical opponents
+producing near-identical early skirmishes), not a fresh bug. **Not a
+new lead** -- confirms the pattern extends across yet another map,
+consistent with everything already understood about this bot's own
+peer-lineage self-play dynamics. No Gauntlet budget spent chasing it
+further.
