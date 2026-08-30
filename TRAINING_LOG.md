@@ -4970,3 +4970,72 @@ doctrine would need it integrated into core strategy from the start
 (more like a fresh Iteration 0 rewrite) rather than layered on top.
 Picking a genuinely fresh Step 4 target next: combat micro/targeting
 logic, unexplored this session.
+
+## Iteration 69  —  Miner-rescue priority fix (near WinPct, REJECTED as a mixed regression)
+
+### Step 4/5 — a genuinely different angle: combat/rescue logic, not build-priority
+
+`g_iter22/squer/botA`: `--metrics` on the r150-326 window (where army
+sizes diverge) showed we lose Miners at **2x** the opponent's rate (8 vs
+4) -- a real, distinct contributor to the production gap this session
+kept finding downstream of, but never traced to its own root before.
+Direct trace: Miner #10684 was besieged by 2 enemy Soldiers for ~10
+rounds with zero response before dying, despite fleeing each round it
+could -- Miners have `movCD=20` vs. Soldiers' `movCD=16`, so a caught
+Miner structurally cannot outrun a pursuing Soldier; the only real
+counter is a rescue. Root cause: Iteration 22's raided-Miner "cry for
+help" (`SA_ECON_THREAT`) is only ever read inside `armyObjective()`,
+the *exact* structural trap Iteration 37 already found and fixed for
+`SA_HOME_THREAT` -- unreachable by any Soldier that already knows about
+a live focus-fire fight elsewhere, which is most Soldiers most of the
+time once real combat has started anywhere on the map.
+
+### Step 6 — Solution
+
+Gave a fresh raid call the same priority tier as Iteration 37's home-
+threat fix: inserted right after the in-range-attack branches (so it
+only affects march-destination choice for Soldiers with nothing in
+immediate attack range, not units actively fighting) and above the
+"march to reinforce a merely-known distant fight" check. Verified
+directly on the target game: Miner deaths in the r150-326 window dropped
+8->5, and the loss was delayed r346->r433 (+87 rounds).
+
+Broad reproduction (3 opponents x all 10 maps, 60 games) per this
+session's established lesson: **23/40 = 57.5%** vs. baseline **21/40 =
+52.5%** on the shared `g_iter22`+`g_iter27` subset -- a real net
+positive, +2 favorable outcome flips outweighing the unfavorable ones
+(`intersection`/`sandwich`/`maze`/`squer` improved; a few `squer`/
+`pillars` instances went the other way). Mirror check vs. `g_iter30`:
+9/20 = 45%, passed.
+
+**Gauntlet 69 (peer):** **165/280 = 58.9%** -- within `NearMissMargin`
+(5 points) of `WinPct` numerically, but per-opponent comparison against
+the last-accepted baseline showed a genuinely **mixed** picture: 7
+opponents improved (`g_iter17`/`18`/`22`-`27` all +5), 6 dropped
+(`g_iter19`/`20` -5, `g_iter21` -15, `g_iter28` -10, `g_iter29`/`30`
+-5). Step 3.1's near-miss extension explicitly requires "no peer
+opponent's win rate dropping" -- a mixed regression like this doesn't
+qualify, even this close to the bar.
+
+### Outcome
+
+**REJECTED per Step 3.2, reverted.** The underlying mechanism is real
+and directly verified (Miner survival genuinely improved on the target
+case, and the fix follows an already-proven pattern from Iteration 37) --
+this isn't a speculative miss like several of this session's earlier
+attempts. The mixed per-opponent pattern most likely reflects a genuine
+tradeoff: redirecting a Soldier to rescue a raided Miner is a good trade
+against opponents/maps where that Soldier wasn't doing much else, and a
+bad trade against opponents/maps where it pulls meaningful reinforcement
+away from a fight that mattered more (`g_iter21`'s -15 points is the
+sharpest instance).
+
+**Next:** worth one refinement rather than abandoning outright, given
+how close and how well-verified this is -- gate the rescue response more
+conservatively, e.g. only redirect a Soldier that is *closer* to the
+raided Miner than to the live focus-fire point (so it's genuinely a
+short detour, not a full reassignment), or cap it to one responder
+rather than every idle Soldier reading the same signal. Diagnose
+`g_iter21` specifically first (the -15 outlier) to see exactly what got
+pulled away and whether a distance-gated version would have avoided it,
+before spending another full Gauntlet on a variant.
