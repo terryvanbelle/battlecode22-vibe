@@ -29,6 +29,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 MILESTONES = [
     ("retirement threshold 90%->80%", "c90a718"),
     ("MaxHypothesis/SolutionIterations 5->10", "73248a4"),
+    ("mirror-check gate + near-miss extension", "9dd8da6"),
+    ("round-count tracking (secondary metric)", "48ab983"),
 ]
 
 
