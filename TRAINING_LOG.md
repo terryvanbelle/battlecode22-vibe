@@ -5841,3 +5841,50 @@ understanding *why* `g_iter19-30` specifically resist every Miner/
 Soldier-behavior change tried against them (a question bigger than this
 thread; see the standing `g_iter22-26`/valley closure notes for the
 closest existing lead on that).
+
+### Diagnostic note — the "resistant cluster" is just strong peers, not a special weakness
+
+Following up on Iteration 79's closing observation (four different
+Miner-redirect fixes all failed specifically against `g_iter19/21/23/
+26/29/30`): diffed the actual snapshot source (`src/g_iterNN/
+RobotPlayer.java`) across this range against the easy peers (`g_iter17/
+18`, 75% baseline) to see if there's a specific mechanism making this
+cluster resistant to fixes.
+
+There is, but it's mundane: `g_iter19` includes Iteration 24's SA_FOCUS
+stability fix (stopped resetting the focus-fire target every round,
+fixing a formation-scattering bug), `g_iter21` includes Iteration 28's
+target-priority fix (Soldier-first instead of Archon-first, clearing
+defenders before chasing buildings), `g_iter22` onward include
+Iteration 29's side-step congestion fix and Iteration 30's Builder/
+Watchtower economy. **Every one of these snapshots is a genuinely more
+developed, substantively different point in our own bot's lineage** --
+not opponents with some specific exploitable trait, just accumulated,
+real improvements. `g_iter17/18` are comparatively early/undeveloped
+ancestors (missing all of the above), which is *why* they're easy
+matchups (75%) -- not because our current bot has some specific edge
+against them.
+
+This reframes the "resistance" pattern: it's very likely not a bug or
+gap to find and fix, but the ordinary, expected consequence of
+self-play training -- later, more-developed ancestors are naturally
+tougher mirror-match opponents than earlier ones, and TRAINING_ALGORITHM.
+md's own Step 6.5 threshold (near-mirror matchups land in a 40-55% band
+"even for a genuinely good solution") already anticipates exactly this.
+Chasing "why is `g_iter22-26` only 50%" as if it's a fixable weakness is
+likely the wrong frame -- 50% against a comparably-developed mirror
+opponent isn't broken, it's expected. The four failed Miner-redirect
+attempts (and the earlier g22-26/valley thread's four failed attempts
+at a different mechanism) both plausibly failed for the same reason: a
+single marginal-mechanism tweak has little room to move a genuinely
+close mirror matchup, while the *same* tweak shows up clearly against
+weaker, less-developed peers where there's more headroom.
+
+**Implication for future iterations:** stop treating "improve
+specifically against `g_iter19-30`" as an achievable Step 4 target in
+isolation. The way to raise performance against strong peers is the
+same as always -- find genuinely general improvements (like Iteration
+78's Watchtower relocation, Iteration 73's raid throttle) that raise
+overall play quality, which then compounds into better peer WinPct
+across the board, rather than searching for an opponent-cluster-specific
+trick.
