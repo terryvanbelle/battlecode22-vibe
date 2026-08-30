@@ -4935,3 +4935,38 @@ iteration loop afterward) rather than a single isolated change expected
 to pay off immediately -- a fundamentally different, much larger-scope
 project than incremental Step 4/5/6 iteration is suited for. Back to
 picking ordinary Step 4 losses from the peer pool for continued work.
+
+## Iteration 68  —  forward Watchtower placement (confirmed no-op, not spent on a Gauntlet)
+
+Picked up Iteration 56's own parked "Next" note instead of a fresh
+Step-4 loss: three prior attempts (54/55/56) at scaling home-only
+Watchtower count/gating all converged on the same small, neutral result
+and concluded the lever itself wasn't very impactful for this bot's
+playstyle -- but never tested camelcase's reported doctrine of placing
+Watchtowers forward/offensively rather than only at home. Bounded,
+single-mechanism change: place the (still-capped-at-1) Watchtower at the
+midpoint between home and the map center instead of always at home,
+touching nothing movement/pathing-related (deliberately staying away
+from this session's now-established dead end).
+
+Broad reproduction test (3 opponents x all 10 maps, 60 games) per the
+lesson from Iterations 65/67: **21/40 = 52.5%** on the shared g_iter22+27
+subset, identical to the baseline's 21/40. `tools/compare_gauntlets.py`
+confirmed this wasn't a lucky cancellation -- **zero outcome flips across
+all 60 games**, the strongest possible "genuine no-op" signal. Not
+spending a full Gauntlet on a confirmed no-op. Reverted without further
+attempts.
+
+**Next:** this most likely reproduces Iteration 55's finding rather than
+refuting the forward-placement doctrine specifically -- `needBuilder`'s
+gate (round>100, lead>300, miners>=8) may simply not engage early/often
+enough within this map pool's typical game lengths for the Watchtower's
+placement to matter either way, regardless of where it ends up. The
+Watchtower thread has now had four converging null results (54, 55, 56,
+68) across meaningfully different variations (more per Builder,
+round-gated extra Builder, lead-gated extra Builder, forward placement) --
+treating it as exhausted for incremental tuning; a real test of the
+doctrine would need it integrated into core strategy from the start
+(more like a fresh Iteration 0 rewrite) rather than layered on top.
+Picking a genuinely fresh Step 4 target next: combat micro/targeting
+logic, unexplored this session.
