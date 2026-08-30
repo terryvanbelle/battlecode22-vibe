@@ -7458,7 +7458,7 @@ Updated periodically, not every iteration.
 
 ![cumulative accepted iterations](progress/cumulative_iterations.png)
 
-As of `g_iter42`: 42 accepted iterations (of 94 attempted) spanning
+As of `g_iter44`: 44 accepted iterations (of 97 attempted) spanning
 2026-08-27 through 2026-08-30. `sample_camelcase` has never been
 beaten more than once in any 20-game tally across the whole project;
 `sample_afinals` has oscillated in a 10-20% band the entire time, with
@@ -7466,7 +7466,13 @@ no clear upward trend despite dozens of accepted peer-facing
 iterations -- a visual confirmation of this session's own conclusion
 that closing the benchmark gap needs targeted work (gold economy,
 combat AI), not incidental improvement from unrelated peer-focused
-fixes.
+fixes. Iterations 96-97 (Sage early-warning for Builders and Miners,
+`g_iter43`-`g_iter44`) are the first changes aimed directly at the
+`sample_afinals` bottleneck from a survival angle rather than supply
+tuning -- too recent to show up as a trend yet, but the traced Builder
+death cause did shift from "killed by a Sage" to "killed by 2
+Soldiers," a real qualitative change worth watching in the next
+benchmark tally.
 
 ### Diagnostic note — Iteration 92's Builder-flee limit confirmed one more layer deeper
 
