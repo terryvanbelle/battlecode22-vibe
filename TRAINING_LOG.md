@@ -6167,3 +6167,85 @@ Replay reference: `gauntlet/20260830-083123/` (full Gauntlet run);
 
 **Next:** add `g_iter33` to the peer set for future Gauntlet runs
 alongside `g_iter17-32`.
+
+## Iteration 82 — Archon leveling via Builder mutate() (ACCEPTED, 59.1%); broadly-engaging, safe
+
+### Step 4/5 — another completely unused mechanic, found the same way as Iteration 78
+
+Repeated the technique that found Watchtower's transform mechanic
+(Iteration 78): swept `RobotController`'s full public method list via
+`javap` against the real game jar for anything never referenced in
+`RobotPlayer.java`. Found `canMutate(MapLocation)`/`mutate(MapLocation)`
+-- confirmed via a `RobotType.canMutate(RobotType)` cross-product probe
+that it's specifically a **Builder** action (`BUILDER canMutate ARCHON/
+LABORATORY/WATCHTOWER`), the same action-shape as `repair()`, not
+self-leveling by the structure itself (a first attempt wired it onto
+Archon self-mutation and it never fired -- `canMutate(self)` is false
+for every type; only `BUILDER.canMutate(other-type)` is true). Actual
+level data pulled via a level-sweep probe: Archon level 2 costs **300
+lead only** for **600->1080 max HP (+80%)** and **2->4 healing/turn
+(doubled)** -- level 3 needs 80 gold (rarely available, matching an
+already-established finding about this economy). A one-time, ~4-
+Soldiers-worth investment in permanent durability for the one unit type
+whose death is literally the win condition, sitting completely unused
+across 81 prior iterations.
+
+### Step 6 — Solution (two bugs found and fixed during verification)
+
+Added to `runBuilder`: once its existing job (Watchtower, then
+Laboratory) is done, try to mutate the home Archon before falling back
+to idling. Two issues surfaced while confirming it actually engaged
+(round count identical to baseline on the first two test attempts):
+1. **Wrong actor** -- first attempt put `mutate()` on the Archon itself;
+   fixed once the `BUILDER canMutate ARCHON` cross-product probe
+   clarified it's a Builder action.
+2. **Range dead zone** -- the pre-existing "idle near home" distance
+   threshold (`isWithinDistanceSquared(home, 8)`) is looser than
+   Builder's actual `actionRadiusSquared` (5): a Builder could stop
+   walking at distance²=6 or 7, satisfied by the idle threshold but
+   still out of range for `canMutate()` to ever return true. Tightened
+   the threshold to match `actionRadiusSquared` exactly.
+3. Picked the wrong verification game first too (`g_iter22`/`valley`
+   never builds a Builder at all in that specific matchup -- confirmed
+   via zero `" B BUILDER"` indicator hits -- so of course nothing
+   engaged there regardless of the code). Switched to `g_iter19`/
+   `maptestsmall`, already known from earlier iterations to reliably
+   build both structures, and confirmed a real `"mutate archon"` hit
+   plus round-count divergence from baseline.
+
+### Verification
+
+8-peer x 10-map x 2-side reproduction sample: **100/160 = 62.5%, exact
+per-opponent match to baseline** -- zero regressions. Round-count diff:
+**19 of 160 games** showed real divergence -- notably higher engagement
+than Iteration 78's 7/280 or Iteration 81's 8/160 (Builder-survival is
+common, unlike rare Watchtower-survival-past-500 or a critically-
+wounded Sage-focus-target), still with zero outcome flips in this
+specific sample. Mirror check vs. `g_iter33`: 10/20 = 50%.
+
+### Gauntlet 82 (peer, full 16-opponent)
+
+**189/320 = 59.1%.** Per-opponent comparison against the closest
+baseline (the 15 previously-established peers, `gauntlet/
+20260830-083123/`): **exact match, win-for-win, on all 15** -- zero
+regressions. The 16th peer, `g_iter32` (new this Gauntlet, no prior
+baseline to compare against), scored 10/20 = 50%, consistent with the
+already-understood "later, more-developed ancestors are naturally
+tougher near-mirror opponents" pattern (see the earlier "resistant
+cluster" diagnostic note) -- not a regression signal, just a harder peer
+joining the roster, which is why the raw aggregate (59.1%) reads
+slightly below the 15-peer baseline (59.7%) despite zero actual
+regressions. Round-count diff across the 15 comparable peers: 27 of 300
+games differ, zero outcome flips -- consistent with the reproduction
+sample's broader-than-usual engagement rate. No retirements due.
+
+**Snapshot**: `src/g_iter34/` (via `tools/snapshot.sh g_iter34`).
+Replay reference: `gauntlet/20260830-090501/` (full Gauntlet run);
+`gauntlet/20260830-085523/losses/g_iter19__maptestsmall__botB.bc22`
+(mechanism-verification replay, "mutate archon" indicator confirmed).
+
+**Next:** add `g_iter34` to the peer set for future Gauntlet runs
+alongside `g_iter17-33`. Worth a future look: extending this to
+Watchtower/Laboratory mutation too (same `BUILDER.canMutate` mechanic,
+not attempted this iteration -- Archon was the highest-value target
+given it's the win condition).
