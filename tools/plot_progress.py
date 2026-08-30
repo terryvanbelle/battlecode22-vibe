@@ -19,8 +19,10 @@ import re
 import subprocess
 from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+PACIFIC = ZoneInfo("America/Los_Angeles")
 
 # Process/policy changes worth marking on the timeline, as (label, commit).
 # Resolved to dates via `git log` at runtime rather than hardcoding dates, so
@@ -40,7 +42,12 @@ def commit_date(commit):
         ["git", "log", "-1", "--format=%aI", commit],
         cwd=REPO_ROOT, capture_output=True, text=True, check=True,
     ).stdout.strip()
-    return datetime.fromisoformat(out) if out else None
+    # git records each commit's author-local offset (varies across this
+    # project's history -- some commits were made at -07:00/PDT, others at
+    # +00:00/UTC depending on the machine's local clock at commit time).
+    # Normalize everything to Pacific so the chart's x-axis is consistent
+    # regardless of which offset a given commit happened to be made under.
+    return datetime.fromisoformat(out).astimezone(PACIFIC) if out else None
 
 
 def snapshot_dirs():
@@ -58,7 +65,8 @@ def first_commit_date(rel_path):
     if not out:
         return None
     # earliest add (in case of history rewrites, take the last line = oldest)
-    return datetime.fromisoformat(out.splitlines()[-1])
+    # -- normalized to Pacific, see the comment in commit_date().
+    return datetime.fromisoformat(out.splitlines()[-1]).astimezone(PACIFIC)
 
 
 def main():
@@ -85,10 +93,10 @@ def main():
     ax.step(dates, cum, where="post", color="#2563eb", linewidth=2)
     ax.scatter(dates, cum, color="#2563eb", s=18, zorder=3)
     ax.set_title("Cumulative Accepted Iterations Over Time (Battlecode 2022 bot)", fontsize=13)
-    ax.set_xlabel("Date")
+    ax.set_xlabel("Date (Pacific Time)")
     ax.set_ylabel(f"Cumulative accepted iterations (snapshots g_iter1..{rows[-1][0][len('g_iter'):]})")
     ax.grid(True, alpha=0.3)
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M", tz=PACIFIC))
     fig.autofmt_xdate(rotation=30)
     for name, d, c in [(rows[0][0], rows[0][1], 1), (rows[-1][0], rows[-1][1], len(rows))]:
         ax.annotate(name, (d, c), textcoords="offset points", xytext=(5, -12), fontsize=8, color="gray")
