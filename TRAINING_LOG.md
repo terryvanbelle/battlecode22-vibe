@@ -7455,3 +7455,28 @@ bookkeeping needed). Updated periodically, not every iteration.
 
 As of `g_iter40`: 40 accepted iterations (of 92 attempted) spanning
 2026-08-27 through 2026-08-30.
+
+### Diagnostic note — Iteration 92's Builder-flee limit confirmed one more layer deeper
+
+Following up on Iteration 92's own "Next" note: re-traced `bot vs
+sample_afinals/highway` with both Iterations 90 and 92 in place. Only
+one Builder is ever built the entire 826-round game; `--indicators`
+shows it fleeing successfully twice (`"builder flee [10,7]"`) before
+resuming its route home and being killed several rounds later by
+**the same Sage** (`#11164`) that it had originally fled from. So
+this specific death isn't the range-gap blind spot (Sage attacking
+from outside the Builder's vision) documented in Iteration 92 -- the
+flee mechanism *did* see this Sage and correctly evaded it once, but
+a slow (`moveCD=20`) Builder resuming a fixed route home has no way to
+permanently shake a persistent single hunter with a longer effective
+reach, especially without any memory of "that Sage is still out
+there." A real but narrower limitation than the pure vision blind
+spot: the current flee is reactive-only (react to whoever's visible
+*this round*), not evasive (no lingering caution after a threat drops
+out of sight). Not chasing a fix for this today -- it's a small
+refinement on an already-accepted, working mechanism, and the
+underlying matchup (`sample_afinals`) is dominated by a much larger
+scale mismatch that this specific lever can't close on its own (see
+Iteration 92's original note). Recording so a future session doesn't
+need to re-derive this if the Sage-vs-Builder thread is picked back
+up.
