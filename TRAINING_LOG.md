@@ -4755,3 +4755,48 @@ build-priority issues (Iterations 62, 63), a future pass should verify
 any fix against a broader reproduction sample (multiple maps, not just
 the target one) before spending a full Gauntlet, given how narrow this
 iteration's own pre-Gauntlet check turned out to be.
+
+## Iteration 66  —  targeted build-block-nudge (REJECTED, inert on target + new squer regression)
+
+### Step 6 — Solution (attempt 2 on Iteration 65's hypothesis, REJECTED)
+
+Learning from Iteration 65's broad regression, tried a far more precise
+version: an Archon writes a shared-array signal only when it can afford
+its wanted unit but every build direction is genuinely occupied (not
+merely unaffordable); only a Miner directly adjacent to *that* specific
+Archon, sitting on already-depleted lead, steps aside once in response to
+a fresh signal -- no standing behavior change for idle Miners generally.
+
+Tested across a broader reproduction set this time per Iteration 65's own
+lesson: 3 opponents x 5 maps (`maze`, `pillars`, `squer`, `sandwich`,
+`valley`), not just the target map. Result: **7/30 = 23.3%**, down from
+this exact 30-game subset's baseline of **9/30 = 30%**. Per-map
+breakdown showed the regression was contained (not Iteration 65's
+across-the-board collapse) but also that the fix **did nothing for the
+target case**: `maze` was 2/6 in both the baseline and the new version,
+byte-for-byte -- `--metrics` on the same `g_iter22/maze/botB`
+reproduction case showed the identical zero-Soldiers-until-collapse
+trajectory as the original unfixed bug. Only `squer` moved, and it moved
+the wrong way (2/6 -> 0/6).
+
+### Outcome
+
+**REJECTED, reverted.** The signal-and-nudge mechanism is either never
+firing (trigger condition too strict) or firing without the intended
+effect (the one-tile step-aside isn't enough to actually clear the build
+ring) -- either way, two attempts at this exact hypothesis (a broad
+behavior change, then a narrow signal-based one) have now failed to move
+the target case at all, with the second attempt adding a small new
+`squer` regression on top. Not spending a third attempt guessing at yet
+another variant.
+
+**Next:** before any third attempt, actually verify the mechanism can
+fire and matters at all -- add a temporary indicator-string trace on the
+Archon's blocked-signal write and the Miner's nudge-response branch, then
+re-run the exact `g_iter22/maze/botB` reproduction case with
+`--indicators` to see whether the signal ever gets written, whether a
+Miner ever responds to it, and whether responding actually opens a build
+direction the following round. Without that direct confirmation, further
+parameter tweaks are guessing blind at a mechanism whose basic operation
+hasn't been verified. This diagnostic step should come *before* the next
+Gauntlet-spending attempt, not after.
