@@ -6301,3 +6301,72 @@ for 100->180 HP) remains untried -- would need the Builder to travel
 back to the Lab site (7 tiles from home) rather than just parking near
 the Archon/Watchtower, a bigger behavioral change than this iteration's
 scope.
+
+## Iteration 84 — active gold seeking (REJECTED; passive detection essentially never fires)
+
+### Step 4/5
+
+Continuing the `javap` sweep technique that found Iterations 78/82/83's
+mechanics: `senseNearbyLocationsWithGold()`/`senseGold()` were never
+called anywhere -- gold was only ever picked up incidentally via the
+unconditional 3x3 mining loop at the top of `runMiner`, with no active
+seeking. Gold is scarce but gates several already-accepted mechanics
+this session found starved for it specifically (Sage builds, Archon/
+Watchtower level 3 -- Iterations 81-83). Confirmed gold genuinely
+exists on several maps in modest quantities (e.g. 40-60 Au on 2-3 tiles
+on one `valley` instance, 20-30 Au on `highway`) via direct replay
+header inspection.
+
+### Step 6 — Solution
+
+Mirrored the existing lead-beacon system (`publishLead`/`nearestLead`)
+exactly for gold, purely additive: opportunistically publish any gold
+seen in vision (alongside the existing lead-detection scan, untouched),
+and only once a Miner has *no* known lead left to chase (the entire
+existing lead priority chain left fully alone) fall back to a known
+gold beacon before the last-resort `moveExplore()`.
+
+### Verification
+
+Single-game check on `g_iter22`/`valley` and `g_iter22`/`highway` --
+both confirmed via replay header to have real gold present -- showed
+**identical round counts to baseline in every game**, no behavior
+change at all. Added a direct diagnostic distinguishing "reached the
+gold-fallback code path, no gold known" from "never reached it": **4907
+hits for "no gold known" on the `valley` game (matching the exact
+figure from the earlier Iteration 80 investigation's moveExplore
+engagement count) and zero for "seeking gold"** -- the fallback code
+path is reached constantly (Miners really do run out of known lead
+often on this map), but `nearestGold()` never once found anything
+despite gold clearly existing on the map the entire game.
+
+### Root cause
+
+Not a bug -- gold tiles are sparse enough (1-3 tiles total on a
+50x50+ map) that a Miner's vision radius (20, ~4.5 tile radius) simply
+never happens to pass directly over one under normal lead-seeking
+movement patterns, across an 853-round game. Passive "publish what you
+happen to see" detection, the same pattern that works for lead (which
+is comparatively abundant -- dozens to over a thousand tiles per map in
+the replays checked this session), has essentially no chance of
+encountering something this rare without *dedicated* search behavior
+actively directed toward finding it, which this iteration didn't
+attempt.
+
+### Outcome
+
+**REJECTED, reverted** (confirmed clean diff against `g_iter35`) --
+not on regression grounds (none observed; the mechanism simply never
+engaged in either sample game), but because the verification step
+itself definitively showed near-zero real-world engagement, per the
+standing "verify before spending broader Gauntlet budget" practice.
+Not worth spending a reproduction sample on a mechanism confirmed to
+almost never fire.
+
+**Next, if revisited:** would need genuinely *active* search behavior
+(e.g. a small number of Miners assigned to systematic map-corner/
+quadrant sweeps rather than lead-driven wandering) to have a realistic
+chance of finding gold tiles at all -- a much bigger design than a
+passive detection mirror of the lead-beacon system. Given gold's
+established value (unlocking Sage/level-3 upgrades), this might still
+be worth a properly-scoped future attempt, but not as a quick add-on.
