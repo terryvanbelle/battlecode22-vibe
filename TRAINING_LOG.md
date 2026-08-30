@@ -5708,3 +5708,76 @@ rather than a hardcoded lead-amount constant). Given three attempts (v1
 absolute-stickiness, v2 margin=10, v3 margin=10-no-sentinel) have all
 failed with variations on the same signature, treating this as closed
 for quick-tuning purposes -- picking a different Step 4 target next.
+
+## Iteration 78 — Watchtower relocation (ACCEPTED, 60.4%); safe, verified, currently-neutral
+
+### Step 4/5 — a genuinely fresh, unexplored mechanism
+
+While searching for a Step 4 target not covered by any closed thread
+this session, noticed `runWatchtower` is minimal: attack if possible,
+otherwise do nothing -- no repositioning ever, for the rest of the
+game, regardless of where the front moves. Confirmed via `javap`
+against the actual `battlecode22-2.2.1.jar` that `RobotController.
+canTransform()`/`transform()` are general methods, not Archon-specific,
+and via a temporary diagnostic indicator string on a live Watchtower
+that `canTransform()` genuinely returns `true` in `TURRET` mode (128/144
+rounds logged `true` in the check). This is the *same* PORTABLE/TURRET
+mechanic Iteration 34 already uses for Archon relocation -- just never
+extended to Watchtower, which sits wherever the Builder first placed
+it, forever.
+
+### Step 6 — Solution
+
+Mirrored Archon's own proven relocation pattern (Iteration 34) as
+closely as possible: once per Watchtower per game, only past round 500,
+only when no local combat threat, and only if more than 20 tiles from
+the current `armyObjective`, transform to `PORTABLE` and march toward
+the action for up to 6 steps (or fewer if a threat appears mid-trip),
+then transform back to `TURRET`. Same downtime tradeoff as Archon
+relocation (`canAct=false` while `PORTABLE`) -- gated the same way,
+deliberately conservative.
+
+Mechanism correctness verified directly: temporarily lowered the
+round-500 gate to round-50 on `g_iter19`/`maptestsmall` (a game known to
+build and keep a Watchtower) and confirmed via indicator strings the
+full sequence works cleanly -- "begin relocate toward [...]" ->
+"relocating 1" through "relocating 6" -> "relocated, transforming
+back", then reverted the threshold back to 500 before testing the real
+candidate.
+
+### Verification
+
+Watchtowers are relatively rare (~15% of games in this peer pool ever
+build one, and construction itself is gated on round>100 + miners>=8 +
+lead>300), and the fix only engages past round 500 with no local
+threat and a distant front -- by construction, most games see zero
+behavior change, giving this a naturally low regression-risk profile.
+An 8-peer x 10-map x 2-side (160-game) reproduction sample confirmed
+this empirically: **100/160 = 62.5%, an exact per-opponent match to
+baseline in all 8 slices** -- zero regressions. Mirror check vs.
+`g_iter31`: 10/20 = 50%, comfortably clear of the 35% floor.
+
+### Gauntlet 78 (peer, full 14-opponent)
+
+**169/280 = 60.4%** -- matches baseline `WinPct` exactly. Per-opponent
+comparison against the last-accepted baseline: **every single one of
+the 14 opponents matched baseline exactly, win-for-win** -- literally
+identical to Gauntlet 73's per-opponent breakdown. Round-count diff
+(not just win/loss) confirms the mechanism isn't simply dead code: 7 of
+280 games show a different round count (`g_iter17/valley/B`,
+`g_iter27/highway/B`, `g_iter29-30/pillars/A`, etc. -- all long games,
+consistent with the round>500 gate), meaning relocation genuinely fired
+in those games, but never flipped an outcome either direction. A real,
+mechanically-verified, currently-neutral change: safe to keep, with
+plausible (if unproven against this specific peer pool) upside against
+opponents or benchmark bots whose games run long enough and whose front
+moves far enough from a surviving Watchtower for this to matter. No
+retirements due.
+
+**Snapshot**: `src/g_iter32/` (via `tools/snapshot.sh g_iter32`).
+Replay reference: `gauntlet/20260830-070713/` (full Gauntlet run);
+`gauntlet/20260830-065710/losses/g_iter19__maptestsmall__botB.bc22`
+(mechanism-verification replay, temporary round-50 threshold).
+
+**Next:** add `g_iter32` to the peer set for future Gauntlet runs
+alongside `g_iter17-31`.
