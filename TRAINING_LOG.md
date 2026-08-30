@@ -7578,3 +7578,93 @@ own re-test), which remains a genuine scale mismatch rather than a
 bug -- any further progress there needs the bigger, coherent
 from-scratch pipeline redesign flagged after Iteration 92, not another
 targeted patch on an individual failure point.
+
+## Iteration 94 — Builder anti-freeze fix (ACCEPTED, ~61%); a Builder permanently wasted for 800+ rounds
+
+### Step 4/5
+
+Applied Iteration 93's own "trace the full lifecycle, not just the
+trigger" suggestion to the Watchtower step instead of the Laboratory
+step. Traced a `chessboard` game (`g_iter19/chessboard/botA`, a loss):
+`--moves` showed a Builder making exactly 8 moves, then going
+completely silent for the rest of an 893-round game -- frozen at one
+tile for 800+ consecutive rounds, still printing `"to home for
+watchtower"` every single round. `chessboard` turned out to be a
+maze-like map, walled into tiny compartments connected by single-tile
+corridors (confirmed by rendering the board directly). The Builder was
+already within `runBuilder`'s `isWithinDistanceSquared(home, 8)` build
+range -- but every tile adjacent to the Archon was occupied (the same
+build-ring occupancy-blocking mechanism the closed sandwich thread
+characterized for Archons trying to build Soldiers, here hitting a
+Builder trying to place a Watchtower instead). Once no build direction
+is ever available, the code fell through unconditionally to
+`moveToward(rc, home)` -- but the Builder was already as close as
+geometrically possible, so that call became a structural no-op,
+repeated forever with no escape.
+
+### Step 6 — Solution
+
+When within building range but no valid build direction exists,
+reposition to any valid adjacent tile instead of retrying the same
+failed `moveToward` call -- a different tile may expose different
+(open) neighbors. Applied the same defensive fallback to the
+analogous fixed-direction fallback in the Laboratory-placement code
+(which risks the identical freeze on an equally cramped map, though
+not directly observed).
+
+### Verification
+
+Re-ran the exact traced matchup: Builders now move 150+ times each
+(were 8, then frozen) -- the mechanism genuinely engages. Honest
+caveat, though: on this specific map the Watchtower still never
+actually gets built even with repositioning -- the home compartment
+appears to have zero free adjacent tiles for the whole observed game,
+a deeper space-congestion problem than positioning alone can solve
+(the Laboratory already sidesteps this entirely by design, being
+placed 7 tiles from the Archon; the Watchtower is not). So this fix
+converts "Builder permanently and totally inert for hundreds of
+rounds" into "Builder keeps trying and may still fail to find a slot
+on the worst maps, but is no longer 100% wasted dead weight" -- a
+real, meaningful improvement, not a full fix of `chessboard`'s
+Watchtower placement specifically.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample against the
+`g_iter41` baseline: **104/160, exact match, zero game-by-game
+diffs** -- including on `chessboard` itself (the exact same win/loss
+pattern and round counts as before, e.g. `g_iter19/chessboard/botA`
+still loses at r893). A movement/positioning fix carries lower
+regression risk than the economy-timing category that caused
+Iteration 91's issue, but still verified at full scale per that
+precedent.
+
+### Gauntlet 94 (peer, full 25-opponent)
+
+**305/500.** The `g_iter17-36` subset: **255/400**, and a full
+game-by-game diff against the `104109` baseline showed **only the
+same single, already-known `g_iter21/chessboard/botA` flip** -- no new
+flips anywhere. `g_iter37`-`g_iter41`: 10/20 = 50% each, all within
+the expected near-mirror band. No opponent reached the 80%-domination
+retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A genuine, severe bug (total, permanent unit
+paralysis) with a clean, minimal, well-verified fix, safe at full
+480+-game scale. Same acceptance basis as the session's other recent
+structural fixes: correct, low-risk, and only partially measurable in
+this specific peer pool since the underlying congestion problem
+persists on the one map where it was found.
+
+**Snapshot**: `src/g_iter42/` (via `tools/snapshot.sh g_iter42`).
+Replay reference: `gauntlet/20260830-181114/` (full Gauntlet run).
+
+**Next:** add `g_iter42` to the peer set for future Gauntlet runs
+alongside `g_iter17-41`. `chessboard`'s Watchtower-placement problem
+remains genuinely open -- a real fix would need to place the
+Watchtower somewhere with guaranteed free space, the same lesson the
+Laboratory already learned (Iteration 57/58) by moving 7 tiles clear
+of the Archon's own build ring. Worth considering whether the
+Watchtower should get the same treatment, trading a little
+defense-in-depth for a guaranteed build in cramped maps -- a
+reasonable candidate for a future iteration, distinct from this one's
+narrower "don't freeze" fix.
