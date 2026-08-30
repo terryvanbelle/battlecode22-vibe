@@ -6969,3 +6969,115 @@ peer-age gradient, not a distinct bug newly introduced. No fresh
 Gauntlet budget spent chasing it. Recording this so a future session
 doesn't re-diagnose the same signature from scratch on this specific
 opponent range and mistake it for something new.
+
+## Iteration 89 — Sage standoff kiting (REJECTED; correct and well-motivated, but unreachable given our own gold economy)
+
+### Tooling unblocked: the 2022 postmortem PDF is now readable
+
+Earlier this session (and in prior sessions per this log), the Sage
+`envision()`/anomaly-mechanics thread was set aside because the
+bundled `2022-5-musketeers.pdf` postmortem couldn't be rendered --
+`pdftoppm`/`fitz` were unavailable. This cycle: `sudo apt-get install
+-y poppler-utils` installed cleanly (the sandbox permits it), and
+`pdftotext` now extracts the PDF's text directly -- faster and more
+reliable than the page-image `Read` tool path. **This unblocks that
+tooling gap for future sessions too.**
+
+Two directly relevant findings from the postmortem (a team that
+finished 7th at 2022 finals):
+
+1. **Confirms closing the anomaly/`envision()` thread was right.**
+   Verbatim: "Very few strategies cared about the global anomalies in
+   the game... Fury and abyss there was nothing you could do about,
+   and vortex just meant scooting an Archon over a little bit." A
+   strong team explicitly deprioritized this mechanic. No longer an
+   open question -- closing it for good, not just "set aside."
+2. **Names their actual highest-value Sage strategy**, unrelated to
+   anomalies: "since sages have such a big vision and attack radius,
+   you could attack people without them ever seeing you... By dancing
+   outside of the soldier vision radius, they could assassinate the
+   soldier from the shadows." Confirmed via `javap` against our own
+   game jar that the same range gap exists in our ruleset:
+   `SAGE.actionRadiusSquared=25` (~5 tiles) exceeds
+   `SOLDIER/MINER/BUILDER.visionRadiusSquared=20` (~4.47 tiles) -- a
+   real ~1-tile band where a Sage can hit those types without being
+   seen back.
+
+### Step 6 — Solution
+
+Added a Sage-only check at the top of `runSoldier` (shared by Soldier
+and Sage): if the Sage can already attack its target and is currently
+*within* the target's own vision range (exposed) and has a movement
+action available, retreat one step directly away from the target --
+but only if the retreat destination stays within the Sage's own
+action range (never gives up the attack entirely, just repositions
+into the safe band). The existing attack branches already correctly
+don't advance further once in range, so this was the one missing
+piece: retreating when caught exposed.
+
+### Verification
+
+8-peer x 10-map x 2-side (160-game) reproduction sample: **105/160,
+exactly matching baseline**, and a full game-by-game diff showed
+**zero differences across all 160 games** -- not just matching win/loss
+counts, identical round counts too. Confirmed via a replay scan that
+Sages genuinely are built sometimes in this peer pool (found
+sustained `A_sages>0` in at least one loss replay), so this isn't
+simply "Sages never exist here." Following Iteration 78's own
+precedent (a mechanically-verified, currently-peer-neutral change,
+accepted on the strength of round-count diffs proving it wasn't dead
+code), ran a full 21-peer (`g_iter17-37`) x 10-map x 2-side (420-game)
+Gauntlet to check at wider scale: **266/420** overall, but the
+`g_iter17-36` subset came back **256/400, exactly matching the
+`g_iter37` baseline with zero diffs across all 400 games** -- an even
+stronger no-op signal than the 8-peer sample, and unlike Iteration 78,
+no round-count differences anywhere to prove the mechanism was ever
+actually exercised.
+
+Given the theory this predicts (helps specifically against Sage-heavy
+play), tested directly against `sample_afinals` -- the one benchmark
+bot whose "doctrine is built entirely around" gold/Sage economy per
+Iteration 64's own note, the most favorable possible test case.
+**Lost all 3 games tested** (`highway` r803, `squer` r341, `valley`
+r716) -- but the decisive finding wasn't the loss, it was `--metrics`:
+**our own team's gold stayed at flat 0 for the entire 803-round
+`highway` game**, while `sample_afinals` accumulated 311 gold and
+built 111 Sages by the end. We built **zero** Sages of our own in any
+of the 3 games. The Sage-kiting fix cannot possibly have fired --
+there was never a Sage to apply it to.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter37`). The fix itself is correct
+and well-motivated -- a real range-gap mechanism, confirmed
+mechanically and validated by an actual competitive team's results --
+but it's currently unreachable: our own gold economy is so weak
+(confirmed flat 0 across an 803-round game against the one opponent
+whose entire strategy depends on gold) that we essentially never have
+a live Sage to apply Sage-specific logic to, in *any* matchup tested,
+including the single most favorable one available. This is the same
+root cause Iteration 84 already diagnosed for active gold-seeking
+(passive gold-tile detection "essentially never fires" because
+deposits are too sparse for normal Miner vision to encounter) and
+Iteration 58/64 already found for the Laboratory-based gold pipeline
+("barely ever engaged... needs a long, calm, high-lead-surplus game").
+Sage-specific refinements (this one, and the still-open
+Sage-build-priority-timing thread) are all gated behind the same
+upstream bottleneck and will stay inert until that's addressed
+directly.
+
+**Next:** not a good target for further Sage-*behavior* refinements
+until the economy problem is fixed first -- any such change will keep
+testing as a true no-op like this one, for the same reason. The real
+lever, if a future session wants to unlock this whole area (Sage
+kiting, Sage-build timing, potentially `envision()` despite the
+postmortem's lukewarm take on anomalies specifically -- charge/fury
+are separate from anomaly-timing and might still be worth a self-
+triggered look), is making gold actually accumulate reliably in
+ordinary games: revisit the Laboratory pipeline's engagement rate
+directly (why does a dedicated Laboratory + Builder investment still
+only "barely ever engage" per Iteration 58/64?) rather than continuing
+to build features on top of an economy that's never actually online.
+This is a bigger, more foundational target than a single iteration,
+similar in scope to the now-closed symmetry-detection project.
