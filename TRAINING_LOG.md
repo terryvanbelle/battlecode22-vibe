@@ -6704,3 +6704,96 @@ demonstrated dead ends independently. Picking a different Step 4
 target for the next cycle; the symmetry-detection project itself is a
 candidate for a future dedicated cycle with more design room than a
 single autonomous iteration comfortably affords.
+
+## Iteration 87 v2 — Miner reporting + mass-gate fix (REJECTED; net no-op, doesn't reproduce the v1 win)
+
+### Hypothesis
+
+A structural re-read of `runSoldier` (part of this cycle's function-by-
+function review after `runArchon`/`runMiner`/`betterTarget`/
+`runBuilder` all came back clean) found the actual mechanism behind
+Iteration 87 v1's `squer` regression: the Iteration 9 mass-gate (don't
+advance alone toward the speculative `armyObjective()` guess until 3+
+friendly Soldiers are in vision) has always exempted "an enemy Archon
+is known" (any populated `SA_ENEMY_ARCHON_0..3` slot) from the check
+entirely -- safe when only combat units (already near the front, having
+themselves advanced as part of a mass) could populate those slots, so
+"known" implied "we're already close to the fight." Iteration 87 v1's
+Miner-reporting change breaks that implication: a Miner can report a
+real sighting from anywhere on the map long before the army is
+anywhere near it, so a lone Soldier still at home sees "known" flip
+true and marches off alone into a losing fight -- exactly `squer`'s
+observed signature (early attacks, stuck at 1-2 Soldiers the whole
+game).
+
+### Step 6 — Solution: fix the gate, not the report
+
+Kept v1's Miner-reporting change and additionally removed the
+enemy-Archon-known exemption from the mass-gate's `known` variable in
+`runSoldier`, leaving only the two genuine active-threat signals
+(`SA_HOME_THREAT`, `SA_ECON_THREAT`). The correct destination (now
+available sooner thanks to Miner reporting) still gets used the moment
+the gate clears normally (3 friendlies, round>=250, or already close)
+-- this only delays commitment to a safer group size, it doesn't
+discard the sighting.
+
+### Verification
+
+Single-game checks: `TEAM_A=bot TEAM_B=g_iter21 tools/vm-match.sh
+squer` -- **win r345** (v1 had regressed this to a loss r357; original
+baseline was a win r371, so this is a real fix, faster than baseline
+even). But `TEAM_A=bot TEAM_B=g_iter27 tools/vm-match.sh maze` --
+**loss r600, the exact same round as the original pre-Iteration-87
+baseline loss** -- strongly suggesting the same lone-Soldier-commits-
+early behavior that the gate now blocks was the actual source of v1's
+maze win, not just squer's harm.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample confirmed
+this precisely: **105/160, matching the matched-subset baseline
+exactly**, and a direct game-by-game diff (opponent+map+side+result)
+against that baseline came back **zero differences across all 160
+games** -- not one win/loss outcome flipped in either direction (round
+counts *did* shift on some games, e.g. `g_iter21/squer/A` 371->345,
+confirming the code path is genuinely exercised, not dead code -- it
+just never changes who wins). Directly confirms the single-game read:
+this combination fixes `squer`'s regression by simultaneously erasing
+the `maze` win, netting out to indistinguishable-from-baseline on both
+the specific target case and the broad sample.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter37`). A genuinely informative
+result closing out this whole thread (v1 + v2, both variants of
+"let Miners report enemy Archons"): the mass-gate's old "known enemy
+Archon" exemption and the maze win from v1 are the same mechanism
+wearing two hats -- the exemption is precisely what let a lone,
+early-informed Soldier get to the enemy Archon fast enough to matter,
+and it's also precisely what let a lone, early-informed Soldier get
+mauled on `squer`. There's no free lunch available by tuning *when*
+the gate applies; the real, missing ingredient is knowing whether the
+map is one of the 4 non-rotationally-symmetric ones where committing
+early to a genuinely-known target is worth the risk, versus a
+rotational one where the blind guess was already fine and early
+commitment is pure downside -- which is, again, the same symmetry-
+class-detection gap Iteration 76 originally identified. Two
+independent cheap-shortcut attempts (v1's raw reporting, v2's gate
+fix) have now both failed to route around that gap.
+
+**Next:** closing the "let more units report enemy Archons" avenue
+entirely -- not attempting a v3. The terrain-based symmetry-detection
+project (Iteration 76's own proposal: compare observed rubble/terrain
+at candidate mirror-pair tiles via dedicated early scouting, before
+committing to a march direction) remains the only approach identified
+across three attempts (76, 87, 87v2) that could actually resolve this,
+and is explicitly sized as needing more design room than a single
+autonomous iteration -- a good candidate for a future dedicated cycle.
+This cycle's structural review of `runArchon`, `runMiner`,
+`betterTarget`/`targetPriority`, and `runBuilder` (looking for a fresh,
+unrelated Step 4 target per RESEARCH.md's remaining unexplored angles)
+found nothing else actionable; `runSoldier`'s remainder and the
+movement/pathing functions (`moveToward`, `moveExplore`,
+`repositionForRubble`) are already heavily scrutinized from earlier in
+this session. Picking a different Step 4 target next cycle: a fresh
+losing game from a peer/map pairing not yet examined, since the
+structural-review angle is now largely exhausted for this file.
