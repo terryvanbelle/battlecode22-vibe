@@ -7779,3 +7779,21 @@ a genuinely different, proactive idea; `chessboard`'s Watchtower
 placement is not worse off than before Iteration 94 (which still
 holds and helps in less pathological cases), it just remains unsolved
 on this specific map.
+
+### Diagnostic note — `jellyfish`/botA losses vs g_iter37-41 are the same near-mirror pattern, not new
+
+Gauntlet 94's loss list showed `jellyfish` losing as `botA` (the
+"favored" side, previously 100% against `g_iter17-36`) against
+`g_iter37` through `g_iter41` -- the bot's own five most recent
+ancestors. Traced `g_iter41/jellyfish/botA` (loss, r369) via
+`--metrics`: near-identical Miner counts and lead income on both
+sides through r160 (a genuinely close, near-mirror economy), then our
+own Soldier count crashes (11->2->1->0 by r240) while the opponent's
+grows steadily (13->20->26->30->37) -- the exact same combat-
+efficiency-crash signature already documented for `valley`/`g27-39`
+and `squer`/`g27-39` earlier this session. **Not a new lead** --
+`g_iter37-41` are simply the newest, most-developed stretch of the
+bot's own lineage, and per the Iteration 79 "resistant cluster is
+just strong peers" reframing, a close contest against one's own
+immediate predecessor is the expected outcome, not a bug. No Gauntlet
+budget spent chasing it further.
