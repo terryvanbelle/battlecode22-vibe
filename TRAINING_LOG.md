@@ -7189,3 +7189,122 @@ different mechanism (e.g. prioritizing Builder survival/escort, or a
 faster Watchtower/Laboratory build sequence) to actually reach a live
 Sage against contested opponents -- closing this specific follow-up
 question rather than iterating further on it same-cycle.
+
+## Iteration 91 — Archon heal-vs-build priority fix (ACCEPTED, ~62.5%); severe lead-hoarding bug found via user-requested benchmark check
+
+### Origin
+
+The user asked for the current win rate against the 3 benchmark bots.
+Full 60-game tally: `sample_camelcase` 0/20 (0%, unchanged all
+session), `sample_afinals` 4/20 (20%, up slightly from Iteration 61's
+3/20), `sample_monke` 20/20 (100%, a deliberately weak lecture-level
+bot). Offered to trace a `sample_camelcase` loss and did.
+
+### Step 4/5 — the actual bug
+
+`bot vs sample_camelcase/maptestsmall` (loss, r227): `--metrics`
+showed team lead climbing *monotonically* round after round --
+5013->5095->5177->...->5603 over a 15-round window with zero drops
+(a drop would mean a build happened) -- reaching **6815 unspent lead
+by r180** while our Soldier count crashed 36->0 and the opponent's
+grew completely unopposed. `--indicators` on the Archon showed why:
+nothing but `repairs SOLDIER`/`repairs MINER` every single round.
+
+Root cause, in `runArchon`'s heal-vs-build logic (Iteration 14): a
+unit qualifies for Archon-priority healing if it's missing more than
+6 HP -- for a 50-HP Soldier, any HP <=43 (a scratch, 12% missing)
+qualifies, and heal takes **absolute, unconditional priority** over
+building, with no cap on consecutive heal-only rounds. In any
+sustained skirmish near the Archon, *some* unit is almost always
+carrying a minor wound, permanently locking the Archon into heal-only
+mode no matter how much lead has piled up -- a severe, previously
+undiscovered build-starvation bug, present since Iteration 14 (long
+before this session) but only manifesting clearly against a
+continuously-pressuring opponent with a long, close fight near home.
+
+### Step 6 — Solution, and a real mid-course correction
+
+**v1**: raised the heal-eligibility bar to "missing >50% max HP."
+Re-verified: only partial improvement (lead still peaked at 5337) --
+with sustained pressure, *some* unit is always below whatever fixed
+bar is picked, so heal keeps winning regardless of the specific
+number. **v2** (the actual fix): made it lead-aware. Track whether
+team lead is "abundant" (originally `> 2x Soldier's build cost`, 150);
+if so, only a *critical* wound (<20% max HP) may still pre-empt a
+build -- moderate wounds wait. Re-verified on the same game: lead
+peak dropped to 4791 (~30% down from 6815), a real improvement, with
+the remaining triggers now genuinely critical units under what looks
+like an active siege at the Archon's doorstep (a different, legitimate
+problem this fix isn't meant to solve).
+
+**The mid-course correction**: an 8-peer/160-game reproduction sample
+with the 150 threshold looked clean (1 flip, dismissed as ordinary
+long-game chaos after checking it). A full 22-peer/440-game Gauntlet
+told a different story: **6 flips, all on `highway`'s B side**,
+against `g_iter29` and `g_iter32-36`. Traced one (`g_iter32/highway/
+botB`): our own lead only briefly ticked up to 151-180 around r508 --
+an entirely ordinary economic fluctuation, nowhere near the
+thousands-deep crisis this fix targets -- but on `highway` (a long,
+low-combat economy-race map per Iteration 30's own note) even a
+brief, minor behavior change early can cascade unpredictably over
+1000+ remaining rounds. **150 was catching completely healthy
+economies, not just the pathological case** -- the reproduction
+sample's 8-peer slice simply didn't happen to include enough of the
+affected range to surface it, an explicit lesson for future
+threshold-style changes on long/economy-heavy maps: an 8-peer sample
+isn't always sufficient, especially when the mechanism is keyed to a
+quantity (lead) that fluctuates continuously rather than a discrete
+event.
+
+Raised the threshold to `> 600` -- clearly past ordinary fluctuation,
+closer to the actual crisis scale observed. Re-verified both directions
+directly: `sample_camelcase/maptestsmall` still shows the same
+mitigation (peak ~4791, unchanged from the 150 version -- the crisis
+case is comfortably above 600 too), and `g_iter32 vs bot` on `highway`
+now **wins** (r1182), confirming the specific regression is fixed.
+
+### Verification
+
+Skipped straight to a full 22-peer (`g_iter17-38`) x 10-map x 2-side
+(440-game) Gauntlet this time (the 8-peer step already proved
+insufficient once). Full game-by-game diff against
+`gauntlet/20260830-104109/results.csv`: **exactly one flip** --
+`g_iter21/chessboard/botA`, the same isolated, already-accepted noise
+from Iteration 90 -- and **zero** `highway` flips. `g_iter37`/
+`g_iter38`: 10/20 = 50% each, reasonable near-mirror scores.
+
+### Gauntlet 91 (peer, full 22-opponent)
+
+**275/440 = 62.5%.** The `g_iter17-36` subset: 255/400, matching the
+104109 baseline within the single known flip. No opponent reached the
+80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A genuinely severe bug (confirmed unspent lead in the
+thousands, complete build-queue paralysis) fixed with a
+now-clean verification (one already-known flip, zero new regressions
+at full 440-game scale) -- worth accepting even without a large
+measurable peer-pool win-rate jump, since the pathology mostly bites
+in sustained, contested fights that this mirror-match peer pool
+under-represents relative to a real committed opponent.
+
+**Snapshot**: `src/g_iter39/` (via `tools/snapshot.sh g_iter39`).
+Replay reference: `gauntlet/20260830-143626/` (full Gauntlet run).
+
+**Benchmark re-check** (informational, not required for accept):
+`sample_camelcase` on `highway`/`squer`/`valley` -- still 0/3, r622/
+r263/r582. Not surprising; camelcase's skill gap (real Dijkstra
+pathfinding, coordinated focus fire, formation discipline) is far
+larger than one Archon-priority bug. This fix closes a real
+inefficiency but doesn't change the fundamental competitive gap
+against camelcase specifically.
+
+**Next:** add `g_iter39` to the peer set for future Gauntlet runs
+alongside `g_iter17-38`. The mid-course lesson here (an 8-peer sample
+can miss a real regression when the mechanism is keyed to a
+continuously-fluctuating quantity on long/economy-heavy maps) is worth
+keeping in mind for any future threshold-tuning iteration -- consider
+going straight to a fuller peer check, or explicitly including at
+least one `highway`-heavy opponent range, when a change touches
+economy timing rather than a discrete event.
