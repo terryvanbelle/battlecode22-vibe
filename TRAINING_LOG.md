@@ -7385,3 +7385,34 @@ needs to attack it from the Sage side (kiting/positioning, already
 designed in Iteration 89 but shelved on our own weak gold economy) or
 the economy side (getting Sages built at all), not from hardening
 individual victim unit types further.
+
+### Diagnostic note — post-Iteration-92 follow-ups: no new leads
+
+Two quick checks after Iteration 92, neither actionable:
+
+**A structural dead-code/unused-parameter sweep** of the rest of
+`RobotPlayer.java` (the pattern that found Iteration 92's Builder bug)
+turned up nothing else of consequence: `report(rc)` is called twice
+from within `runMiner` in addition to its real call at the end of
+`runArchon` -- harmless (it immediately no-ops via `if (rc.getType()
+!= RobotType.ARCHON) return;`), just a little wasted bytecode from an
+old leftover, not worth touching. `curArchons` and the other
+Archon-local static fields are all correctly scoped (freshly set every
+round before use, since each Archon is its own robot instance) --
+no cross-robot staleness risk. `runWatchtower`/`runArchon` both use
+`foes` properly.
+
+**Re-checked `sample_afinals` directly a third time** (`highway`/
+`squer`/`valley`) now that Iterations 90-92 together improve economy
+timing and Builder survival: still **0 gold, 0 Sages built in all 3
+games**. Consistent with the last two checks -- this specific
+opponent's pressure is severe enough that the Watchtower/Laboratory
+pipeline never survives to maturity regardless of which individual
+component gets hardened. Also traced two fresh `sample_camelcase`
+losses (`jellyfish` r231, `squer` r263): both show the same
+already-understood signature (comparable Miner/lead economy on both
+sides, but their Soldier count grows steadily while ours crashes) --
+the combat-AI skill gap, not a new mechanical bug. The benchmark-
+tracing methodology (which found 3 real bugs this session) has hit
+diminishing returns for now; not spending further budget on more
+benchmark replays without a new angle.
