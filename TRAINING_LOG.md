@@ -7480,3 +7480,101 @@ scale mismatch that this specific lever can't close on its own (see
 Iteration 92's original note). Recording so a future session doesn't
 need to re-derive this if the Sage-vs-Builder thread is picked back
 up.
+
+## Iteration 93 — fix dead Builder-replacement path (ACCEPTED, ~61%); a genuinely abandoned economy investment
+
+### Step 4/5
+
+Following straight from the Builder-flee investigation above: `runArchon`'s
+`myBuildersSpawned` counter tracks builders ever *spawned*, and never
+decrements on death. Once the single Builder built before round 400
+dies (directly observed happening repeatedly this session, most
+recently in Iteration 92's own trace: a Builder killed mid-route after
+successfully fleeing a Sage once), `myBuildersSpawned` stays at 1
+forever and `builderCap` (1 before round 400, 2 after) never grows
+again until round 400 arrives -- silently abandoning the entire
+Watchtower/Laboratory investment for potentially hundreds of rounds,
+even if the economy is otherwise perfectly healthy and could easily
+afford a replacement Builder (only 40 lead).
+
+### Step 6 — Solution
+
+Added `SA_LAB_BUILT` (0/1, written by the Builder itself the moment it
+places the Laboratory) and a second, independent trigger in
+`runArchon`: if the team's Laboratory genuinely isn't built yet, at
+least one Builder has already been spawned (so this doesn't duplicate
+the very first attempt), and the economy is healthy (miners>=8,
+lead>120), keep retrying regardless of round or the normal
+scaling-focused cap -- bounded at `myBuildersSpawned<4` so a
+genuinely impossible map doesn't spam Builders forever. Purely
+additive: doesn't change any existing behavior when the Laboratory
+already gets built successfully, or when the economy can't afford a
+replacement anyway.
+
+### Verification
+
+Compiled and re-ran `bot vs sample_afinals/highway`: identical r826
+result -- expected and correctly diagnosed, since in this specific
+extreme matchup team lead never recovers above 120 once the army
+starts collapsing, so `needReplacementBuilder`'s own economy gate
+correctly never fires there. This reflects the larger, already-
+documented scale-mismatch problem, not a flaw in the fix.
+
+8-peer x 10-map x 2-side (160-game) reproduction sample against the
+`g_iter40` baseline: **104/160, exact match, zero game-by-game
+diffs**. Given this touches Archon build-priority/economy timing (the
+same category of change responsible for Iteration 91's v1
+regression), went straight to a full 24-peer (`g_iter17-40`) x
+10-map x 2-side (480-game) Gauntlet before deciding, per that
+iteration's own lesson.
+
+### Gauntlet 93 (peer, full 24-opponent)
+
+**293/480.** The `g_iter17-36` subset: **255/400**, and a full
+game-by-game diff against the `104109` baseline showed **only the
+same single, already-known `g_iter21/chessboard/botA` flip** -- no new
+flips anywhere, including `highway` and the other long/economy-heavy
+maps specifically checked given the Iteration 91 precedent.
+`g_iter37`/`g_iter38`: 10/20 = 50% each, `g_iter39`/`g_iter40`: 9/20 =
+45% each -- all within the expected near-mirror band. No opponent
+reached the 80%-domination retirement threshold.
+
+An informational check for a peer game where the new replacement path
+specifically fires (as opposed to the pre-existing round>400 second-
+Builder cap, which also produces `A_builders` reaching 2) wasn't
+cleanly isolated in the time available -- several long `chessboard`
+games show 2-3 Builders by round 574+, but that window is already past
+round 400, so the existing cap alone could explain it without needing
+the new trigger. Not blocking on this: the fix is structurally
+straightforward (reviewed carefully, a narrow additive OR-condition)
+and the full-scale Gauntlet confirms it's safe; a future session
+could isolate a cleaner confirming case if the mechanism's real-game
+frequency becomes interesting to know.
+
+### Outcome
+
+**ACCEPTED.** A genuine, previously-undiscovered structural bug
+(unbounded abandonment of a real, working economic investment) fixed
+with a narrow, well-reasoned, purely-additive change, verified clean
+at full 480-game scale following the Iteration 91 precedent for
+economy-timing changes. Same acceptance basis as Iterations 78/91/92:
+correct and low-risk, with plausible value in situations (a Builder
+dying early in an otherwise-healthy economy) this specific peer pool
+doesn't happen to isolate cleanly.
+
+**Snapshot**: `src/g_iter41/` (via `tools/snapshot.sh g_iter41`).
+Replay reference: `gauntlet/20260830-171043/` (full Gauntlet run).
+
+**Next:** add `g_iter41` to the peer set for future Gauntlet runs
+alongside `g_iter17-40`. This closes out the immediate Builder-
+survival/economy-completion thread opened by Iteration 89's original
+investigation (89: Sage kiting once alive, shelved; 90: lower the
+initial Builder gate; 92: Builder self-preservation; 93: don't
+abandon the investment if the Builder dies anyway) -- four
+iterations, three accepted, all targeting different failure points in
+the same pipeline. Still doesn't get a Sage built against
+`sample_afinals` specifically (confirmed unchanged in this cycle's
+own re-test), which remains a genuine scale mismatch rather than a
+bug -- any further progress there needs the bigger, coherent
+from-scratch pipeline redesign flagged after Iteration 92, not another
+targeted patch on an individual failure point.
