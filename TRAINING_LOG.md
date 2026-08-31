@@ -8341,3 +8341,95 @@ production *rate* is capped at one build per round regardless of
 priority order). Future benchmark-focused cycles should consider
 whether Miner-scaling speed (not priority order) is the real lever,
 if this thread is revisited.
+
+## Iteration 101 — richHome Miner floor raised to match its own opening quota (ACCEPTED, 59.0%)
+
+### Step 4/5
+
+Directly tested Iteration 100's own "Next" hypothesis (Miner-scaling
+*speed*, not build priority, as the real lever against
+`sample_camelcase`): re-ran the same `maptestsmall` (`richHome`)
+matchup and compared Miner-count growth curves round-by-round.
+Genuinely surprising finding: **our Miners led early** (18 vs
+camelcase's 11 by r31) -- then hard-plateaued at exactly 18
+(`maxLeadMiners`, the richHome opening quota) while camelcase's kept
+climbing linearly, passed ours around r61-66, and compounded
+unopposed the rest of the game (72 Miners by the end).
+
+Root cause: `floor` (`Math.min(6 + round/100, 25)`) is the *only*
+Miner-replenishment mechanism once the opening quota
+(`myMinersSpawned < quota`) is satisfied, and it's far too low for a
+richHome map -- only 7 at r100, vs the map's own already-proven
+18-Miner target. Once natural attrition drags the count below 18,
+nothing brings it back to what this exact map was already judged to
+support; it settles at the much lower ongoing floor instead.
+
+### Step 6 — Solution
+
+```java
+if (richHome) floor = Math.max(floor, maxLeadMiners);
+```
+Applied only to richHome maps -- the non-richHome floor formula has
+been directly tuned by Iterations 19/20/23 through real peer-Gauntlet
+iteration, and nothing in this trace motivates touching it there.
+
+### Verification
+
+Re-ran the motivating case: the 18-Miner plateau now holds much
+longer (through ~r161-181, vs ~r66-96 before) -- a real, measurable
+improvement -- but the game is still eventually lost (r286) once
+camelcase's raiding force (65-87 Soldiers by the end) grows large
+enough to kill Miners faster than a single Archon can replace them
+regardless of the target floor. Team lead piled up even higher this
+time (2700-4345 vs the previous run's ~2800 peak), reinforcing
+Iteration 100's own conclusion: this matchup is capped by raw
+single-Archon production *throughput*, not by any Miner-target
+formula.
+
+Per the Iteration 91 lesson, 8-peer x 10-map x 2-side (160-game)
+reproduction: **103/160 (64.4%)**, matched-subset diff against the
+`104109` baseline showed **2 diffs** -- the already-known
+`g_iter21/chessboard/A` flip, plus a **new** one:
+`g_iter21/maptestsmall/A` (win->loss). Traced directly
+(`TEAM_A=bot TEAM_B=g_iter21 tools/vm-match.sh maptestsmall`,
+reproduced at r588): both sides plateau at 18 Miners in lockstep for
+~280 rounds, then diverge sharply (B ends with 12237 lead/87 Soldiers
+vs A's 3377/0) -- the same shape as this session's many previously
+characterized near-mirror timing-sensitivity flips (small early
+perturbation, large late-game divergence between closely-related
+codebases), not an obvious new systematic weakness.
+
+Went to a full 30-peer (`g_iter17-46`) x 10-map x 2-side (600-game)
+Gauntlet given the economy-timing risk: **354/600 (59.0%)**,
+`g_iter17-36` subset (255/400) diffed against the same baseline with
+**still only those same 2 diffs** -- the new flip didn't cascade to
+any other opponent despite `maptestsmall` appearing in every peer's
+map rotation, and `g_iter21` (which already carries the pre-existing
+chessboard flip) dropped only 12/20->11/20. No opponent reached the
+80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** One new, isolated flip against an already-fragile
+opponent, consistent in shape with established near-mirror noise and
+not spreading at full 600-game scale, against a real, well-traced,
+narrowly-scoped fix (richHome-only) with a directly observed positive
+effect (plateau held 2-3x longer) on its own motivating case. Doesn't
+flip `sample_camelcase` itself -- confirms, rather than refutes,
+Iteration 100's conclusion that this matchup is a production-
+throughput ceiling, not a target-formula problem.
+
+**Snapshot**: `src/g_iter47/` (via `tools/snapshot.sh g_iter47`).
+Replay reference: `gauntlet/20260831-003946/` (full Gauntlet run).
+
+**Next:** add `g_iter47` to the peer set for future Gauntlet runs.
+With both the Miner-target formula (this iteration) and build
+priority (Iterations 99/100) now addressed, the remaining
+`sample_camelcase`/`sample_afinals` gap looks like it needs either
+genuinely faster raw production (impossible with a single build
+action per round -- would need a structural change, e.g. investing
+in a second Archon earlier/more aggressively if the map allows it) or
+better Soldier survival-per-unit-built (combat micro: focus fire,
+kiting, retreat timing) so each produced unit contributes more value
+before dying. The latter is a large, distinct investigation, not a
+quick follow-up.
