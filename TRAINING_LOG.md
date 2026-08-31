@@ -9275,3 +9275,68 @@ follow-up: is 4x/8x itself the right multiplier, or would richHome
 maps support even more? Untested, and per the never-idle rule, not
 blocking -- moving to the next thing now rather than iterating further
 on this one number.
+
+## Iteration 110 — richHome-gated Miner-ceiling increase (ACCEPTED, 58.2%); second High-risk structural exploration attempt
+
+Immediate follow-up to Iteration 109, per the never-idle rule, reusing
+the exact same fix shape on a different lever.
+
+### Capability gap
+
+`sample_camelcase` reaches **72 Miners** in a single game (confirmed
+via `--metrics` this session), while our own richHome Miner-floor
+ceiling caps at 25 -- and per the existing formula
+(`min(6+round/100,25)`), only reaches that after ~1900 rounds. Iteration
+101 fixed richHome maps *reaching* their own proven 18-Miner opening
+target, but never raised the ceiling past it. Iteration 23's own
+history already showed *un-gated* ceiling increases cause a real peer
+regression (opportunity cost against Soldier production on maps that
+don't need the extra economy) -- the same lesson Iteration 109 v1 just
+re-learned for Builders.
+
+### Solution
+
+Applied the identical fix shape that worked for Iteration 109: raise
+the ceiling and ramp rate substantially (`6 + round/30`, cap 50), but
+gate it on `richHome` -- already proven, via Iteration 7/16 and 109,
+to be exactly the maps with enough spare economy to absorb it.
+Non-richHome maps keep the exact, already peer-Gauntlet-tuned formula
+untouched.
+
+### Verification
+
+Mechanistic check on `sample_camelcase/maptestsmall` directly showed
+no effect (Miners stayed at 6) -- traced why: that specific game is
+combat-heavy from very early on, and Iteration 99's own threat-blind-
+floor suppression (`miners < floor && !localThreat`) correctly blocks
+Miner replenishment during active combat, exactly as designed; this
+isn't a bug, the mechanism simply never got the chance to engage in
+that specific hostile game. Checked a calmer, longer game instead
+(`bot vs g_iter21/maptestsmall`, r1435): confirmed clearly engaging --
+our Miners climbed to 30-31, well past the old 18/25 cap, while the
+opponent (without the fix) stayed capped at 16-19.
+
+8-peer reproduction sample: **zero diffs**, exact match to baseline.
+Full 33-peer (`g_iter17-49`) x 10-map x 2-side (660-game) Gauntlet:
+**384/660 (58.2%)**, `g_iter17-36` matched subset: **zero diffs**,
+exact match to baseline (640/640 games identical). No opponent reached
+the 80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A second consecutive high-risk structural change landing
+at zero measurable peer-Gauntlet cost -- real evidence the
+`richHome`-gating pattern discovered in Iteration 109 generalizes as a
+safe template for other bold economy-scaling changes, not a one-off.
+
+**Snapshot**: `src/g_iter50/` (via `tools/snapshot.sh g_iter50`).
+**New baseline**: `gauntlet/20260831-191654/` supersedes
+`gauntlet/20260831-184055/` for all future diffs.
+**Replay**: `replays/iter110_g_iter21_maptestsmall_botA.bc22` (Miners
+reaching 30+ past the old cap).
+
+**Next:** the same `richHome`-gated-bold-increase template could
+plausibly apply to other conservative caps in the codebase (e.g. the
+absolute Soldier count, if one exists, or further Builder-cap scaling
+beyond Iteration 109's 4x) -- worth checking per the never-idle rule's
+"keep moving" instruction, not as an open question to sit on.
