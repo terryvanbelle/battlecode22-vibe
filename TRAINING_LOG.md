@@ -9027,3 +9027,37 @@ iteration's v1/v2 history). **Next, if revisited:** would need the
 same full peer-Gauntlet-scale verification Iteration 90 itself used,
 not a quick tweak -- a good candidate for a fresh, well-rested cycle
 rather than continuing tonight's run.
+
+### Diagnostic note — the real reason Iteration 104's rally gate hurt `highway`: `solSpread` correlates with *winning* there, not losing
+
+Followed up on Iteration 104's own "Next" note (a `highway`-specific
+regression the rally-gate thread never fully explained). Traced the
+current baseline (no rally gate) on `bot vs g_iter19/highway` --
+**bot wins comfortably (r813)** -- and checked `solSpread` across the
+whole game: our own spread runs *consistently higher* than the
+opponent's the entire time (14.1 vs 6.7 at r81, 14.8 vs 6.4 at r161,
+and so on) while we're the side pulling ahead and eventually winning.
+
+This directly contradicts the premise Iteration 104's whole thread was
+built on (low spread = good, correlated with chessboard/pillars
+losses this session). On `highway` specifically, higher spread doesn't
+cost us -- if anything it's associated with winning. This isn't really
+a "pacing" issue as the prior note guessed; it's that the underlying
+"spread hurts you" correlation, real on combat-dense maps, simply
+**doesn't hold, or even reverses, on `highway`** (a long, low-combat,
+chaotic economy-race map where fights are rare and a more spread-out
+army may cover ground / harass more effectively than a slow-moving
+mass). A gate that forces grouping-up wastes travel time for a payoff
+that doesn't exist there, explaining the regression precisely.
+
+**Not re-implemented this cycle** (that thread is closed for now, and
+this finding is diagnostic, not itself a fix), but this substantially
+de-risks any future attempt: the right discriminator for whether to
+apply a rally-gate isn't army size (already tried, Iteration 103) or a
+guessed "pacing" quality -- it's something like *combat density*
+(how often this game has actually seen combat so far, e.g. a ratio of
+attack-actions to elapsed rounds), which would correctly enable
+grouping on combat-dense maps like chessboard/pillars while leaving
+sparse-combat maps like highway untouched, without needing to
+hardcode specific map names or guess at map-level properties
+indirectly.
