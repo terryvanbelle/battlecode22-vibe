@@ -8564,3 +8564,63 @@ still fixing the original over-commitment problem on richer maps --
 but that's real added complexity and would need its own careful
 verification pass, not attempted further this cycle given the time
 already spent finding and characterizing this regression.
+
+## TRAINING_ALGORITHM.md rewrite: formalizing this session's actual verification methodology
+
+At the user's request, rewrote `TRAINING_ALGORITHM.md` to match how
+Iterations 90-103 actually operated, which had diverged from the
+written algorithm in several places, always toward a stronger,
+cheaper, more information-rich process than what was on paper:
+
+1. **Step 6.4's "must win the motivating game or undo" requirement
+   was routinely and deliberately not followed.** Iterations 96, 97,
+   99, 100, 101 were all accepted without winning their motivating
+   game, verified instead by mechanistic evidence (`--metrics`/
+   `--indicators` showing the fix engaged and changed behavior as
+   designed) plus a clean broad-Gauntlet result. Discussed a
+   round-count-only version of this relaxation with the user earlier
+   tonight and it was correctly rejected as too weak a signal alone --
+   what's actually been working is mechanistic verification, not round
+   count by itself. The rewrite makes this the real Step 6.4 gate (3
+   outcomes: won / lost-but-engaged-with-an-evidenced-account-for-why /
+   no evidence -- only the third undoes).
+2. **The old single mirror check (aggregate win rate vs. one
+   opponent) is weaker than the diff-based, shape-aware method
+   actually used all session**: an 8-peer reproduction sample diffed
+   game-by-game against a maintained baseline, escalating to a full
+   Gauntlet (also diffed) for anything touching build/priority/
+   threshold logic. The *shape* of a diff -- one-directional and
+   concentrated on one map/side across many opponents (Iteration
+   102's 15-diff, all-win->loss, 9-opponent `squer` sweep) vs. small,
+   scattered, mixed-direction (ordinary near-mirror noise on already-
+   fragile maps) -- is what actually separated real regressions from
+   noise this session, not the aggregate number.
+3. Added an explicit "diagnosed regression -> targeted refinement"
+   path (exactly Iteration 102 -> 103's pattern tonight), a "verified
+   true but don't act on it" escape hatch for hypotheses that would
+   revert previously-documented reasoning (used twice this session:
+   the `g_iter17`/`maptestsmall` infrastructure trade-off, and the
+   `needBuilder` contact-gate idea), and a soft nudge to prefer fresh
+   territory once an area shows a repeated "already correctly tuned"
+   pattern (build-priority timing, this session, after Iterations
+   96/97/99/100/101 and two diagnostic-only cycles).
+4. Replaced the practice of diffing against one fixed, increasingly
+   stale baseline file (requiring manual tracking of "already-known"
+   flips) with a maintained baseline that's superseded on every
+   accept.
+5. Noted that the replay archive (`replays/`) silently fell 14
+   iterations behind (last entry: Iteration 73) despite being
+   required, and tied it to the accept/reject commit itself going
+   forward instead of a separate step to remember.
+
+None of the Gauntlet/peer/benchmark/retirement machinery changed --
+that's been stable and well-validated across the whole project.
+
+Added a `MILESTONES` marker (commit `6b492e1`) to
+`tools/plot_progress.py` per the standing rule, and refreshed the
+progress chart (47 accepted iterations).
+
+**Per explicit user instruction: follow the new algorithm for the
+rest of tonight; in the morning, evaluate together whether to keep it
+or revert to the prior version** (preserved in git history at the
+commit immediately before this one).

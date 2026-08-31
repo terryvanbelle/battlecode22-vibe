@@ -34,6 +34,7 @@ MILESTONES = [
     ("mirror-check gate + near-miss extension", "9dd8da6"),
     ("round-count tracking (secondary metric)", "48ab983"),
     ("RESEARCH.md added", "d3d2e5c"),
+    ("TRAINING_ALGORITHM.md rewrite: shape-based diffing", "6b492e1"),
 ]
 
 # Benchmark-bot win tallies (out of 20 games) over time, as recorded in
