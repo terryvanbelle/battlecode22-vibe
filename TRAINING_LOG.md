@@ -9714,3 +9714,25 @@ sustained-war one -- if the mechanism only ever fires opportunistically
 during active combat now (since that's when most games spend most of
 their time), there may still be room to make Sage timing smarter, just
 not via a contact-recency signal.
+
+### Diagnostic note — fresh benchmark tally after Iteration 115: afinals unaffected, and why
+
+Ran fresh full 20-game tallies with `g_iter52` (Iteration 115's
+Sage-gate unlock) as the working state: `sample_afinals` **3/20
+(15%)**, `sample_camelcase` **0/20 (0%)** -- both unchanged from the
+last recorded point. Traced why `afinals` in particular didn't move,
+despite that opponent's whole doctrine being built around a Sage
+economy: `--metrics` on a fresh loss replay showed **`A_gold` staying
+flat at 0 for the entire game**, exactly like every prior check this
+session (Iterations 89/96/97/99's whole "survival not supply" thread).
+Iteration 115's fix only helps once gold already exists to spend --
+against `afinals` specifically, our Builders/Miners still never
+survive long enough to generate any gold at all in the first place, a
+separate, already-characterized bottleneck upstream of anything
+Iteration 115 touched. This is expected, not a regression or a missed
+opportunity -- Iteration 115's gains show up in peer games (where
+Iterations 109/110 already made gold genuinely flow), not here.
+
+Added as a new `BENCHMARK_HISTORY` point in `tools/plot_progress.py`
+(`2026-08-31T15:34:09-07:00`, camelcase=0, afinals=3) and regenerated
+the progress chart.
