@@ -9340,3 +9340,60 @@ plausibly apply to other conservative caps in the codebase (e.g. the
 absolute Soldier count, if one exists, or further Builder-cap scaling
 beyond Iteration 109's 4x) -- worth checking per the never-idle rule's
 "keep moving" instruction, not as an open question to sit on.
+
+## Iteration 111 — needReplacementBuilder retry cap scaled to match Iteration 109 (REJECTED; exposed a pre-existing design gap, not just a tuning miss)
+
+Small, seemingly low-risk follow-up: Iteration 109 raised richHome's
+`builderCap` to 8, but `needReplacementBuilder`'s own independent
+retry bound stayed at the old flat 4 -- on richHome maps that's now
+the binding constraint, silently undoing part of 109's own investment
+for the one purpose (finishing a Laboratory) this mechanism exists
+for. Fix: scale it the same way (richHome: 8, non-richHome: unchanged
+at 4).
+
+### Verification
+
+8-peer reproduction sample: 102/160 (63.8%), only 1 isolated diff --
+looked like ordinary noise. Full 34-peer (`g_iter17-50`) Gauntlet:
+**389/680 (57.2%)**, `g_iter17-36` matched subset: **5 diffs, all
+win->loss, all on `maptestsmall/A`**, across 5 different opponents
+(`g_iter22-25`, `g_iter48`) -- a real, one-directional, concentrated
+regression, not noise this time.
+
+Traced `bot vs g_iter23/maptestsmall` directly (a long r1469 loss):
+**8 Builders AND 8 Labs got built** by r161 -- not 8 retry attempts at
+completing *one* Laboratory, 8 separate, fully-completed, redundant
+Labs. This exposed a real, **pre-existing** design gap in
+`needReplacementBuilder` that Iteration 93 never surfaced at the old,
+much lower cap of 4: the mechanism gates whether an Archon *spawns* a
+new Builder on the team-wide `SA_LAB_BUILT` flag, but doesn't stop an
+*already-spawned, in-flight* Builder from completing its own Lab once
+it arrives at a site -- if several Builders get spawned in the same
+window before the flag propagates (plausible on a multi-Archon map,
+where each Archon tracks its own local `myBuildersSpawned`
+independently), each can go on to build a fully redundant Lab.
+Raising the cap to 8 didn't create this gap, it just gave it enough
+room to matter: 8 wasted Labs (at real lead cost each) crippled
+Soldier production hard enough to flip five games that were previously
+comfortable wins.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter50`). A genuinely useful result
+despite being wrong: this "small, low-risk follow-up" turned out to
+need the same rigor as a bold structural swing, and the new
+algorithm's mandatory full-Gauntlet verification caught a real,
+concentrated regression a merely-plausible-looking fix would have
+otherwise gotten away with (the 8-peer sample showed only 1 flip,
+easily misread as noise).
+
+**Next, if revisited:** the real fix isn't scaling the retry cap
+further -- it's making `needReplacementBuilder` (or the Builder's own
+Lab-placement logic) check the team-wide `SA_LAB_BUILT` flag again
+right before actually placing a Lab, not just at spawn time, so an
+in-flight Builder can abort/repurpose itself once a teammate's Lab
+completes first. That's a more careful fix than this cycle attempted,
+and a good candidate for a future incremental pass -- the underlying
+`builderCap` change (Iteration 109) itself remains sound and accepted;
+only this specific follow-on is reverted.
