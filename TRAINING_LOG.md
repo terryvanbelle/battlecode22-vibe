@@ -9458,3 +9458,67 @@ cap. Not pursued immediately; per the never-idle rule's own guidance
 to use judgment rather than mechanically repeat the same lever, the
 next cycle should weigh this against a genuinely different area for
 variety.
+
+## Iteration 113 — needBuilder lead threshold 120->60, ungated (REJECTED; confirms the gate, not the number, is what makes this pattern safe)
+
+Pivoted to a different area for variety: traced a fresh `chessboard/
+g_iter19` loss and found **0 Builders, 0 Watchtowers the entire
+game** -- `needBuilder` never fired at all, because team lead on this
+map mostly sat 15-70, rarely sustaining above the existing 120 bar.
+Same pattern already independently spotted earlier tonight on
+`valley` (deferred at the time) and originally by Iteration 90
+(which lowered this same threshold from 300 to 120 -- apparently not
+far enough). Lowered it further, 120 -> 60, for both `needBuilder`
+and `needReplacementBuilder`, with no gating condition at all (unlike
+Iterations 109/110's `richHome` gate).
+
+### Mechanistic check -- mixed from the start
+
+On `chessboard`: the lower threshold worked mechanically (8 Builders
+now spawn, vs 0 before) -- but exposed that this map's *other*,
+separately-diagnosed problem (Watchtower placement congestion,
+flagged much earlier this session as needing a "proactive redesign")
+is still a real, independent blocker: Watchtowers stayed at 0 until
+r561 despite 8 Builders being spawned by r161. A real risk flag before
+even reaching the reproduction sample.
+
+### Verification
+
+8-peer reproduction sample: **61/160 (38.1%)**, down from the usual
+~64% -- and **52 diffs**, overwhelmingly one-directional (win->loss),
+spread across nearly every map (`maze`, `squer`, `valley`, `highway`,
+`chessboard`, `jellyfish`, `pillars`, `intersection`) rather than
+concentrated on one or two. Far larger and far more diffuse than any
+prior regression this session, including Iteration 105's 56-diff
+Miner-targeting disaster. Unlike Iterations 109 v1 (concentrated
+entirely on `highway`) or 111 (concentrated on `maptestsmall`), this
+has no single clean pattern to point at -- it's broadly, severely bad
+almost everywhere.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter51`) without spending a full
+Gauntlet -- a diff this large and severe doesn't need 600+ more games
+to confirm, per Step 6.5's early-abort clause. Root cause is clear
+without further tracing: unlike Iterations 109/110 (where the bold
+change was *gated* on `richHome`, so it only fired on maps with spare
+economy to support it), this threshold cut had **no gate at all** --
+apparently most competitive games have lead fluctuating through the
+60-120 range at some point regardless of map type, so this fired
+almost everywhere, diverting Builder investment away from Soldier
+production broadly rather than selectively.
+
+This is a genuinely useful confirmation of *why* the richHome-gating
+template has worked: **the gate is what makes the pattern safe, not
+the specific number chosen.** A future attempt at this exact
+`needBuilder` threshold should follow the same shape as 109/110 --
+gated on richHome, or on `SA_ENEMY_SEEN`/`recentEnemyContact`-style
+"is this a genuinely calm game" signal, not applied unconditionally.
+
+**Next:** chessboard's Watchtower-placement-congestion problem
+remains real and unaddressed -- this cycle only found (again) that it
+sits *behind* an earlier, un-related trigger problem. A properly-gated
+version of this threshold cut might still be worth trying, but the
+placement-congestion issue would need its own separate fix regardless
+before chessboard specifically benefits.
