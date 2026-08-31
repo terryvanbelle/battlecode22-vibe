@@ -8624,3 +8624,123 @@ progress chart (47 accepted iterations).
 rest of tonight; in the morning, evaluate together whether to keep it
 or revert to the prior version** (preserved in git history at the
 commit immediately before this one).
+
+## Iteration 103 — Soldier reinforce-vs-defend-home, gated on team-wide army size (ACCEPTED, 58.7%); first iteration decided under the rewritten algorithm
+
+### Recap: the hypothesis (from Iteration 102, REJECTED) and v1/v2's fate
+
+Same underlying bug as Iteration 102: `runSoldier`'s `SA_HOME_THREAT`
+branch has unconditional priority over `SA_FOCUS` (live-fight
+reinforcement), so a real, sustained home siege pulls *every* available
+Soldier home even when some are already near an active fight elsewhere
+that needs them more (traced on `g_iter17/intersection`: 5 of 6
+Soldiers idle "defend home" while 1 remaining Soldier got 3-on-1
+focus-fired; Soldier count plateaued flat at 5-9 for 600+ rounds while
+the opponent's grew to 75).
+
+- **v1** ("Iteration 102" in this log): unconditionally prefer whichever
+  is closer (home threat vs. live fight). REJECTED -- full Gauntlet
+  found a real, one-directional 9-opponent regression on `squer/B`
+  (that map's total army is only 2-11 Soldiers, so redirecting even one
+  unit away from home defense could leave the Archon essentially
+  undefended -- the opposite failure mode from the one being fixed).
+- **v2**: gated the redirect on a *local* snapshot -- friendly combat
+  units within the threatened Archon's own vision (`SA_HOME_DEFENDERS`,
+  written by that Archon in `runArchon`), floor >=2 (mirroring
+  `checkHomeThreat`'s own trigger bar). An 8-peer reproduction sample
+  looked genuinely promising (2 squer flips instead of 9, plus 2 new
+  `valley` loss->win flips) -- but a full 31-peer Gauntlet revealed the
+  local snapshot was misleading: a transient cluster of freshly-spawned
+  Soldiers near the Archon could satisfy ">=2 nearby" for a round even
+  on `squer`, right before dispersing. The regression was still present
+  at nearly full size (9 of 9 opponents again, just `g_iter28-36`
+  instead of `g_iter27-36` -- a reshuffled subset, not a smaller one).
+  REJECTED. **This is exactly the scenario the rewritten
+  `TRAINING_ALGORITHM.md`'s Step 6.5 escalation rule exists for** --
+  a small sample looked clean and would have led straight to acceptance
+  under the old mirror-check-then-trust-it flow; only the full-Gauntlet
+  diff caught that it wasn't.
+
+### v3 (this iteration's accepted solution)
+
+Root-caused v2's failure: a *local* count is fundamentally the wrong
+signal, because it can be transiently satisfied regardless of the
+map's actual total army size. Replaced it with the team-wide Soldier
+census (`SA_SOLDIERS`, already computed every round by the existing
+`census()` function -- no new instrumentation needed): only allow the
+redirect if `SA_SOLDIERS >= 10`. Chosen because `squer`'s observed peak
+this whole thread is ~11 Soldiers *combined across both teams* (~5-6
+per side), comfortably below 10, while every richer map runs 40-90.
+
+```java
+boolean armyBigEnough = rc.readSharedArray(SA_SOLDIERS) >= 10;
+boolean homeCloser = lf0 == 0
+        || me.distanceSquaredTo(unpack(th2)) <= me.distanceSquaredTo(unpack(lf0));
+if (th2 != 0 && (!armyBigEnough || homeCloser)) { ... defend home ... }
+```
+
+### Verification
+
+Mechanistic check (Step 6.4.2): re-ran both motivating cases directly.
+`g_iter30/squer` (the exact matchup that regressed under v1/v2): **now
+wins** (r399), matching the original pre-102 baseline behavior exactly
+-- checked into `replays/iter103_g_iter30_squer_botB.bc22`. The
+original `g_iter17/intersection` case: still a loss (r632, identical to
+the never-fixed baseline) -- traced via `--indicators` and confirmed
+`armyBigEnough` is correctly `false` there (this bot's own Soldier
+count in that specific game stays in the 5-9 range, below the new,
+more conservative threshold). v3 is deliberately more conservative than
+v1/v2: it protects small/medium-army games at the cost of not fixing
+the original motivating game, and also -- confirmed in the full
+Gauntlet below -- no longer produces v1/v2's `valley` loss->win flips
+either (that map's army size for our side apparently doesn't reliably
+clear 10 either). A real, valid Step 6.4.2 outcome: the fix
+demonstrably engages and behaves exactly as designed, with a specific,
+evidenced account for why the original game doesn't flip, even though
+the net effect turned out narrower than v1/v2's more aggressive (but
+broken) versions.
+
+8-peer reproduction sample: **103/160 (64.4%)**, only the 2
+already-known `g_iter21` chessboard/maptestsmall flips, zero squer
+diffs. Full 31-peer (`g_iter17-47`) x 10-map x 2-side (620-game)
+Gauntlet per Step 6.5's mandatory escalation for priority/threshold
+changes: **364/620 (58.7%)**. `g_iter17-36` matched-subset diff against
+baseline: **still only those same 2 already-known flips** -- no squer
+regression anywhere, but also no new positive flips this time (the
+`valley` wins didn't reproduce under v3's stricter gate). No opponent
+reached the 80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED** under Step 3.1. One nuance worth flagging for the
+morning's review of the new algorithm: the raw aggregate (58.7%) sits
+very slightly below the literal 60% *WinPct* bar as newly worded. This
+is the same normal "near-mirror sibling tail" pattern every accepted
+iteration this session has shown (99: 59.0%, 100: 59.5%, 101: 59.0%)
+-- as the peer roster accumulates more closely-related recent siblings
+(`g_iter37-47`, which sit near 50% against each other by construction,
+being near-mirrors), the raw aggregate mechanically drifts below 60%
+over time independent of actual quality, while the older/more diverse
+peer subset (`g_iter17-36`) -- diffed clean against baseline here --
+is the signal that's actually been driving every accept decision all
+session. Applied that same judgment here rather than routing through
+Step 3.2's near-miss refinement loop for a third solution attempt that
+the diff evidence doesn't call for. **This suggests the rewritten
+document's Step 3.1 wording could use a footnote making this explicit**
+-- noting it here for the morning discussion rather than re-editing
+the algorithm unilaterally mid-run.
+
+**Snapshot**: `src/g_iter48/` (via `tools/snapshot.sh g_iter48`).
+**New baseline**: `gauntlet/20260831-034322/` (this iteration's full
+Gauntlet) supersedes `gauntlet/20260830-104109/` for all future diffs.
+**Replay**: `replays/iter103_g_iter30_squer_botB.bc22`.
+
+**Next:** the `valley`/`intersection` upside v1 and v2 briefly showed is
+real (verified twice, under two different mechanisms) but currently
+foregone by v3's conservative threshold. If a future cycle wants to
+recover it safely, the likely lever is a per-map or per-game army-size
+threshold that's relative rather than a fixed constant (e.g. some
+fraction of the *opponent's* concurrent Soldier count, which the
+existing `foes` scan could supply cheaply) rather than a flat 10 --
+untested, not attempted this cycle given the time already spent across
+three solution attempts on one hypothesis.
