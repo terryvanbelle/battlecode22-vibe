@@ -9182,3 +9182,89 @@ Added two things to `TRAINING_ALGORITHM.md`:
 
 Added a `MILESTONES` marker (commit `9bf8677`) and refreshed the
 progress chart per the standing rule.
+
+## Iteration 109 — richHome-gated Builder-cap increase (ACCEPTED, 58.4%); first High-risk structural exploration attempt
+
+The first use of the new "High-risk structural exploration" track
+added above, triggered immediately after `MaxConsecutiveRejects`
+tripped (Iterations 104 x2, 107, 108, all rejected, all in the
+Soldier-rally area).
+
+### Capability gap (not a single-game hypothesis)
+
+`sample_camelcase` -- the benchmark this whole session's production-
+throughput-ceiling thread has been chasing -- reaches **143
+Watchtowers** in a single game (confirmed via `--metrics` this
+session), while our own Builder cap has been conservatively tuned to
+just 1-2 Builders *ever*, across 10+ prior tuning iterations in this
+area (26/30/31/54/55/56/58/64/90/93) that all treated Builder
+investment as a small, mostly one-time thing. Each of our Builders
+only ever builds one Watchtower in its lifetime (`builtWatchtower` is
+a one-shot per-instance flag), so matching anything near camelcase's
+scale requires far more Builder *production volume*, not better use
+of the 1-2 we currently ever spawn.
+
+### v1 (REJECTED) — flat 4x cap
+
+`builderCap` raised from `round>400 ? 2 : 1` to `round>400 ? 8 : 4`,
+a deliberately bold, un-narrowed swing. Mechanistic check confirmed
+engagement (`bot vs sample_camelcase/maptestsmall`: 4 Builders/4
+Watchtowers reached, vs 1-2 before) -- the specific game still didn't
+flip (r286, matching baseline), an expected, evidenced non-flip given
+camelcase's already-established scale advantage, not a sign the
+mechanism failed. But a full 32-peer (`g_iter17-48`) x 10-map x 2-side
+(640-game) Gauntlet found a **severe, 100% one-directional, 20-game
+regression concentrated entirely on `highway`** across 12 different
+opponents (`g_iter29-40`) -- that map is lead-scarce (already
+established this session as a long, chaotic economy race where
+Soldiers absorb income as fast as it arrives), so the extra Builder
+investment starved Soldier production hardest exactly where lead was
+already tightest.
+
+### v2 (ACCEPTED) — gated on `richHome`
+
+Reused the already-existing `richHome` boolean (the same lead-dense/
+lead-scarce signal Iterations 7/16 already use for the Miner opening
+quota) to gate the bold cap: richHome maps get the 4x increase,
+non-richHome maps (including `highway`) keep the original,
+already-proven-safe cap.
+
+Mechanistic re-check: `highway` now **wins again** (r1039 vs
+`g_iter29`, matching baseline) -- the regression is fixed.
+`sample_camelcase/maptestsmall` (richHome) still reaches 4 Builders/4
+Watchtowers, confirming the bold investment still engages where
+intended.
+
+8-peer reproduction sample: **zero diffs**, exact match to baseline.
+Full 32-peer Gauntlet: **374/640 (58.4%)**, `g_iter17-36` matched
+subset: **zero diffs**, exact match to baseline (620/620 games
+identical). `g_iter29-36` back to 60-65%, matching baseline exactly
+(not the 45-50% collapse from v1). No opponent reached the
+80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A genuinely bold, structural change -- 4x more Builder/
+Watchtower production capacity on economically-healthy maps -- that
+adds a real new capability with **zero measurable peer-Gauntlet cost**
+once correctly gated, a clean win for the new algorithm's high-risk
+track: v1's severe regression and v2's targeted, one-line refinement
+(reusing an existing signal rather than inventing a new one) is
+exactly the "diagnosed regression -> targeted refinement" pattern from
+Step 3.3, just applied to a bold structural swing instead of a narrow
+tactical one.
+
+**Snapshot**: `src/g_iter49/` (via `tools/snapshot.sh g_iter49`).
+**New baseline**: `gauntlet/20260831-184055/` supersedes
+`gauntlet/20260831-034322/` for all future diffs.
+**Replay**: `replays/iter109_sample_camelcase_maptestsmall_botA.bc22`
+(the mechanistic-engagement game showing 4 Builders/4 Watchtowers).
+
+**Next:** this doesn't itself flip `sample_camelcase` (that matchup's
+scale gap remains too large for a 4x Builder-count bump alone -- their
+143 Watchtowers still dwarfs our 4), but it's real, verified progress
+on the capability gap this thread named, with zero cost. A natural
+follow-up: is 4x/8x itself the right multiplier, or would richHome
+maps support even more? Untested, and per the never-idle rule, not
+blocking -- moving to the next thing now rather than iterating further
+on this one number.
