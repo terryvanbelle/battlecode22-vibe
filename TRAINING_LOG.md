@@ -7458,7 +7458,7 @@ Updated periodically, not every iteration.
 
 ![cumulative accepted iterations](progress/cumulative_iterations.png)
 
-As of `g_iter44`: 44 accepted iterations (of 97 attempted) spanning
+As of `g_iter46`: 46 accepted iterations (of 100 attempted) spanning
 2026-08-27 through 2026-08-30. `sample_camelcase` has never been
 beaten more than once in any 20-game tally across the whole project;
 `sample_afinals` has oscillated in a 10-20% band the entire time, with
@@ -7472,7 +7472,15 @@ fixes. Iterations 96-97 (Sage early-warning for Builders and Miners,
 tuning -- too recent to show up as a trend yet, but the traced Builder
 death cause did shift from "killed by a Sage" to "killed by 2
 Soldiers," a real qualitative change worth watching in the next
-benchmark tally.
+benchmark tally. Iterations 99-100 (`g_iter45`-`g_iter46`) found and
+fixed two genuine threat-blind build-priority bugs (a Miner
+replenishment floor and a Sage-investment priority, both competing
+with urgent Soldier reinforcement during active combat) -- neither
+flipped its own motivating benchmark loss (both `sample_afinals` and
+`sample_camelcase` are now understood as fundamentally
+production-scale mismatches, not a series of small tactical bugs),
+but both are real, general improvements verified clean at full
+peer-Gauntlet scale.
 
 ### Diagnostic note — Iteration 92's Builder-flee limit confirmed one more layer deeper
 
