@@ -8840,3 +8840,20 @@ before reinforcing a live fight) is sound and the `chessboard`/
 `pillars` upside is real; whatever eventually protects `highway` too
 should preserve that upside, not trade it away like v2 traded away
 `pillars`.
+
+### Diagnostic note — fresh benchmark tally after Iterations 99-103: unchanged, as expected
+
+Ran fresh full 20-game tallies against both benchmark bots with
+`g_iter48` as the working state: `sample_afinals` **3/20 (15%)**,
+`sample_camelcase` **0/20 (0%)** -- identical to the last recorded
+point (right after Iterations 96/97). Tonight's accepted iterations
+(99-101, 103) were all build-priority or Soldier-reinforcement bug
+fixes, verified clean at peer-Gauntlet scale but explicitly understood
+(per each iteration's own writeup) as not expected to flip either
+benchmark matchup on their own, since both are structural production-
+scale mismatches rather than a chain of small tactical bugs. This
+tally confirms that expectation rather than contradicting it -- not a
+new finding, just a scheduled check-in per the standing
+`BenchmarkEvery` cadence. Added as a new `BENCHMARK_HISTORY` point in
+`tools/plot_progress.py` (`2026-08-30T22:34:22-07:00`, camelcase=0,
+afinals=3) and regenerated the progress chart.
