@@ -9061,3 +9061,47 @@ grouping on combat-dense maps like chessboard/pillars while leaving
 sparse-combat maps like highway untouched, without needing to
 hardcode specific map names or guess at map-level properties
 indirectly.
+
+## Iteration 107 — Soldier rally gate, gated on combat density (REJECTED; the diagnosis needs a windowed metric, not a cumulative one)
+
+Direct follow-up implementing the combat-density hypothesis from the
+diagnostic above. Gated the rally-wait on `SA_ATTACKS * 3 >=
+roundNum` (a cheap, already-maintained cumulative team attack counter
+compared to elapsed rounds) instead of Iteration 103's team-size
+threshold.
+
+Mechanistic check: `maze` (the small-army regression from Iteration
+104 v1) now wins again -- good. But `highway` (the map this iteration
+specifically targeted) **still flipped from the r813 baseline win to
+a loss (r1064)** -- traced directly: the rally mechanism engaged 955
+times, exactly the behavior it was supposed to avoid there. Root
+cause of the implementation failure: `SA_ATTACKS` is a *cumulative*
+counter from round 0, and `highway` games run very long (800-1100+
+rounds) -- even genuinely sparse, occasional combat accumulates a
+large absolute attack count over that much time, so a cumulative-
+average threshold stays satisfied on `highway` regardless of how
+sparse combat is *right now*. The diagnosis (combat density, not army
+size, is the right discriminator) is still plausible, but this
+specific metric doesn't measure what it needs to -- it needs a
+*windowed* recent-combat signal (e.g. attacks in the last ~100
+rounds), which doesn't exist yet and would need new instrumentation
+(a round-bucketed accumulator, mirroring the existing
+`SA_RAID_BUCKET`/`SA_RAID_COUNT` pattern from Iteration 73) rather
+than reusing an existing cumulative counter.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter48`), without spending Gauntlet
+budget -- the motivating case itself (the exact map this iteration
+was designed to fix) already failed on direct mechanistic re-check,
+per Step 6.4.3, no need to go further. **This is the third distinct
+failed implementation attempt at the Soldier-rally-gate mechanism
+tonight** (104 v1: army-size-blind; 104 v2: army-size gate, safe but
+narrower; 107: combat-density gate, wrong metric shape) -- each
+attempt has correctly diagnosed a real, additional subtlety the
+previous one missed, but the mechanism has now resisted three
+carefully-reasoned attempts in one session. Closing this thread firmly
+until a properly-designed windowed combat-density metric can be built
+and tested in a dedicated, well-rested cycle -- not reopening again
+tonight regardless of what else turns up.
