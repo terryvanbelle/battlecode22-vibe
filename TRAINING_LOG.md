@@ -9522,3 +9522,63 @@ sits *behind* an earlier, un-related trigger problem. A properly-gated
 version of this threshold cut might still be worth trying, but the
 placement-congestion issue would need its own separate fix regardless
 before chessboard specifically benefits.
+
+## Iteration 114 — needBuilder threshold cut, gated on recentEnemyContact (REJECTED; the gate doesn't actually gate anything in practice)
+
+Immediate follow-up to Iteration 113, per the never-idle rule and
+Step 3.3's "diagnosed regression -> targeted refinement" path: same
+120->60 threshold cut, this time gated on `recentEnemyContact`
+(Iteration 100's own "no enemy sighting in the last 60 rounds" signal)
+instead of applying unconditionally -- only allow the easier bar
+during calm stretches, require the original 120 during active combat.
+Deliberately not `richHome` (109/110's gate): `chessboard`, the
+original motivating case, is lead-scarce, not lead-rich, so the
+condition that actually needed distinguishing was "calm" vs. "combat,"
+not "wealthy" vs. "poor."
+
+### Verification
+
+Mechanistic check on `chessboard` showed no change from the ungated
+version (`recentEnemyContact` happened to be false there for the
+relevant window). 8-peer reproduction sample: **64/160 (40.0%)**, only
+marginally better than Iteration 113's 38.1% -- and **47 diffs**,
+essentially the same broad, severe pattern (down from 52, not a
+meaningful improvement).
+
+### Root cause
+
+`recentEnemyContact` barely restricted anything in practice. In a real,
+ongoing competitive peer game, *some* unit on the team sights an enemy
+combat unit often enough that the 60-round freshness window rarely
+lapses once initial contact happens -- the exact same "contact never
+goes false in a long grinding game" trap Iteration 20's own history
+already documented once, for a different threshold entirely. The gate
+looked well-motivated on paper (and worked fine for Iteration 100's
+narrower, rarer-triggered `wantSage` use case) but doesn't provide
+real selectivity for a condition (`needBuilder`) that fires far more
+routinely.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter51`) without a full Gauntlet, per
+Step 6.5's early-abort clause. **Second failed solution attempt for
+this hypothesis** (113: ungated, too broad; 114: gated on a condition
+that's almost always true anyway, effectively still too broad) --
+closing this specific thread for now rather than spending a third
+attempt immediately. The underlying observation (chessboard, and
+plausibly other lead-scarce maps, never build a single Watchtower
+because lead rarely sustains above 120) remains true and unaddressed,
+but neither `richHome` nor `recentEnemyContact` is the right
+discriminator, and this session hasn't found one that is.
+
+**Next:** a genuinely different signal is needed -- something that
+tracks "lead income is outpacing Soldier demand right now" more
+directly than either richHome (a fixed, one-time map property) or
+recent-contact (nearly always true). A windowed measure of unspent
+lead trend (is the team's lead balance net *growing* over the last
+N rounds, not just its instantaneous value) might be closer to what
+actually distinguishes "this game can afford a Builder" from "it
+can't" -- untested, and would need its own new instrumentation (no
+existing shared-array signal captures this), a bigger lift than
+either attempt tonight. Not pursued further this cycle.
