@@ -8857,3 +8857,76 @@ new finding, just a scheduled check-in per the standing
 `BenchmarkEvery` cadence. Added as a new `BENCHMARK_HISTORY` point in
 `tools/plot_progress.py` (`2026-08-30T22:34:22-07:00`, camelcase=0,
 afinals=3) and regenerated the progress chart.
+
+## Iteration 105 — Miner lead-target-diversion floor (REJECTED; correct diagnosis, unsafe blast radius)
+
+Fresh territory: Miner mining efficiency, untouched this session outside
+the early lead-beacon work.
+
+### Step 4/5
+
+Traced a fresh `g_iter23/sandwich` loss. Miners have no indicator
+strings in their normal path, so used `--moves`/`--all-actions` action
+counts instead of instrumentation: our Miners moved *more* than the
+opponent's (983 vs 857) while mining lead *less* (369 vs 656 actions)
+over the full game, despite equal Miner counts (7 each) the whole way.
+Root cause, found directly in `runMiner`: the immediate-vision lead
+scan (`goal`) has no minimum-value floor -- `bestLead` starts at 0, so
+`lead > bestLead` makes *any* visible tile with even 1 lead become the
+move target, diverting a Miner away from whatever it was doing
+(including a richer, already-committed `myLeadTarget`) to chase a
+single unit of lead. The same ping-ponging/under-mining shape Iteration
+35 already fixed once for the beacon-list case, recurring through this
+separate, unprotected immediate-vision path Iteration 35 never touched.
+
+### Step 6
+
+Reused the already-existing `bestLead >= 10` threshold (already used
+just above to decide whether a tile is worth publishing to the team) as
+the gate for the move-diversion decision too -- a single-line change.
+
+### Verification
+
+Mechanistic check: full-game mining counts on the motivating case were
+noisy (the game itself got shorter, r319->r286, from an unrelated
+combat-timing cascade), so isolated the pure pre-combat economy window
+(r1-100) for a clean read: our Miners now mine *more* than the
+opponent's there (139 vs 133) -- a clean reversal from the original
+full-game pattern (369 vs 656). The underlying diagnosis is directly,
+cleanly confirmed.
+
+8-peer reproduction sample: **91/160 (56.9%)**, but the diff was
+**56 games** -- by far the largest diff seen this entire session (the
+next-largest, Iteration 102 v1, was 6; even Iteration 104 v1's genuine
+regression was 25). Net direction: 34 win->loss vs 22 loss->win (net
+-12). `squer` showed an unambiguous, clean **11-for-11 one-directional**
+sweep (every single `squer` diff was win->loss, across 7 different
+opponents) -- squer is the same persistently fragile small-army map
+that regressed under Iterations 102 v1/v2 and 104 v1/v2 tonight.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter48`) without a full Gauntlet, per
+Step 6.5's early-abort clause -- a diff this large, this net-negative,
+with a component this cleanly one-directional, doesn't need 620 more
+games to confirm. The underlying diagnosis is correct and cleanly
+verified in isolation (the r1-100 economy-window comparison), but this
+specific code path -- executed by every Miner, every round, from the
+very first round of the game -- turned out to be far more load-bearing
+than any other change attempted tonight: altering it, even correctly,
+has an outsized butterfly-effect blast radius across hundreds of
+rounds of chaos-sensitive gameplay, visible in a diff more than 2x
+larger than this session's next-largest regression.
+
+**Next, if revisited:** the diagnosis (no minimum-value floor on the
+immediate-vision diversion) is sound and worth fixing eventually, but
+a blunt threshold change to this exact code path is too disruptive to
+verify safely. A softer implementation -- e.g. only diverting if the
+same distraction is sensed for 2+ consecutive rounds (a debounce,
+rather than an absolute override), or biasing the threshold relative
+to the Miner's current committed target's own richness rather than a
+flat constant -- might achieve the same efficiency gain with a much
+smaller blast radius. Not attempted this cycle given how late in the
+session this finding came and the need for a genuinely different
+implementation strategy, not just a different constant.
