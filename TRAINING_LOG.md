@@ -8930,3 +8930,60 @@ flat constant -- might achieve the same efficiency gain with a much
 smaller blast radius. Not attempted this cycle given how late in the
 session this finding came and the need for a genuinely different
 implementation strategy, not just a different constant.
+
+## Iteration 106 — Miner lead-target-diversion, gated on commitment state (REJECTED; confirms the code path itself is the problem, not the specific condition)
+
+Direct follow-up to Iteration 105, testing that iteration's own "Next"
+note: instead of a flat `bestLead >= 10` floor (which touched every
+Miner every round regardless of state), only let the immediate-vision
+sighting override a Miner with *no existing commitment* yet
+(`myLeadTarget == null`) -- Iteration 7's original motivating case (an
+idle Miner reacting fast to a nearby deposit) is completely unaffected
+either way, and publishing to the team stays unconditional. This is a
+strictly narrower behavioral change than Iteration 105's blanket
+threshold -- in principle, it should only alter what happens on the
+subset of Miner-rounds where a commitment already exists.
+
+Mechanistic verification (Step 6.4.2): re-ran the same isolated
+pre-combat economy window (`g_iter23/sandwich`, r1-100) used to
+verify Iteration 105. Result: 144 vs 133 mining actions (us ahead of
+the opponent) -- confirms the mechanism engages and produces the same
+qualitative improvement, via a much narrower code change.
+
+**8-peer reproduction sample: 86/160 (53.8%), 53 diffs -- essentially
+the same size as Iteration 105's 56-diff blast radius**, despite the
+theoretically much narrower condition. This is the key finding: the
+hypothesis that gating on commitment state would meaningfully shrink
+the blast radius was wrong in practice. `myLeadTarget` is apparently
+null often enough, and/or the timing interactions between when it gets
+set and cleared are complex enough, that this narrower-looking change
+still cascades just as unpredictably.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter48`) without a full Gauntlet, per
+Step 6.5's early-abort clause -- a diff this large doesn't need 620
+more games to confirm it's too disruptive. **Closing this thread for
+tonight, not just this attempt.** Two different conditions on the
+exact same branch (Iteration 105's flat threshold, Iteration 106's
+commitment-state gate) both produced ~55-diff blast radii -- strong
+evidence the problem isn't which specific condition guards this
+branch, it's that this branch itself (executed by every Miner, every
+round, starting round 1, deciding the very first movement direction of
+the entire game) is fundamentally too early and too frequently-executed
+for *any* quick single-condition tweak to be safely verified via this
+project's normal reproduction-sample-then-Gauntlet process. Recording
+this as a durable finding, not just a per-attempt note.
+
+**Next, if revisited:** this needs a fundamentally different
+verification strategy, not another quick condition tweak -- e.g.
+testing directly at full-Gauntlet scale from the start rather than
+via an 8-peer pre-filter (since the blast radius is already visible
+at 8 peers, a bigger sample won't reveal something new, just confirm
+the same pattern at higher cost), or a mechanism that changes
+*gradually* rather than as a hard branch condition (so early-game
+trajectories drift rather than fork), or accepting that this specific
+diagnosis -- while correct -- may not be safely fixable without a much
+larger, more careful redesign of the whole Miner target-selection
+system than a single conditional guard.
