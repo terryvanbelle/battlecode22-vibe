@@ -187,6 +187,8 @@ def main():
     print(f"marked {len(events)} retirement event(s): "
           + "; ".join(f"{ts:%Y-%m-%d %H:%M} -> {names}" for ts, names in events))
 
+    ax.axhline(50, color="#64748b", linestyle="--", linewidth=1, alpha=0.6, zorder=1)
+
     ax.set_title(f"Peer win-rate spread over time (full Gauntlet runs, ≥{MIN_PEERS} peer opponents)")
     ax.set_xlabel("Date (Pacific Time)")
     ax.set_ylabel("Win rate vs. a single peer opponent (%)")
