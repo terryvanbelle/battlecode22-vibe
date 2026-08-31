@@ -9397,3 +9397,64 @@ completes first. That's a more careful fix than this cycle attempted,
 and a good candidate for a future incremental pass -- the underlying
 `builderCap` change (Iteration 109) itself remains sound and accepted;
 only this specific follow-on is reverted.
+
+## Iteration 112 — Builder aborts a redundant Laboratory build (ACCEPTED, 58.1%)
+
+The proper fix for the design gap Iteration 111 exposed, pursued
+immediately per the never-idle rule rather than stopping after that
+reject.
+
+### Root cause (recap)
+
+`needReplacementBuilder` only gates whether an Archon *spawns* a new
+Builder, checked once, at spawn time, against the team-wide
+`SA_LAB_BUILT` flag. It never re-checks once a Builder is already
+en route. At the old retry cap of 4 this was a latent, low-severity
+issue; Iteration 111's cap increase to 8 gave it enough room to
+matter (8 separate, fully-completed, redundant Labs in one traced
+game).
+
+### Solution
+
+Builders now re-check `SA_LAB_BUILT` immediately before they'd
+actually place a Laboratory (not just relying on the Archon's
+spawn-time check) -- if a teammate already finished, abort the
+redundant build. This fixes the underlying issue regardless of the
+retry cap's value, and is a real improvement even at the existing,
+still-reverted cap of 4.
+
+### Verification
+
+Mechanistic check: `bot vs g_iter23/maptestsmall` -- wins again (r300,
+matching baseline), only 1 Lab built (down from Iteration 111's 8),
+Soldiers healthy (77 by r281). 8-peer reproduction sample: zero diffs.
+Full 34-peer (`g_iter17-50`) Gauntlet: **395/680 (58.1%)**,
+`g_iter17-36` matched subset: **1 diff, and it's positive**
+(`g_iter28/sandwich/B`, loss->win) -- a genuine improvement, not
+noise, presumably a game where even the old cap-of-4 redundancy was
+quietly costing lead. No opponent reached the 80%-domination
+retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A clean, low-risk fix for a real bug, found only because
+Iteration 111's bolder (and ultimately rejected) attempt happened to
+amplify it into something visible. Exactly the value the new
+algorithm's "reject with a diagnosed cause" path and the never-idle
+rule are meant to produce together: a failed high-risk attempt
+directly generating a small, safe, accepted win instead of just being
+a dead end.
+
+**Snapshot**: `src/g_iter51/` (via `tools/snapshot.sh g_iter51`).
+**New baseline**: `gauntlet/20260831-202850/` supersedes
+`gauntlet/20260831-191654/` for all future diffs.
+**Replay**: `replays/iter112_g_iter23_maptestsmall_botA.bc22` (1 Lab
+now, down from 8).
+
+**Next:** Iteration 111's original goal -- richHome maps actually
+benefiting from more Lab-building capacity -- is now safely revisitable
+if desired, since redundant waste is prevented regardless of the retry
+cap. Not pursued immediately; per the never-idle rule's own guidance
+to use judgment rather than mechanically repeat the same lever, the
+next cycle should weigh this against a genuinely different area for
+variety.
