@@ -9105,3 +9105,50 @@ carefully-reasoned attempts in one session. Closing this thread firmly
 until a properly-designed windowed combat-density metric can be built
 and tested in a dedicated, well-rested cycle -- not reopening again
 tonight regardless of what else turns up.
+
+## Iteration 108 — Soldier rally gate, windowed combat density (REJECTED; the "spread helps on highway" phenomenon isn't a density question at all)
+
+At the user's prompting (checking in mid-session), made one more
+careful attempt at the thread nominally closed after Iteration 107,
+this time building the properly-scoped fix that iteration's own "Next"
+note called for: a genuinely *windowed* combat-density signal instead
+of a cumulative one. Added `SA_ATK_BUCKET`/`SA_ATK_BUCKET_START`
+(round/50 bucket + the cumulative `SA_ATTACKS` value at the start of
+it, lazily rolled forward by whichever unit next notices the bucket
+changed -- redundant writes are harmless, every unit computes the same
+value). `recentAttacks = SA_ATTACKS - SA_ATK_BUCKET_START` gives
+attacks in roughly the current 50-round window, immune to Iteration
+107's "large historical total on a long map" failure mode.
+
+Mechanistic re-check on `highway` (the specific map every prior
+attempt failed on): **still a loss (r1071, vs the r813 baseline win)**,
+with the rally mechanism still engaging heavily (930 times). This is
+the key new finding: `highway` isn't actually low-combat-density in
+the moment-to-moment sense assumed -- a `>=10 attacks per 50-round
+window` bar is a very low threshold, and it's being cleared throughout
+the game, meaning `highway` likely has steady, *diffuse* skirmishing
+spread across a wide front rather than sparse-but-decisive battles.
+"Combat density" (in any form: cumulative or windowed) was never the
+right axis -- the real distinguishing property is probably structural/
+geometric (a long map with multiple simultaneous fronts, where
+grouping up for one fight abandons others, vs. `chessboard`/`pillars`'
+single concentrated engagement), not a *rate* of anything.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter48`) on mechanistic re-check alone,
+no Gauntlet budget spent. **Fourth distinct failed implementation
+attempt at this mechanism** (104 v1, v2; 107; 108) -- three different,
+each individually well-reasoned discriminators (unconditional, army
+size, cumulative density, windowed density) have now all failed to
+protect `highway` specifically while fixing the maps that motivated
+the original diagnosis. This has moved from "an almost-solved problem
+needing the right threshold" to "a genuinely open question about what
+actually distinguishes `highway`'s dynamics" -- not solvable by
+another quick metric swap. Definitively closing this thread for the
+whole session; a real answer needs a fresh trace focused specifically
+on *why* `highway` rewards a spread-out army (front topology? multiple
+simultaneous skirmish sites? something about its lead distribution
+pulling Soldiers toward economy-defense duty instead of one central
+fight?) before any further implementation attempt.
