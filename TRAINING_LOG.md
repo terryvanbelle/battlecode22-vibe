@@ -9152,3 +9152,33 @@ on *why* `highway` rewards a spread-out army (front topology? multiple
 simultaneous skirmish sites? something about its lead distribution
 pulling Soldiers toward economy-defense duty instead of one central
 fight?) before any further implementation attempt.
+
+## TRAINING_ALGORITHM.md amendment: never-idle rule + high-risk structural exploration track
+
+At the user's direction, following a stretch of this session where
+repeated "idle-tick" pauses set in after a string of rejected attempts
+concentrated in one functional area (the Soldier reinforcement/rally
+mechanism: Iterations 104 x2, 107, 108, all rejected) rather than
+pivoting to something new. The user was explicit: "not working on
+anything is not an acceptable response," and beating a structurally
+different opponent (`sample_camelcase`) will require "many high-risk
+projects," not just incremental tactical fixes.
+
+Added two things to `TRAINING_ALGORITHM.md`:
+1. **`MaxConsecutiveRejects` (3) + a hard "never idle" rule under Step
+   4.** After 3 consecutive rejected Step 6 attempts (at any stage),
+   the next attempt is barred from targeting the same functional area
+   again -- it must be a genuinely different area, or the new
+   high-risk track. Finishing a search and simply stopping is now
+   explicitly disallowed as an outcome.
+2. **A new "High-risk structural exploration" section**, elevated to a
+   first-class track alongside the incremental Step 4-6 loop, not a
+   fallback. Modeled on changes that already worked historically in
+   this project (Archon relocation, the gold economy build-out,
+   Watchtower relocation) -- starts from a named capability gap or
+   strategic difference vs. a strong opponent rather than one traced
+   losing game, sized to whatever scope the idea needs, verified with
+   the same rigor as everything else.
+
+Added a `MILESTONES` marker (commit `9bf8677`) and refreshed the
+progress chart per the standing rule.

@@ -35,6 +35,7 @@ MILESTONES = [
     ("round-count tracking (secondary metric)", "48ab983"),
     ("RESEARCH.md added", "d3d2e5c"),
     ("TRAINING_ALGORITHM.md rewrite: shape-based diffing", "6b492e1"),
+    ("never-idle rule + high-risk structural track", "9bf8677"),
 ]
 
 # Benchmark-bot win tallies (out of 20 games) over time, as recorded in
