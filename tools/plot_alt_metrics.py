@@ -63,8 +63,12 @@ def load_results(path: Path):
         return list(csv.DictReader(f))
 
 
-def peer_spread_series():
-    xs, maxs, mins = [], [], []
+def full_runs():
+    """(rundir, timestamp, {opponent -> [wins, total]}) for every run with
+    >= MIN_PEERS distinct peer opponents, sorted by time. Shared by the
+    peer-spread series and retirement-event detection below, so both read
+    the same notion of "a real full-Gauntlet snapshot"."""
+    runs = []
     for rundir in sorted(Path(REPO_ROOT / "gauntlet").glob("*/")):
         p = rundir / "results.csv"
         if not p.exists():
@@ -79,13 +83,38 @@ def peer_spread_series():
                 per_opp[opp][0] += 1
         if len(per_opp) < MIN_PEERS:
             continue
+        runs.append((rundir, run_timestamp(rundir), per_opp))
+    return runs
+
+
+def peer_spread_series(runs):
+    xs, maxs, mins = [], [], []
+    for _, ts, per_opp in runs:
         pcts = [w / t for w, t in per_opp.values() if t > 0]
         if not pcts:
             continue
-        xs.append(run_timestamp(rundir))
+        xs.append(ts)
         maxs.append(100 * max(pcts))
         mins.append(100 * min(pcts))
     return xs, maxs, mins
+
+
+def retirement_events(runs):
+    """A peer present in one full-Gauntlet run and absent from the next is
+    inferred as retired somewhere in between (the 80%-domination-for-two-
+    consecutive-Gauntlets rule, see TRAINING_ALGORITHM.md's "Retiring bots
+    from the Gauntlet") -- there's no separate retirement log, so this is
+    reconstructed directly from which opponents disappear between
+    consecutive full runs. Returns [(timestamp, [retired_names]), ...],
+    one entry per run where at least one peer dropped out."""
+    events = []
+    for i in range(1, len(runs)):
+        prev_opps = set(runs[i - 1][2].keys())
+        cur_opps = set(runs[i][2].keys())
+        removed = sorted(prev_opps - cur_opps)
+        if removed:
+            events.append((runs[i][1], removed))
+    return events
 
 
 def benchmark_length_series():
@@ -134,13 +163,30 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # ---- Chart 1: peer win-rate spread ----
-    xs, maxs, mins = peer_spread_series()
+    runs = full_runs()
+    xs, maxs, mins = peer_spread_series(runs)
     fig, ax = plt.subplots(figsize=(13, 7))
     ax.fill_between(xs, mins, maxs, color="#94a3b8", alpha=0.15, label="spread")
     ax.plot(xs, maxs, color="#16a34a", marker="o", markersize=3, linewidth=1.6,
              label="best peer matchup (win %)")
     ax.plot(xs, mins, color="#dc2626", marker="o", markersize=3, linewidth=1.6,
              label="worst peer matchup (win %)")
+
+    # Retirement events: a peer dropping out of the roster between two
+    # full-Gauntlet runs (80%-domination rule). Marked as vertical lines,
+    # staggered slightly so overlapping labels stay legible.
+    events = retirement_events(runs)
+    for i, (ts, names) in enumerate(events):
+        ax.axvline(ts, color="#7c3aed", linestyle=":", linewidth=1.3, alpha=0.8, zorder=1)
+        label = "retired: " + ", ".join(names)
+        ax.annotate(
+            label, (ts, 1.0), xycoords=("data", "axes fraction"),
+            textcoords="offset points", xytext=(8, -10 - 13 * (i % 4)),
+            rotation=0, va="top", ha="left", fontsize=7.5, color="#7c3aed",
+        )
+    print(f"marked {len(events)} retirement event(s): "
+          + "; ".join(f"{ts:%Y-%m-%d %H:%M} -> {names}" for ts, names in events))
+
     ax.set_title(f"Peer win-rate spread over time (full Gauntlet runs, ≥{MIN_PEERS} peer opponents)")
     ax.set_xlabel("Date (Pacific Time)")
     ax.set_ylabel("Win rate vs. a single peer opponent (%)")
