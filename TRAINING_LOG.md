@@ -9632,3 +9632,85 @@ with a quick tweak). Not spending further Step 6 budget on this
 specific flip -- it's the same closed thread from a different angle,
 now with a clearer, better-documented explanation for *why* it's
 persistent rather than random.
+
+## Iteration 115 — wantSage's recentEnemyContact gate removed (ACCEPTED, 57.7%); high-risk structural, builds directly on 109/110
+
+### Capability gap
+
+Traced a fresh `bot vs g_iter21/maptestsmall` game and found team gold
+climbing steadily to 287 by r961 -- comfortably and repeatedly past
+the 20-gold Sage cost -- yet **zero Sages built the entire game**.
+Root cause: `wantSage`'s `recentEnemyContact` gate (Iteration 100)
+requires no enemy sighting for 60 rounds, but `A_attacks` grew
+continuously the whole game (0->10504) -- a real, sustained war
+essentially never has a 60-round lull, so the gate never actually
+opens once combat starts. The **same "contact never clears in a real
+game" trap Iteration 114 already found tonight** for a different
+threshold (`needBuilder`), now found independently blocking something
+else entirely.
+
+Iteration 100's original premise -- gold is rare, so this rarely
+matters either way -- was true when that iteration was written, but is
+no longer true: Iterations 109/110 (this same session, this same
+night) made richHome economies genuinely large (more Miners, more
+Labs), so gold now *is* real and abundant, and this gate is actively
+suppressing something valuable rather than a rare edge case that
+happened to also be safe.
+
+### Solution
+
+Removed the `recentEnemyContact` gate entirely -- a bold swing per
+`TRAINING_ALGORITHM.md`'s "High-risk structural exploration" track,
+not a narrow tweak, since a shorter contact window would very likely
+have the same "never actually opens in a real war" problem at any
+reasonable size. Unlike Builder/Miner investment (which cost ongoing
+lead, directly competing with Soldier production), Sage costs 0 lead
+-- the only cost is the single build-action turn itself, and at the
+observed gold-accumulation rate that's roughly once every ~55 rounds,
+not the frequent, sustained drain Iteration 100 was originally
+protecting against.
+
+### Verification
+
+Mechanistic check: Sages now genuinely get built (up to 3, on the
+motivating case) -- confirms the fix engages. But the specific game
+ended much faster than baseline (r378 vs r1038) with Soldiers crashing
+right around when Sage production kicked in (r166+) -- a real,
+concerning individual signal that this might reintroduce Iteration
+100's original problem.
+
+8-peer reproduction sample: **zero diffs**, completely clean despite
+that concerning trace. Full 35-peer (`g_iter17-51`) x 10-map x 2-side
+(700-game) Gauntlet: **404/700 (57.7%)**, `g_iter17-36` matched
+subset: **1 isolated diff** (`g_iter28/sandwich/B`, win->loss) -- no
+systematic pattern, ordinary near-mirror noise. The concerning
+individual trace turned out to be exactly that map/opponent pairing's
+own volatility (maptestsmall/g_iter21, already a fragile near-mirror
+matchup per this session's own history), not a real broad regression.
+No opponent reached the 80%-domination retirement threshold.
+
+### Outcome
+
+**ACCEPTED.** A second high-risk structural change tonight landing
+clean at full scale, and a good illustration of *why* this session's
+threads connect: Iterations 109/110 built the economic capacity (more
+gold), Iteration 114's diagnostic (same night) supplied the exact
+insight needed to recognize the blocker, and this iteration closes the
+loop by actually spending the gold those changes made possible.
+Doesn't itself flip any specific matchup, but real Sage production
+(a 45-damage unit) existing at all, where it categorically didn't
+before tonight, is genuine new capability.
+
+**Snapshot**: `src/g_iter52/` (via `tools/snapshot.sh g_iter52`).
+**New baseline**: `gauntlet/20260831-215702/` supersedes
+`gauntlet/20260831-202850/` for all future diffs.
+**Replay**: `replays/iter115_g_iter21_maptestsmall_botA.bc22` (Sages
+built, even though that specific game remains a loss).
+
+**Next:** worth checking in a future cycle whether Sage count now
+climbs meaningfully in a genuinely calm, low-combat game (the kind
+`recentEnemyContact` was originally meant to distinguish) versus a
+sustained-war one -- if the mechanism only ever fires opportunistically
+during active combat now (since that's when most games spend most of
+their time), there may still be room to make Sage timing smarter, just
+not via a contact-recency signal.
