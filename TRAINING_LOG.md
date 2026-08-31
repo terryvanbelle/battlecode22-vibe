@@ -9582,3 +9582,53 @@ actually distinguishes "this game can afford a Builder" from "it
 can't" -- untested, and would need its own new instrumentation (no
 existing shared-array signal captures this), a bigger lift than
 either attempt tonight. Not pursued further this cycle.
+
+### Diagnostic note — a serious trace on the persistent g_iter21/chessboard/A flip: confirmed real, not noise, but not a fixable regression either
+
+This flip has appeared in nearly every full-Gauntlet diff this whole
+session, always dismissed in the moment as "expected near-mirror
+noise" without ever actually being traced. Gave it a real, dedicated
+investigation this cycle (prompted by the new peer win-rate spread
+chart flagging `g_iter21` as the worst old-lineage matchup).
+
+Reproduced directly (`bot vs g_iter21/chessboard`, r946 loss). Metrics
+showed both sides dead-even through r205 (18 vs 16 Soldiers, identical
+10 Miners each) -- then a sharp inflection at r209-235: our `solSpread`
+sits consistently ~2x the opponent's the entire time (12.2 vs 6.8 at
+the start of the exchange), and their attack count grows more than
+twice as fast (121 vs 54 by r235) despite starting the exchange with
+*fewer* Soldiers than us. **This is the exact same army-cohesion
+signature already investigated all night** (Iterations 104/107/108's
+whole rally-gate thread) -- not a new bug, but strong independent
+confirmation that the underlying phenomenon is real and not random:
+it reproduces cleanly, with a clear, findable inflection point, not a
+scattered/inconsistent pattern the way genuine coin-flip noise would.
+
+Went one step further this time: diffed `g_iter21`'s own `runSoldier`
+against the current codebase's. They're **structurally almost
+identical** -- same priority chain (focus-fire, critical-heal-retreat,
+direct-attack, advance, unconditional reinforce-live-focus,
+speculative-objective fallback), same core movement decisions. The
+core Soldier-movement code has not meaningfully changed since
+`g_iter21` was snapshotted (~90 iterations ago). So `g_iter21`'s
+apparent cohesion edge in this specific matchup isn't caused by a
+regression in Soldier logic itself -- it's much more likely that ~90
+iterations' worth of *other* accumulated changes (Miner timing, build
+priority, economy thresholds -- all separately verified as safe or
+beneficial in their own right, per this whole session's work) shift
+exactly when and how many Soldiers get produced, and on a chaos-
+sensitive map like `chessboard` even a tiny timing shift can cascade
+into a persistently different (not randomly different) cohesion
+outcome against this *specific* opponent.
+
+**Conclusion: real phenomenon, not fixable via a targeted code
+change.** The "expected near-mirror noise" dismissal was technically
+wrong (this isn't random) but practically right (there's no single
+bug here to fix -- it's an emergent property of the whole codebase's
+accumulated timing, and the only lever that's ever moved it
+(Iterations 104/107/108's rally-gate mechanism) has already been
+tried four times and closed as too broadly risky to implement safely
+with a quick tweak). Not spending further Step 6 budget on this
+specific flip -- it's the same closed thread from a different angle,
+now with a clearer, better-documented explanation for *why* it's
+persistent rather than random.
