@@ -7458,8 +7458,16 @@ Updated periodically, not every iteration.
 
 ![cumulative accepted iterations](progress/cumulative_iterations.png)
 
-As of `g_iter46`: 46 accepted iterations (of 100 attempted) spanning
-2026-08-27 through 2026-08-30. `sample_camelcase` has never been
+As of `g_iter48`: 48 accepted iterations (of 104 attempted) spanning
+2026-08-27 through 2026-08-31. Iterations 101/103 (`g_iter47`-`g_iter48`)
+found and fixed two more genuine bugs in the same "threat-blind
+priority" family as 99/100, both discovered via fresh loss traces
+rather than continued tuning of the same spot: a richHome Miner-target
+formula that fell far below its own proven opening quota, and a
+Soldier reinforce-vs-defend-home priority with no numerical floor
+(fixed via a team-wide army-size gate after two earlier attempts each
+regressed a different small-army map -- see Iteration 102/103's full
+arc). `sample_camelcase` has never been
 beaten more than once in any 20-game tally across the whole project;
 `sample_afinals` has oscillated in a 10-20% band the entire time, with
 no clear upward trend despite dozens of accepted peer-facing
