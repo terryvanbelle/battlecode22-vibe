@@ -8229,3 +8229,107 @@ here. If a future trace finds this *too* eager (e.g. suppressing
 Miner replenishment on a single harmless stray unit passing through,
 not a real siege), a stricter/sustained-threat version could be worth
 a follow-up, but nothing in this cycle's verification suggested that.
+
+## Iteration 100 — Archon Sage-priority deprioritized under recent enemy contact (ACCEPTED, 59.5%)
+
+### Step 4/5
+
+Traced a fresh `sample_camelcase/maptestsmall` loss -- notable because
+`maptestsmall` (`richHome`, an 18-Miner opening quota) is normally our
+strongest map, and this is a 1-Archon map, so its entire economy AND
+combat production funnels through one build action per round.
+`--metrics` showed something striking: our side actually **led** the
+early game (2000-2800 unspent lead surplus by r100, 36-37 Soldiers vs
+camelcase's 24-31) -- then collapsed (`A_soldiers` 37->0 over ~200
+rounds) while camelcase's own army kept scaling unopposed (Miners
+20->72, Soldiers 24->98, Watchtowers 0->143). `A_labs` reached 4 and
+`A_sages` climbed 0->3 in the *exact* window Soldiers were collapsing.
+
+Root cause: `wantSage` (`want = wantSage ? SAGE : needBuilder ? ... `)
+has unconditional top priority whenever team gold >= 20, on the
+documented assumption (Iteration 64's own comment) that Sage is "a
+fully parallel production lane... without touching the existing
+Miner/Soldier tradeoff at all." That premise is wrong on a 1-Archon
+map: there is exactly one build action per round, so a Sage always
+displaces whatever Soldier/Miner would otherwise have been built.
+Confirmed Labs (3-4 of them, actively transmuting per Iteration 64/93)
+were generating a steady gold trickle that kept crossing the 20-gold
+threshold throughout the back half of the game, competing with
+Soldier reinforcement during an active, ongoing enemy engagement.
+
+### Step 6 — Solution
+
+v1 gated `wantSage` on `!localThreat` (Iteration 99's own signal --
+combat foe within the Archon's own vision). Re-checked directly:
+**no effect** -- Sages still climbed 0->3 in the same window, because
+the front line on this map sits away from the Archon itself, so
+`localThreat` rarely fires even during a real, ongoing team-wide
+fight. The existing `contact` variable (used for the opening Miner
+quota) doesn't work either: it's unconditionally false on `richHome`
+maps, and `maptestsmall` -- this exact motivating map -- is the
+project's own reference example of a `richHome` map. v2: read
+`SA_ENEMY_SEEN` directly, without `contact`'s `richHome` gate (that
+gate exists for an unrelated reason -- the Miner-quota decision, left
+untouched):
+```java
+boolean recentEnemyContact = rc.getRoundNum() - rc.readSharedArray(SA_ENEMY_SEEN) < 60;
+boolean wantSage = rc.getTeamGoldAmount(rc.getTeam()) >= RobotType.SAGE.buildCostGold
+        && !recentEnemyContact;
+```
+
+### Verification
+
+Re-ran the motivating case directly: `A_sages` now stays flat at 0
+the entire game (confirmed the fix engages correctly), but the game
+is still a loss (r280) and `A_soldiers` still collapses on
+essentially the same trajectory -- removing the Sage/Soldier
+competition didn't flip the outcome. Traced why: camelcase's economy
+(Miners 20->72) and resulting army (Soldiers/Watchtowers) scale far
+beyond anything a single Archon can out-produce once the gap compounds
+-- the same class of structural, single-source-of-production
+mismatch as `sample_afinals`'s Sage-swarm scale (Iterations 89/96/97/
+99), just via Soldier/Watchtower numbers instead of Sage count. This
+specific fix isn't the lever that flips `sample_camelcase`, but it's
+a real, general improvement in its own right (an idle gold surplus
+during active combat is never spent well), same category as
+Iteration 99.
+
+Per the Iteration 91 lesson, verified broadly: 8-peer x 10-map x
+2-side (160-game) reproduction -- **104/160 (65.0%)**, matched-subset
+diff against the `104109` baseline showed **only the single,
+already-known `g_iter21/chessboard/A` flip**. Went to a full 29-peer
+(`g_iter17-45`) x 10-map x 2-side (580-game) Gauntlet given the
+economy-priority risk: **345/580 (59.5%)**, `g_iter17-36` subset
+(255/400) diffed against the same baseline with **again only that one
+identical flip**, zero new diffs. `g_iter37-45`: 10/20 = 50% each,
+consistent band. No opponent reached the 80%-domination retirement
+threshold.
+
+### Outcome
+
+**ACCEPTED.** Same shape as Iteration 99: a genuine bug (an
+unconditional-priority investment competing with urgent Soldier
+reinforcement during active combat, on a premise -- "fully parallel,
+no tradeoff" -- directly contradicted by the single-build-action
+reality), fixed with a minimal, cheap, already-available signal,
+verified clean at full peer-Gauntlet scale. Doesn't flip the specific
+`sample_camelcase/maptestsmall` case that motivated it (that
+matchup's economy-scale gap is too large by the point Sage production
+would even engage), but removes a real inefficiency that should help
+in any less extreme matchup where gold accumulates during a fight.
+
+**Snapshot**: `src/g_iter46/` (via `tools/snapshot.sh g_iter46`).
+Replay reference: `gauntlet/20260830-234158/` (full Gauntlet run).
+
+**Next:** add `g_iter46` to the peer set for future Gauntlet runs.
+`sample_camelcase`'s core edge (economy that scales to 70+ Miners and
+140+ Watchtowers on a 1-Archon map) is now understood as the same
+class of structural single-source-of-production mismatch already
+characterized for `sample_afinals` -- further small priority fixes
+targeting this specific matchup are likely low-value without a
+structural change (e.g. genuinely faster Miner scaling early, or
+better Soldier combat efficiency/survival per unit produced, since
+production *rate* is capped at one build per round regardless of
+priority order). Future benchmark-focused cycles should consider
+whether Miner-scaling speed (not priority order) is the real lever,
+if this thread is revisited.
