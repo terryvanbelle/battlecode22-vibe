@@ -13,7 +13,7 @@ To "run the Gauntlet", the current implementation will play games against each b
 The Gauntlet should keep improving as a measure of fitness:
 
 - **New iterations.** Every implementation that passes Step 3 is added (as in the main algorithm).
-- **External bots.** Periodically — at least once every few iterations — search the internet (GitHub especially) for other Battlecode 2022 bot implementations, particularly strong ones (tournament finalists, well-documented post-mortems). Vendor any that compile cleanly as new opponents. Record each bot's source URL and licence.
+- **External bots.** Periodically — at least once every few iterations — search the internet (GitHub especially) for other Battlecode bot implementations, particularly strong ones (tournament finalists, well-documented post-mortems). Vendor any that compile cleanly as new opponents. Record each bot's source URL and licence.
 
 ### Peer opponents vs. benchmark opponents
 
