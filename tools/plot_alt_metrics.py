@@ -12,11 +12,15 @@ but retained locally across a session, which is enough history to plot).
    is progress broad (both ends rising together) or lopsided (a growing
    gap between the easiest and hardest peer matchup)?
 
-2. Benchmark game length: average round count per full 20-game
-   benchmark tally (sample_camelcase, sample_afinals), over time.
-   Win/loss alone discards this -- a benchmark game that used to end
-   in 300 rounds and now takes 800 is real progress even while still
-   a loss (see TRAINING_ALGORITHM.md's own "round-count metric" note,
+2. Benchmark game length: average round count of *losing* games only,
+   per full 20-game benchmark tally (sample_camelcase, sample_afinals),
+   over time. Losing-games-only on purpose -- a longer loss is real
+   progress (getting closer to winning), but a longer win isn't the
+   same signal (could just as easily be a slower, messier win), so
+   mixing the two would muddy the trend. Win/loss alone discards this
+   kind of progress -- a loss that used to end in 300 rounds and now
+   takes 800 is real even while still technically a loss (see
+   TRAINING_ALGORITHM.md's own "round-count metric" note,
    same idea applied here to the benchmark bots specifically).
 
 Usage:
@@ -85,22 +89,36 @@ def peer_spread_series():
 
 
 def benchmark_length_series():
-    data = defaultdict(list)  # opponent -> [(timestamp, avg_rounds), ...]
+    # Losing games only: a longer game is only "progress" when it's a loss
+    # that took longer to lose (getting closer to winning). A longer WIN
+    # doesn't indicate improvement the same way -- it could just as easily
+    # mean a slower, messier win, so mixing the two in one average would
+    # muddy the signal this chart is meant to show.
+    data = defaultdict(list)  # opponent -> [(timestamp, avg_losing_rounds), ...]
     for rundir in sorted(Path(REPO_ROOT / "gauntlet").glob("*/")):
         p = rundir / "results.csv"
         if not p.exists():
             continue
-        per_opp_rounds = defaultdict(list)
+        per_opp_total = defaultdict(int)
+        per_opp_loss_rounds = defaultdict(list)
         for row in load_results(p):
             opp = row["opponent"]
             if opp not in BENCHMARK_BOTS:
                 continue
-            per_opp_rounds[opp].append(int(row["rounds"]))
+            per_opp_total[opp] += 1
+            if row["bot_result"] == "loss":
+                per_opp_loss_rounds[opp].append(int(row["rounds"]))
         ts = run_timestamp(rundir)
-        for opp, rounds in per_opp_rounds.items():
-            if len(rounds) < MIN_BENCHMARK_GAMES:
+        for opp, total in per_opp_total.items():
+            # gate "is this a full tally" on the *total* game count (wins
+            # included), not just the loss count, so a strong tally with
+            # few losses isn't penalized for having less loss data.
+            if total < MIN_BENCHMARK_GAMES:
                 continue
-            data[opp].append((ts, sum(rounds) / len(rounds)))
+            losses = per_opp_loss_rounds[opp]
+            if not losses:
+                continue
+            data[opp].append((ts, sum(losses) / len(losses)))
     for opp in data:
         data[opp].sort()
     return data
@@ -146,9 +164,9 @@ def main():
         ys2 = [p[1] for p in pts]
         ax2.plot(xs2, ys2, color=colors.get(opp, "#333"), marker=markers.get(opp, "o"),
                   markersize=5, linewidth=1.6, label=opp)
-    ax2.set_title(f"Average game length vs. benchmark bots over time (full ≥20-game tallies)")
+    ax2.set_title(f"Average LOSING game length vs. benchmark bots over time (full ≥20-game tallies)")
     ax2.set_xlabel("Date (Pacific Time)")
-    ax2.set_ylabel("Average rounds per game")
+    ax2.set_ylabel("Average rounds per losing game")
     ax2.grid(True, alpha=0.3)
     ax2.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M", tz=PACIFIC))
     fig2.autofmt_xdate(rotation=30)
