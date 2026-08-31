@@ -8987,3 +8987,43 @@ trajectories drift rather than fork), or accepting that this specific
 diagnosis -- while correct -- may not be safely fixable without a much
 larger, more careful redesign of the whole Miner target-selection
 system than a single conditional guard.
+
+### Diagnostic note — needBuilder's `teamLead > 120` bar still rarely clears in an even, competitive game
+
+Traced a fresh `g_iter23/valley/bot=B` loss looking for fresh
+territory outside tonight's now-closed threads. Notable: **zero**
+Builders, Watchtowers, or Labs on *either* side for the entire
+600-round game -- both sides played a pure Miner/Soldier economy
+throughout. `--metrics` showed why on our side: team lead never
+exceeded 111 at any point checked across the whole game (mostly
+20-85), never clearing `needBuilder`'s `teamLead > 120` bar even once
+in 600+ rounds. This is the same shape of problem Iteration 90 already
+diagnosed and partially fixed this session (that iteration lowered
+this exact threshold from 300 to 120, reasoning that "team lead never
+exceeded 92... in a real contested game") -- but this fresh trace
+shows even the *lowered* bar is still rarely cleared in a genuinely
+even, competitive matchup (as opposed to a one-sided loss), so the
+whole Watchtower/Laboratory/Sage investment chain remains functionally
+unreachable in exactly the tightest games, which are arguably the
+ones a defensive investment like a Watchtower would matter most in.
+
+The game's actual loss cause here was the same already-closed
+Soldier-army-cohesion pattern from tonight's Iteration 104 thread (both
+sides tied on Miners/Soldiers through r321, then B's Soldier count
+collapsed 15->0 over the next ~250 rounds while A's kept climbing) --
+not a new finding on its own, consistent with that thread's own
+conclusion.
+
+**Not pursued as a Step 6 attempt this cycle** -- lowering the
+`needBuilder` threshold further sits squarely inside tonight's
+already-heavily-mined build-priority area (Iterations 90/93/99/100 all
+live here), and pursuing a fifth consecutive Step 6 attempt this late
+in the session, in an area this well-trodden, isn't the best use of
+remaining verification budget without a clearer sense that a lower
+threshold wouldn't just reproduce Iteration 90's own already-documented
+risk (a changed threshold on `highway`-style long economy-race maps
+caused a real, concentrated regression when first tried, per that
+iteration's v1/v2 history). **Next, if revisited:** would need the
+same full peer-Gauntlet-scale verification Iteration 90 itself used,
+not a quick tweak -- a good candidate for a fresh, well-rested cycle
+rather than continuing tonight's run.
