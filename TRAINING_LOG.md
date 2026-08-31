@@ -8433,3 +8433,36 @@ better Soldier survival-per-unit-built (combat micro: focus fire,
 kiting, retreat timing) so each produced unit contributes more value
 before dying. The latter is a large, distinct investigation, not a
 quick follow-up.
+
+### Diagnostic note — g_iter17/maptestsmall/B loss traced; confirms the known infrastructure-investment trade-off, not a new bug
+
+Noticed a striking pattern in the latest full Gauntlet's losses:
+`maptestsmall/bot=B` losses against `g_iter17`/`g_iter18` both die at
+exactly r213, `g_iter19`/`g_iter20` both at r221 -- deterministic
+enough to be worth tracing directly (`TEAM_A=g_iter17 TEAM_B=bot
+tools/vm-match.sh maptestsmall`, reproduced at r213).
+
+`--metrics` showed both sides' Miners locked at 18 the whole game (not
+an economy problem) while Soldiers diverge sharply: `B_soldiers`
+plateaus at ~29 by r71-96, then **declines** to 22-23 during r101-121
+-- exactly the window `needBuilder` fires (round>100 gate) and 4
+Builders + 4 Watchtowers + up to 4 Labs get built in a burst, per
+Iteration 90/93's own design. `g_iter17` (a much earlier, leaner
+snapshot with none of this infrastructure logic) just keeps building
+Soldiers continuously the whole game, reaching 44 by r131 vs our 18.
+
+This is the same "infrastructure investment has a real Soldier-
+production opportunity cost" theme as Iterations 96/97/99/100/101,
+not a new bug -- and NOT a safely fixable one: Iteration 90's own
+reasoning specifically wanted `needBuilder` to fire *during* ongoing
+contact (its whole point was fixing exactly the "silently dead code
+against a continuously-pressuring opponent" failure mode), and
+Iteration 30's design notes explicitly document why a contact-based
+gate on Builder production was already tried and rejected (`contact`/
+`localThreat`-style gates "never actually clear in a real contested
+game" for a one-time, capped investment like this). Adding a
+recentEnemyContact-style suppression here (the same shape as
+Iterations 99/100) risks reverting Iteration 90's own hard-won fix,
+for a matchup (`g_iter17`, currently 70% win rate, nowhere near the
+80% retirement bar) that's already within tolerated variance. **Not
+pursued further** -- logged as a diagnostic confirmation, not a lead.
