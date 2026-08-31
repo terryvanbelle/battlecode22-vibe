@@ -8466,3 +8466,101 @@ Iterations 99/100) risks reverting Iteration 90's own hard-won fix,
 for a matchup (`g_iter17`, currently 70% win rate, nowhere near the
 80% retirement bar) that's already within tolerated variance. **Not
 pursued further** -- logged as a diagnostic confirmation, not a lead.
+
+## Iteration 102 — reinforce-vs-defend-home distance comparison (REJECTED; genuine bug found and fixed correctly, but breaks small-army maps)
+
+### Step 4/5
+
+Following the standing instruction to look outside the build-priority
+area, traced a fresh `g_iter17/intersection` loss (a genuinely
+different signature from every other loss this session: both sides'
+Miners/lead stayed similar the whole 600+-round game, but `A_soldiers`
+plateaued flat at 5-9 while `B_soldiers` (g_iter17) grew steadily to
+75). `--indicators` on the diverging window (r400-405) showed the
+smoking gun: **5 of our 6 Soldiers were doing "defend home"** while
+only 1 was actually fighting (getting 3-on-1 focus-fired). Traced to
+`runSoldier`'s priority order: `SA_HOME_THREAT` (set by
+`checkHomeThreat` whenever 2+ enemy combat units are near a known
+Archon) has unconditional priority over `SA_FOCUS` (the live-fight
+reinforcement signal, Iteration 19), with no cap on how many
+responders one threat gets -- unlike `SA_ECON_THREAT` (Miner rescue),
+which Iteration 73 already distance-capped for exactly this reason.
+Confirmed via `--all-actions` that the home threat was real and
+sustained (197 attacks on our Archon over the 180-round window it was
+active), not a stale/stuck flag -- so this wasn't a signal-clearing
+bug, it was an unconditional-priority bug, the same shape as
+Iterations 99-101.
+
+### Step 6 — Solution
+
+Only defend home if it's actually closer than the live fight (or
+there's no live fight at all -- preserving Iteration 37's original
+guarantee for its own motivating case, a raid with the entire army
+fighting far away):
+```java
+boolean homeCloser = lf0 == 0
+        || me.distanceSquaredTo(unpack(th2)) <= me.distanceSquaredTo(unpack(lf0));
+```
+
+### Verification
+
+Re-ran the motivating case: mechanism confirmed engaging exactly as
+designed (`--indicators` showed all 6 Soldiers now reinforcing/
+advancing toward the live fight, zero "defend home") -- and notably
+the Archon's HP still bottomed out at the same 600 floor either way,
+suggesting the original all-hands home-defense wasn't even
+effectively protecting it. Round count improved modestly (r632->r679)
+but the underlying flat-Soldier-count pattern persisted -- didn't
+flip the outcome, consistent with this session's other production-
+side fixes.
+
+8-peer reproduction: **99/160 (61.9%)**, matched-subset diff showed
+**6 diffs** (more than the usual 1-2) -- 2 already-known
+(`g_iter21`/chessboard, maptestsmall, inherited from Iteration 101),
+but 4 new ones, all win->loss: `g_iter17`/`g_iter18`/sandwich/A and
+`g_iter29`/`g_iter30`/squer/B. Went to a full 31-peer (`g_iter17-47`)
+x 10-map x 2-side (620-game) Gauntlet given the size of the signal:
+**351/620 (56.6%)**, down from Iteration 101's 59.0% -- a real drop,
+not noise. `g_iter17-36` subset diff: **15 diffs, all win->loss, zero
+loss->win** -- a one-directional regression, heavily concentrated on
+`squer/B`, which flipped against **nine different opponents**
+(`g_iter27` through `g_iter36`).
+
+Traced `g_iter30/squer/bot` directly: `squer` has tiny total army
+sizes (2-11 Soldiers total across both sides the whole game, vs 40-90
+on richer maps) -- confirmed via `--metrics`. Root cause: the
+"defend home only if closer" comparison works fine when there's a
+large army to reallocate a few units from, but on a map with only 2-5
+total Soldiers, the same comparison can redirect effectively the
+entire available force away from home defense whenever the live
+fight happens to be closer, leaving the Archon essentially
+undefended -- the opposite failure mode from the one this iteration
+fixed (previously too many committed to defense with no cap; now
+potentially too few, with no floor). `squer` was already flagged in
+this project's own history (`git log`: "Iteration 15 abandoned: squer
+is a near-mirror coin-flip") as a fragile, easily-perturbed map, and
+a clean 9-opponent, one-directional sweep here confirms a real causal
+effect, not coincidental near-mirror noise (noise would scatter both
+directions).
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter47`). The underlying bug (5/6
+idle "defend home" Soldiers while a live fight goes unreinforced) is
+real and correctly diagnosed, and the fix mechanically does exactly
+what it was designed to do -- but the specific mechanism (an
+uncapped, per-Soldier "closer wins" comparison) has a real,
+now-understood failure mode on small-army maps that a large-army
+verification sample doesn't surface until checked at full peer scale.
+
+**Next, if revisited:** a version that guarantees a minimum number of
+defenders before allowing any redirection to the live fight (mirroring
+`checkHomeThreat`'s own `near >= 2` trigger bar, or checking how many
+friendly Soldiers are already near the threatened Archon via
+`senseNearbyRobots` before releasing this one to reinforce elsewhere)
+would likely avoid the `squer`-style undersized-defense failure while
+still fixing the original over-commitment problem on richer maps --
+but that's real added complexity and would need its own careful
+verification pass, not attempted further this cycle given the time
+already spent finding and characterizing this regression.
