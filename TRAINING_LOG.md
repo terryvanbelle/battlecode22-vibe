@@ -7458,7 +7458,7 @@ Updated periodically, not every iteration.
 
 ![cumulative accepted iterations](progress/cumulative_iterations.png)
 
-As of `g_iter48`: 48 accepted iterations (of 104 attempted) spanning
+As of `g_iter49`: 49 accepted iterations (of 109 attempted) spanning
 2026-08-27 through 2026-08-31. Iterations 101/103 (`g_iter47`-`g_iter48`)
 found and fixed two more genuine bugs in the same "threat-blind
 priority" family as 99/100, both discovered via fresh loss traces
@@ -7467,7 +7467,14 @@ formula that fell far below its own proven opening quota, and a
 Soldier reinforce-vs-defend-home priority with no numerical floor
 (fixed via a team-wide army-size gate after two earlier attempts each
 regressed a different small-army map -- see Iteration 102/103's full
-arc). `sample_camelcase` has never been
+arc). Iteration 109 (`g_iter49`) is the first accepted result of
+`TRAINING_ALGORITHM.md`'s new "High-risk structural exploration"
+track (added mid-session after a stretch of unproductive idling): a
+bold 4x Builder/Watchtower production-cap increase aimed directly at
+`sample_camelcase`'s 143-Watchtower scale, refined once (gated on the
+existing `richHome` signal) to eliminate a real regression the naive
+version caused on `highway`, landing at zero measurable peer cost.
+`sample_camelcase` has never been
 beaten more than once in any 20-game tally across the whole project;
 `sample_afinals` has oscillated in a 10-20% band the entire time, with
 no clear upward trend despite dozens of accepted peer-facing
