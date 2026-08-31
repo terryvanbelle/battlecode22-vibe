@@ -8744,3 +8744,91 @@ fraction of the *opponent's* concurrent Soldier count, which the
 existing `foes` scan could supply cheaply) rather than a flat 10 --
 untested, not attempted this cycle given the time already spent across
 three solution attempts on one hypothesis.
+
+## Iteration 104 — Soldier rally gate before reinforcing a live fight alone (REJECTED after 2 solution attempts; real, verified positive effect, but not yet safely scoped)
+
+Deliberately picked fresh territory outside build-priority and
+Soldier-reinforcement-priority (both explored heavily this session) --
+Step 4's "prefer fresh territory" nudge from the new algorithm.
+
+### Step 4/5 -- hypothesis, verified on two independent maps
+
+Traced a fresh `g_iter19/chessboard` loss: our army's `solSpread`
+metric ran ~2x the opponent's right as combat starts (12.2 vs 6.8 at
+r205), staying elevated through the whole opening exchange while our
+Soldier count crashed 18->11 and theirs barely moved (16->16) --
+despite equal Miners and similar Soldier counts (not an economy
+problem). Generality-checked on a second, different map
+(`g_iter19/pillars`): same shape, our spread 5.3-7.5 vs their 2.5-4.3
+while losing that Soldier-count race too.
+
+Root cause: `runSoldier`'s "reinforce a live `SA_FOCUS` fight" branch
+has Soldiers beeline individually for the fight with no regard for
+whether anyone else is nearby. Iteration 9 already solved exactly this
+shape of problem for the *speculative* `armyObjective` march (a
+3-friendly mass gate) -- but Iteration 19 explicitly skips that gate
+once a live focus is known, leaving the live-fight reinforcement path
+completely unprotected. A straggler that happens to arrive first gets
+picked off in a local-numbers-disadvantage skirmish before the rest of
+the group catches up.
+
+### Step 6 -- two solution attempts
+
+- **v1**: unconditional rally gate -- an isolated Soldier (<2 friendly
+  combat units in its own vision) still far from the live focus holds
+  position for up to 8 rounds (bounded, so it can't stall forever)
+  before giving up and committing alone. Mechanistic verification was
+  strong: `chessboard` round count improved r818->r870 (414 engagements
+  of the gate), and `pillars` went from a decisive early loss (r467) to
+  the full 2000-round cap -- a dramatic extension. But the 8-peer
+  reproduction sample found a real, one-directional regression: `maze`
+  (5 opponents, all win->loss) and `highway/B` (4 opponents, all
+  win->loss). Traced `bot vs g_iter21/maze` directly: total combined
+  army there is only ~6-8 Soldiers (the same small-army class as
+  Iteration 102/103's `squer` problem) -- the ">=2 nearby friends" bar
+  is rarely met, so Soldiers repeatedly burn their full 8-round wait
+  before giving up, a real, compounding tax on reinforcement rate on
+  exactly the maps that can least afford it.
+- **v2**: same fix shape as Iteration 103 v3 -- gated the whole
+  mechanism on the team-wide `SA_SOLDIERS >= 10` census, so it only
+  engages on maps with enough army to actually benefit from grouping
+  up. (Hit and fixed a variable-name collision with Iteration 103's own
+  `armyBigEnough` -- first compile failed; diagnosed via direct SSH to
+  the VM's gradle output, renamed to `rallyArmyBigEnough`, recompiled
+  clean.) Mechanistic re-check: `maze` now wins again (r474, matching
+  baseline) -- that regression is fixed. But `pillars` reverted to the
+  original bad loss (r467) -- v2's stricter gate also suppressed the
+  mechanism there, the same upside-for-safety trade Iteration 103 v3
+  made with `valley`/`intersection`. 8-peer reproduction: **98/160
+  (61.2%)**, 13 diffs (down from v1's 25) -- `maze` is now completely
+  clean, but `highway/B` still shows a consistent, one-directional
+  4-opponent regression (`g_iter19/21/29/30`, all win->loss), plus a
+  smaller 2-opponent `pillars/B` regression (`g_iter29/30`). The
+  small-army gate fixed `maze` but didn't fully protect `highway` --
+  `highway` is a long, low-combat, chaotic economy-race map (per
+  Iterations 30/91's own prior notes), and the rally-wait cost likely
+  interacts badly with its pacing on a different dimension than raw
+  army size.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against `g_iter48`) after 2 of 10 available
+solution attempts. The underlying finding is real and well-verified
+(army cohesion measurably affects who wins an even-economy fight, and
+a targeted fix measurably helps on the maps it was designed for) --
+but two attempts each fixed one regression while leaving or shifting
+another, and diagnosing a third, `highway`-specific dimension (pacing,
+not army size) would need its own fresh trace and verification cycle.
+Given this is the second full solution-refinement arc completed this
+session tonight (after Iteration 102/103's three attempts), stopping
+here rather than pushing a third attempt immediately.
+
+**Next, if revisited:** the `highway`-specific failure needs its own
+direct trace (why does the rally wait hurt there specifically, when
+`highway`'s armies aren't obviously small?) before attempting a v3 --
+don't just guess another threshold. The core mechanism (mass gate
+before reinforcing a live fight) is sound and the `chessboard`/
+`pillars` upside is real; whatever eventually protects `highway` too
+should preserve that upside, not trade it away like v2 traded away
+`pillars`.
