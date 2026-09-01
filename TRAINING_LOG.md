@@ -10281,3 +10281,55 @@ whether the reinforce mechanism itself is wrong. Not enough evidence
 yet to form a verifiable Step 5 hypothesis -- recording the finding
 and the specific numbers so a future cycle can pick this up without
 re-deriving them, per "prefer fresh territory."
+
+## Iteration 123 — second extra Watchtower per Builder (ACCEPTED, 57.5%); extends the Watchtower-count thread the attack-rate diagnostic pointed at
+
+### Capability gap
+
+Directly follows the attack-rate diagnostic above: `A_watchtowers` in
+that same trace peaked around 7-10 while camelcase's own count reached
+15+ by round 150 (and 63 in Iteration 117's original motivating game)
+-- stationary Watchtowers contribute attacks without any reinforcement
+travel cost at all, so a larger Watchtower count is a direct, cheap
+lever on the exact metric (`B_attacks` vs `A_attacks`) the diagnostic
+flagged. Extended Iteration 117's `extraWatchtowers` cap (1 per
+Builder) using the same escalating-threshold pattern that worked
+cleanly for the Lab thread (117->118->122).
+
+### Solution
+
+`extraWatchtowers` cap raised from 1 to 2 per Builder. Threshold
+escalates with count already built: 1000 lead surplus for the 1st
+extra (unchanged), 2500 for the 2nd.
+
+### Verification
+
+Step 6.4: mechanistic engagement confirmed on `bot vs
+g_iter21/maptestsmall` -- 16 "built extra watchtower" indicator hits
+(up from single-digit counts under the old 1-cap), `A_watchtowers`
+peaking at **19** (previously capped near 10-12).
+
+Step 6.5: 8-peer reproduction sample -- 103/160 (64.4%, identical to
+baseline), **zero diffs**.
+
+Step 2/3: full 36-peer Gauntlet -- 414/720 (57.5%, identical to
+baseline), matched-subset diff over all 720 overlapping keys: **zero
+diffs**. Completely clean at both scales.
+
+### Outcome
+
+**ACCEPTED.** No peer WinPct movement (expected, same reasoning as
+the Lab-count thread -- peer games mostly don't run long enough for a
+2500-lead surplus to matter), but directly and verifiably increases
+Watchtower count in exactly the long, lead-rich games the attack-rate
+diagnostic identified as the relevant scenario. Still far below
+camelcase's own 63-Watchtower ceiling in that same game, so this
+thread likely still has room -- worth extending further (3rd extra,
+even higher threshold) in a future cycle, watching whether peer/
+benchmark numbers start moving as the count climbs.
+
+**Snapshot**: `src/g_iter59/` (via `tools/snapshot.sh g_iter59`).
+**New baseline**: `gauntlet/20260901-141657/` supersedes
+`gauntlet/20260901-023833/` for all future diffs.
+**Replay**: `replays/iter123_g_iter21_maptestsmall_botA.bc22` (19
+Watchtowers built, r1465 loss).
