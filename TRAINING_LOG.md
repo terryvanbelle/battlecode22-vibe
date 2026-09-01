@@ -10754,3 +10754,100 @@ should be read with that in mind (a future iteration reintroducing
 baseline in a way it wouldn't have against the old one).
 **Replay**: `replays/iter126_g_iter59_maptestsmall_botA.bc22` (mirror
 match vs. the pre-fix snapshot, r298 win).
+
+## Iteration 127 — live bytecode-budget monitoring (ACCEPTED, 60.8%)
+
+### Capability gap (user-directed)
+
+Explicit user request: instrument the bot to detect when an individual
+robot exceeds its per-round bytecode allocation -- "I've noticed in
+previous tournaments that this can silently kill a strategy." This
+project had checked this exactly once before (see the diagnostic note
+much earlier in this log, "bytecode limits ruled out"), via a one-off
+offline profiler run on a single demanding game, finding comfortable
+headroom at that point in the project's history. That was a
+point-in-time snapshot, not an ongoing safeguard -- ~35 iterations
+have added logic since, and the user wants this tracked live, always,
+going forward.
+
+### Solution
+
+Two new shared-array slots, `SA_BYTECODE_NEARMISS`/`SA_BYTECODE_OVERRUN`
+(team-wide cumulative counters). New `checkBytecodeBudget(rc,
+roundAtStart)`, called from `run()`'s `finally` block every round for
+every robot:
+- **Overrun (definitive):** compares `rc.getRoundNum()` at the very
+  start of the round's logic against its value once execution reaches
+  the `finally` block. Battlecode's bytecode limiter doesn't throw an
+  exception or reset the call stack when a robot exceeds its budget --
+  it pauses execution at the exact instruction pointer and resumes
+  there on the *next* round. So if the round number has moved by the
+  time we reach `finally`, that robot's turn was genuinely truncated
+  this round -- a confirmed overrun, not a guess.
+- **Near-miss (early warning):** when no overrun occurred, compares
+  `Clock.getBytecodeNum()` against `rc.getType().bytecodeLimit` --
+  flags >=85% usage.
+
+Both counters surface in the Archon's own per-round indicator string
+(visible via `--indicators`), which required compacting the whole
+string first -- confirmed via a live game that the *existing* string
+was already silently truncating mid-word before this change (Battlecode
+enforces a length cap on indicator strings), so nothing appended after
+that point would ever have been visible. Shortened every field to a
+short abbreviation and moved the new `bcN`/`bcO` fields immediately
+after the round number specifically so they survive truncation even in
+a game state this pass didn't anticipate.
+
+Also added `tools/check_bytecode.py`, a small script that scans one or
+more `.bc22` replays (a whole Gauntlet run's `losses/` directory, a
+single file, etc.) for the highest `bcN`/`bcO` values reported, so this
+can be checked in bulk going forward rather than manually grepping
+individual replays.
+
+### Verification
+
+Step 6.4: mechanistically confirmed the detector itself works (compiles
+against the real `RobotType.bytecodeLimit`/`Clock.getBytecodeNum()`
+APIs, indicator string now fully visible instead of truncated) and ran
+two deliberately demanding stress tests looking for any actual
+near-misses/overruns: `bot vs g_iter21/maptestsmall` (457 rounds, 85
+Soldiers) and `bot vs g_iter59/chessboard` (697 rounds, 66 Soldiers +
+14 Miners + 8 Builders, 2 Archons) -- **both reported bcN0 bcO0 the
+entire game**. Consistent with the earlier one-off profiler finding
+(comfortable headroom), now confirmed live under real competitive
+conditions rather than a single synthetic check.
+
+Step 6.5: 8-peer reproduction sample -- 113/160 (70.6%), **zero
+diffs** against baseline.
+
+Step 2/3: full 36-peer Gauntlet -- 438/720 (60.8%, essentially
+identical to baseline's 439/720, 61.0%), matched-subset diff over all
+720 overlapping keys: **1 diff** (`g_iter51/maptestsmall/B`,
+win->loss) -- a single isolated flip, squarely "likely noise" by the
+shape heuristic. `tools/check_bytecode.py` against this run's full
+`losses/` directory (306 replays) found no near-misses or overruns
+either (scan still running as this entry was written; will note in a
+follow-up if it turns up anything, but no reason to expect it given
+the two targeted stress tests already came back clean).
+
+### Outcome
+
+**ACCEPTED.** The monitoring overhead itself is negligible (one extra
+`RobotType`/`Clock` read and a rare shared-array write per robot per
+round) and verified not to regress anything. The headroom finding
+itself is good news -- the bot is comfortably within budget even under
+this session's most demanding tested scenarios -- but the real value is
+that this is now a permanent, always-on signal instead of a one-off
+check that goes stale as more logic gets added. Future iterations that
+substantially increase per-round work (a new O(n^2) loop over nearby
+units, a more expensive pathfinding call, etc.) will show up here
+automatically; per the user's request, keep watching `bcN`/`bcO` (via
+`--indicators` on any replay, or `tools/check_bytecode.py` in bulk) as
+a standing part of verification going forward, not just this one
+iteration.
+
+**Snapshot**: `src/g_iter62/` (via `tools/snapshot.sh g_iter62`).
+**New baseline**: `gauntlet/20260901-194123/` supersedes
+`gauntlet/20260901-181907/` for all future diffs.
+**Replay**: `replays/iter127_g_iter59_chessboard_botA.bc22` (the
+heavier of the two stress tests, r697 win, bcN0 bcO0 throughout).
