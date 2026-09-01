@@ -10394,3 +10394,51 @@ travel time) -- likely the same underlying lever. Next: look at
 reinforcement trigger for concrete speed-up opportunities, since this
 single lever plausibly explains both the camelcase gap and this
 map-tempo asymmetry.
+
+## Iteration 124 — "losing war" consolidation trigger for reinforcing Soldiers (REJECTED; never engaged in the motivating scenario)
+
+### Solution attempted
+
+Added `SA_SOLDIER_PEAK` (team-wide `SA_SOLDIERS` high-water mark,
+updated in `census()`). In `runSoldier`'s "reinforce" branch (a
+Soldier with no visible target, marching toward the live `SA_FOCUS`
+point), redirect toward home to consolidate instead, if
+`SA_SOLDIER_PEAK >= 15` and current `SA_SOLDIERS` has fallen below 40%
+of that peak -- an attempt to stop feeding reinforcements into a
+losing war of attrition, directly motivated by the per-map tempo
+diagnostic above. Deliberately designed to be distinguishable from the
+already-closed rally-gate thread (Iterations 104/107/108, a static
+count threshold that mis-fired on `highway`): this uses a *trend*
+signal and only engages at a severe, unambiguous decline.
+
+### Verification
+
+Step 6.4: re-ran the exact motivating scenario (the `g_iter59` vs
+`bot` mirror match on `maptestsmall`, with the fix applied to the
+losing side) -- **identical result, round 337, byte-for-byte the same
+outcome as the unmodified mirror match**. Checked `--indicators`:
+**zero** "consolidate" hits the entire game, despite `B_soldiers`
+genuinely falling from a peak of ~19 to 4 by round 270 (comfortably
+past the trigger's threshold). Traced why: the units actually dying
+in this game are mostly already in **direct combat with a visible
+target** (the `target != null` branches earlier in `runSoldier`), not
+in the "no target, marching toward the focus point" state the
+"reinforce" branch covers. By the time the war is visibly being lost,
+essentially no Soldiers are in the specific state this fix touches --
+the attrition happens *during* the fight, not during the approach to
+it.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against HEAD). A genuinely fresh angle on the
+tempo-asymmetry problem (a trend signal, not a static count), but it
+targeted the wrong decision point -- a real fix would need to touch
+the *combat-time* decision (attack vs. retreat while already engaged),
+which is exactly the higher-risk territory the closed rally-gate
+thread already explored and found resistant on `highway`. Not
+reopening that specific thread again without a genuinely new angle on
+*that* decision point specifically -- this session's per-map tempo
+diagnostic (see above) remains open and valuable groundwork for a
+future, more carefully-scoped attempt, but doesn't yet have a safe,
+verified fix attached to it.
