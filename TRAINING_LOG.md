@@ -9803,3 +9803,79 @@ the idea was right, it just needed Iteration 115's unlock first.
 **New baseline**: `gauntlet/20260831-224851/` supersedes
 `gauntlet/20260831-215702/` for all future diffs.
 **Replay**: `replays/iter116_g_iter21_maptestsmall_botA.bc22`.
+
+## Iteration 117 — Builder builds a second, lead-surplus-gated Watchtower once idle (ACCEPTED, 57.5%); high-risk structural, fresh territory
+
+### Capability gap
+
+Traced a fresh `bot vs sample_camelcase/maptestsmall` loss (r255) with
+`--metrics`: our team `lead` balloons to **6748 unspent** by r239 while
+our Soldier count collapses from a peak of 36 to **0**, and our
+Watchtower count stalls at 3-4 for the whole game. camelcase, on the
+same clock, reaches **63 Watchtowers** and 73 Soldiers. Traced why our
+Watchtower count is capped so low: `builtWatchtower` (`runBuilder`,
+Iteration 30) is a per-robot boolean, so each individual Builder builds
+**exactly one Watchtower in its entire lifetime**, then goes on to
+build a Laboratory, mutate the Archon/Watchtower/Lab to level 2, and
+then sits in a literal `"idle near home"` state doing nothing for the
+rest of the game -- confirmed by reading the full `runBuilder` control
+flow, not just inferred from the metrics. With richHome allowing up to
+8 Builders (Iteration 109), that's a hard ceiling of ~8 Watchtowers
+ever, for the whole game, regardless of how much lead piles up
+afterward. This is genuinely fresh territory -- Iteration 30's own
+comment flagged "a single static Watchtower per Archon is the safe
+FIRST version to test," but no iteration ever followed up on it in the
+87 iterations since.
+
+### Solution
+
+Added a bounded second build: once a Builder reaches its existing idle
+state (everything else already built and maxed), if it hasn't already
+placed an extra Watchtower and team lead exceeds 1000 (a high,
+surplus-only bar, well above the 120 threshold that gates ordinary
+infrastructure spending), place one more Watchtower near home.
+Capped at +1 per Builder (not unlimited) so this scales with however
+many Builders richHome already allows, rather than uncapped spam.
+
+### Verification
+
+Step 6.4: mechanistic engagement confirmed directly on the motivating
+`bot vs sample_camelcase/maptestsmall` game -- the "built extra
+watchtower" indicator fired 4 times. The game is still a loss, but
+**the round count roughly doubled, from r255 to r513** -- direct,
+measured evidence the fix changed real outcomes, satisfying Step
+6.4.2's mechanistic-engagement-plus-account path (more Watchtowers on
+the field measurably delays the annihilation this specific opponent
+was previously achieving twice as fast).
+
+Step 6.5: 8-peer reproduction sample (`g_iter17/18/19/21/23/26/29/30`,
+all 10 maps, both sides, 160 games) -- 103/160 (64.4%, identical to
+baseline), **zero diffs**.
+
+Step 2/3: full 36-peer Gauntlet (`g_iter17`-`g_iter52`, 720 games) --
+414/720 (57.5%, identical to baseline), matched-subset diff over all
+720 overlapping keys: **zero diffs**. A completely clean result at
+both scales -- unsurprising, since peer opponents mostly get finished
+off well before lead surpluses reach the 1000+ threshold this fires
+on; the benefit is concentrated exactly where the capability gap was
+found (long, high-lead-density games against opponents that out-mass
+us), which peer games mostly aren't.
+
+### Outcome
+
+**ACCEPTED.** Doesn't move peer WinPct (expected -- see above), but
+directly closes a real, previously-undiscovered dead-time gap that
+was actively costing us against exactly the kind of opponent
+(camelcase) this whole project is trying to beat, with clean
+verification at both sample sizes. Worth revisiting later: the same
+"Builder goes fully idle forever" pattern could support a third
+Watchtower, or a Laboratory instead once the first Lab is saturated,
+if a future benchmark check shows lead is still piling up unspent
+after this fix.
+
+**Snapshot**: `src/g_iter54/` (via `tools/snapshot.sh g_iter54`).
+**New baseline**: `gauntlet/20260831-235254/` supersedes
+`gauntlet/20260831-224851/` for all future diffs.
+**Replay**: `replays/iter117_sample_camelcase_maptestsmall_botA.bc22`
+(r513 loss, up from r255 before the fix, with 4 extra-Watchtower
+builds visible in `--indicators`).
