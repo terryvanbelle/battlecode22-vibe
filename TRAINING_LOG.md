@@ -10069,3 +10069,60 @@ mechanistically verified working exactly as designed.
 **New baseline**: `gauntlet/20260901-011148/` supersedes
 `gauntlet/20260901-003155/` for all future diffs.
 **Replay**: `replays/iter119_sample_camelcase_maptestsmall_botA.bc22`.
+
+## Iteration 120 — Sage-specific retreat threshold (ACCEPTED, 57.5%); fresh territory
+
+### Capability gap
+
+`runSoldier` dispatches SAGE through the same code path as SOLDIER,
+including Iteration 18's retreat-when-critical logic: `rc.getHealth()
+<= 10`. That bar was calibrated against camelcase's own *Soldier*
+retreat behavior -- but a Sage has **100 max HP**, not a Soldier's much
+smaller pool. Applied unmodified, a Sage fights down to 90% of its HP
+lost before ever retreating -- proportionally almost meaningless
+compared to what it means for a Soldier. Unlike a cheap (0 lead / 20
+gold), fast, frequently-replaced Soldier, a Sage is slow (moveCD 25,
+the slowest combat unit), attacks rarely (actCD 200, ~once per 20
+rounds), and -- now that Iterations 115/117/118 have made gold and Lab
+throughput real -- is a genuinely scarce, valuable unit whose death
+mid-fight is a much bigger relative loss than a Soldier's.
+
+### Solution
+
+Type-aware retreat threshold: Sage retreats at HP<=30 (30% of its 100
+max), Soldier/Watchtower keep the existing HP<=10 (Iteration 18's own,
+unchanged).
+
+### Verification
+
+Step 6.4: mechanistic engagement confirmed directly on `bot vs
+sample_camelcase/maptestsmall` -- 17 "heal" (retreat) indicator hits
+from SAGE units via `--indicators`. Traced one specific Sage (#10397)
+through its full indicator history: it retreats twice consecutively,
+then **resumes "advance" activity afterward** -- direct evidence the
+fix let it survive an engagement it would otherwise have stayed in
+under the old, much lower bar.
+
+Step 6.5: 8-peer reproduction sample -- 103/160 (64.4%, identical to
+baseline), **zero diffs**.
+
+Step 2/3: full 36-peer Gauntlet -- 414/720 (57.5%, identical to
+baseline), matched-subset diff over all 720 overlapping keys: **zero
+diffs**. Completely clean at both scales.
+
+### Outcome
+
+**ACCEPTED.** No peer WinPct movement (expected -- Sage-critical
+engagements are a small fraction of peer games), but a genuine,
+mechanistically-verified correctness fix: a unit-type-shared threshold
+that was silently miscalibrated for one of the two types sharing it.
+Closes a real gap in the Sage investment thread opened by Iterations
+115/117/118/119 -- all of which increase how much Sage/Watchtower
+value is on the field, making a Sage's individual survival odds matter
+more than when this code was first written (Iteration 18, long before
+Sage production was ever real).
+
+**Snapshot**: `src/g_iter57/` (via `tools/snapshot.sh g_iter57`).
+**New baseline**: `gauntlet/20260901-015504/` supersedes
+`gauntlet/20260901-011148/` for all future diffs.
+**Replay**: `replays/iter120_sample_camelcase_maptestsmall_botA.bc22`.
