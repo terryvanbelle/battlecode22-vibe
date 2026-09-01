@@ -10651,3 +10651,106 @@ isolation -- a much larger-scope project than a single iteration.
 Not pursuing further variants of "just change the tiebreak" without a
 genuinely different angle; the diagnostic value (root cause fully
 understood) stands even without a shipped fix.
+
+## Iteration 126 (shipped) — symmetric tie-breaking across build placement, repositioning, and target selection (ACCEPTED, 61.0%, A/B gap 27.8pt -> 14.2pt)
+
+### Context: explicit user direction after the two-part rejection above
+
+The user reviewed the rejected attempts and gave explicit direction:
+(1) accept a real performance cost in exchange for genuine symmetry --
+"this change is important enough that we can tolerate some
+regression"; (2) prefer the center-proximity tiebreak specifically
+over the random-tiebreak variants; (3) keep auditing, since a
+`19.5`-point residual gap (after fixing all 8 originally-identified
+DIRS-order sites) was "surprising" and judged not close enough to
+real symmetry. This reopened the thread with a different mandate:
+ship it, then keep closing the gap rather than declaring it
+unsolvable.
+
+### What shipped
+
+All 8 DIRS-order tie-break sites (build placement x4, stuck-Builder
+recovery fallback x2, `repositionForRubble`, `moveToward`'s greedy
+fallback) restored to the "toward map center" tiebreak design (the
+version the user preferred), via two shared helpers
+(`bestBuildDirection`, `bestMovableDirection`) plus inline
+target/goal-relative tiebreaks in the two movement functions.
+
+**New finding, found while chasing the residual gap**: `betterTarget`
+(the combat target-selection function used by every Soldier/Watchtower
+every round) had the exact same class of bug, one level removed --
+its own tie ("equal priority, equal HP") silently kept whichever
+candidate the engine's `senseNearbyRobots` scan happened to return
+first, an absolute-position order, not a fixed-direction one, but the
+same underlying problem. Added a `MapLocation from` parameter and a
+distance-to-`from` tiebreak, updated all 4 call sites (`runWatchtower`
+x2, `runSoldier` x2). Also fixed the Miner's rich-lead-tile search
+(same pattern, `senseNearbyLocationsWithLead`'s scan order) with a
+distance-to-self tiebreak.
+
+**Diagnostic dead end, not shipped**: tried bypassing the vendored
+`Dijkstra20` pathfinder entirely (forcing the already-fixed greedy
+fallback for every move) to test whether Dijkstra's own internal
+tie-breaking (a 2388-line generated/unrolled implementation, not
+practical to hand-audit) was a further source. An 8-peer sample showed
+no improvement over baseline (22.5pt gap) -- inconclusive at best, and
+losing Dijkstra's real pathfinding quality is its own cost regardless.
+Reverted; Dijkstra20 remains a candidate for a future, more targeted
+investigation if the gap needs closing further.
+
+### Verification
+
+Iterated through several full-Gauntlet-scale checks (not just 8-peer
+samples -- this touches every unit's every-round decision, so cheap
+samples were repeatedly misleading about the true magnitude):
+- All 8 sites, "toward center": 330/720 (45.8%), A/B gap 19.5pt (down
+  from baseline 27.8pt) -- real fairness improvement, real overall cost.
+- Same, but reverting the 2 highest-frequency sites
+  (`repositionForRubble`, `moveToward`) to test whether a narrower,
+  lower-risk subset still captured most of the benefit: 327/720
+  (45.4%), gap barely moved (29.7pt) -- confirmed those two
+  high-frequency sites were doing nearly all of the fairness work: this
+  is *not* a low-risk-only fix, it needs the high-frequency sites too.
+- Restoring the full 8-site fix plus the newly-found `betterTarget` and
+  Miner-lead-tile fixes: **439/720 (61.0%)** -- higher than the
+  original, un-fixed baseline (414/720, 57.5%) -- with A/B gap down to
+  **14.2 points** (68.1%/53.9%, roughly half of baseline's 27.8pt gap).
+  A clean win on both axes at once, not a traded-off regression.
+
+Per-map breakdown still shows real remaining asymmetry, unevenly
+distributed: `maptestsmall` improved dramatically (100% B-side losses
+-> 33%), but `chessboard` (81% B-side losses, 0% A-side) and `squer`
+(89% B-side losses, 19% A-side -- note this map's favored side
+*flipped* from B to A during this pass) remain sharply asymmetric.
+`maze` shows 0%/0% (no losses at all on either side against this
+roster -- not informative for symmetry, just a fully-dominated map).
+
+Benchmark tally (`sample_camelcase`/`sample_afinals`) unchanged (0/20,
+15%) -- confirms the earlier "afinals dropped to 5%" result from the
+per-robot-fixed-random variant really was small-sample noise, exactly
+as the user suspected, not a real cost of removing the bias.
+
+### Outcome
+
+**ACCEPTED.** A rare case where fixing a real bug (the symmetry
+violation, confirmed root-caused across two write-ups) produced a net
+performance *gain*, not just a fairness gain -- likely because
+`betterTarget`'s fix (always finish the closest tied-priority,
+tied-health target rather than an arbitrary engine-order pick) is
+simply a better targeting heuristic on its own merits, independent of
+the symmetry question. `chessboard` and `squer` remain clearly
+asymmetric and are the natural next targets for continuing this
+thread -- `mapCenter()`-relative tiebreaks may not be the right
+criterion for every remaining site, the same way "away from center"
+for build placement (the rejected v4 variant) turned out to be a wrong
+guess even though the underlying diagnosis was correct.
+
+**Snapshot**: `src/g_iter61/` (via `tools/snapshot.sh g_iter61`).
+**New baseline**: `gauntlet/20260901-181907/` supersedes
+`gauntlet/20260901-141657/` for all future diffs -- note this
+baseline is itself now far cleaner on the A/B axis, so future diffs
+should be read with that in mind (a future iteration reintroducing
+*any* DIRS-order-style bias would show up clearly against this
+baseline in a way it wouldn't have against the old one).
+**Replay**: `replays/iter126_g_iter59_maptestsmall_botA.bc22` (mirror
+match vs. the pre-fix snapshot, r298 win).

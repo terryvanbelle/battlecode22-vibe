@@ -2,6 +2,50 @@
 
 This document outlines a technique for writing a world-class Battlecode bot.
 
+## Play symmetry
+
+The bot's decisions must be symmetric between sides: playing as Team A vs.
+playing as Team B on the same map should produce mirrored behavior, not
+different behavior. Concretely, at every decision point, the choice the bot
+makes must be a function of the game state relative to the map's own
+symmetry (own position, goal/target position, terrain, map center, etc.),
+never a function of any fixed, absolute reference (a specific compass
+direction, a specific corner, a hardcoded coordinate) that isn't itself
+computed relative to that symmetry.
+
+This was violated for most of this project's history without being
+noticed: several tie-breaking decisions iterated candidate directions in a
+fixed compass order (prefer North, then NE, then E, ...) instead of
+relative to the current goal, target, or map geometry. In isolation this
+looks harmless -- a coin-flip among equally-good options -- but it is not
+actually neutral: it interacts with each map's specific (but symmetric)
+spawn geometry, so whichever side's "forward" direction happens to align
+with the fixed preference gets a small, compounding tempo advantage, and
+*which* side that is depends on the map, not on any property of the bot's
+own play. Confirmed directly by mirror-matching the bot against a
+near-identical copy of itself on two different maps: identical code favors
+Team A on one map and Team B on the other, purely from this effect.
+
+When auditing for this, check for: fixed-order iteration over
+`Direction[]` arrays used for tie-breaking; any hardcoded
+`Direction.NORTH`/`SOUTH`/`EAST`/`WEST` (or similar) default/fallback
+value; any reference to `Team.A`/`Team.B` specifically (as opposed to
+`rc.getTeam()`/`.opponent()`, which are fine); and anything keyed off
+`rc.getID()` in a way that could correlate with spawn order or team
+assignment. None of these are forbidden outright -- `rc.getID()` used to
+seed a genuinely random, per-robot tiebreak is fine, since it doesn't
+correlate with team -- the test is whether the resulting behavior, run
+twice with the sides swapped on the same map, mirrors correctly or not.
+
+When fixing a found asymmetry, prefer adopting whichever side's existing
+behavior actually performed better (verified via the Gauntlet, not
+assumed), rather than inventing a third, untested behavior for both sides.
+If neither side's existing behavior is clearly better, or the fix requires
+new logic entirely, verify it with the same rigor as any other change
+(Step 6 below) -- symmetry fixes touch code paths used by every unit,
+every round, so they carry outsized regression risk and deserve outsized
+verification (full-Gauntlet scale, not just a reproduction sample).
+
 ## The Gauntlet
 
 Define "The Gauntlet" as a set of Battlecode bot implementations, which will be used to test our current implementation. Initially it will consist of the Battlecode example solution, plus whatever bot implementations we can find on the web.
