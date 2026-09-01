@@ -10176,3 +10176,55 @@ reach at current gold-income scale, and that the actual lever (if this
 is revisited) is Laboratory throughput/count, not Sage-vs-mutate
 priority. Iteration 118's `MAX_LABS=2` cap is the more promising
 thread to extend if this is picked back up.
+
+## Iteration 122 — third, higher-surplus-gated Laboratory (ACCEPTED, 57.5%); directly picks up Iteration 121's thread
+
+### Capability gap
+
+Iteration 121's diagnostic directly measured team lead reaching
+**62785 unspent** in a single long game, comfortably past even a much
+higher bar than Iteration 118's 1500-lead 2nd-Lab threshold, and
+concluded that Laboratory throughput (not Sage-vs-mutate priority) is
+the real gold-income bottleneck. Direct, immediate follow-up: extend
+`MAX_LABS` from 2 to 3.
+
+### Solution
+
+`MAX_LABS = 3`. The lead-surplus bar for each additional Lab now
+scales with how many are already built: 1500 for the 2nd (unchanged
+from Iteration 118), 3000 for the 3rd -- staying conservative as the
+investment stacks, same escalating-threshold pattern as Iterations
+117/118's own Watchtower/Lab gates.
+
+### Verification
+
+Step 6.4: mechanistic engagement confirmed directly on `bot vs
+g_iter21/maptestsmall` (the same long, lead-rich matchup Iteration
+121's diagnostic used) -- **3** "built laboratory" indicator hits (all
+three Labs actually built this time), `A_labs` reaching 3, team lead
+peaking near **94818** even after all three Lab investments.
+
+Step 6.5: 8-peer reproduction sample -- 103/160 (64.4%, identical to
+baseline), **zero diffs**.
+
+Step 2/3: full 36-peer Gauntlet -- 414/720 (57.5%, identical to
+baseline), matched-subset diff over all 720 overlapping keys: **zero
+diffs**. Completely clean at both scales, same as Iteration 118's own
+2nd-Lab accept.
+
+### Outcome
+
+**ACCEPTED.** No peer WinPct movement (expected, same reasoning as
+Iteration 118 -- peer games mostly don't run long enough for a 3000-
+lead surplus to matter), but closes out the thread Iteration 121
+opened cleanly: the bottleneck genuinely was Lab count/throughput, and
+this directly addresses it without needing any Sage-priority changes.
+Worth a fresh benchmark tally in a future cycle to see whether 3 Labs
+narrows the `sample_afinals` gap (still 4 Labs there) any further than
+Iteration 118's 2 did.
+
+**Snapshot**: `src/g_iter58/` (via `tools/snapshot.sh g_iter58`).
+**New baseline**: `gauntlet/20260901-023833/` supersedes
+`gauntlet/20260901-015504/` for all future diffs.
+**Replay**: `replays/iter122_g_iter21_maptestsmall_botA.bc22` (3 Labs
+built, r1543 loss).
