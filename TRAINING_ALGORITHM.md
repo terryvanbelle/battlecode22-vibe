@@ -158,3 +158,30 @@ round 400, and the metric has no way to distinguish those). Use it to back
 up a Step 6.4.2 mechanistic-verification claim, and to judge whether a Step
 3.2 near miss represents real margin progress across the pool or is just
 treading water.
+
+### Win % vs. a fixed old-bot roster
+
+The peer Gauntlet retires dominated opponents (see "Retiring bots from
+the Gauntlet"), which makes it a poor yardstick for absolute strength --
+a stable peer win rate can mean either "no progress" or "progress, but
+the roster got harder at the same rate." To separate these, periodically
+(every ~10 iterations) run the current bot against a **fixed** roster of
+old snapshots that would otherwise have been retired: every 10th accepted
+snapshot (`g_iter1`, `g_iter11`, `g_iter21`, ... up to whatever the
+current highest multiple of 10 below the latest snapshot is), on the
+standard `MAPSET=loop` (20 games each):
+
+```
+BOT=bot OPPONENTS="g_iter1 g_iter11 g_iter21 ..." MAPSET=loop tools/gauntlet.sh
+tools/.venv/bin/python3 tools/track_vs_old_bots.py gauntlet/<run-id>/
+tools/.venv/bin/python3 tools/plot_vs_old_bots.py
+```
+
+`track_vs_old_bots.py` appends one row per opponent to
+`progress/vs_old_bots_history.csv` (checked into git -- unlike
+`gauntlet/`, this needs to persist across sessions to be useful);
+`plot_vs_old_bots.py` regenerates `progress/vs_old_bots.png`, one trend
+line per tracked old bot. As new snapshots cross each further multiple
+of 10 (`g_iter61`, `g_iter71`, ...), add them to the roster on the next
+check rather than replacing older entries -- the value is in each line's
+long-run trend, not a snapshot of the current roster.
