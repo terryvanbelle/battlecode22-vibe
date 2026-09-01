@@ -10251,3 +10251,33 @@ peer-pool value (see Iteration 118's own +1), just not benchmark
 value at the current investment scale. Added as a new
 `BENCHMARK_HISTORY` point in `tools/plot_progress.py`
 (`2026-08-31T19:33:00-07:00`, camelcase=0, afinals=3).
+
+### Diagnostic note — opening a fresh thread: camelcase's ~2x attack-count edge, not a unit-count gap
+
+Per the pivot away from economy-scaling (see above), traced a fresh
+`bot vs sample_camelcase/maptestsmall` loss (r530) looking at a
+different axis: unit counts are actually comparable or favor us early
+(r50: 25 Soldiers ours vs 18 camelcase's; r100: 35 vs 32), but
+`B_attacks` pulls dramatically ahead of `A_attacks` from very early on
+(r60: 75 vs 19; r150: 1308 vs 650, consistently ~2x) -- the gap is in
+**attack rate per unit**, not army size.
+
+Broke down our own Soldiers' indicator-string distribution across the
+whole game: `reinforce` (1771, by far the largest single category),
+`advance` (962), `focus` (683, actual focus-fire attacks), `objective`
+(360), `defend home` (218), `heal` (211). Traced `reinforce`'s code
+path (`runSoldier`, the `liveFocus != 0` branch): it only fires when
+`target == null` for that specific Soldier -- i.e. this unit currently
+sees no enemy at all in its own vision, but `SA_FOCUS` is set from
+some other unit's forward sighting, so it marches toward the live
+fight without attacking. This is structurally necessary (a Soldier
+can't attack what it can't see) and not obviously a bug on its own --
+but it means the single largest chunk of our Soldier-turns are pure
+travel time, and the open question this raises for a future cycle is
+whether that travel is happening as efficiently as possible (pathing
+speed via `moveToward`/the Dijkstra distance maps, army cohesion,
+whether Soldiers converge fast enough once a fight starts) rather than
+whether the reinforce mechanism itself is wrong. Not enough evidence
+yet to form a verifiable Step 5 hypothesis -- recording the finding
+and the specific numbers so a future cycle can pick this up without
+re-deriving them, per "prefer fresh territory."
