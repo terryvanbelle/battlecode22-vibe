@@ -10126,3 +10126,53 @@ Sage production was ever real).
 **New baseline**: `gauntlet/20260901-015504/` supersedes
 `gauntlet/20260901-011148/` for all future diffs.
 **Replay**: `replays/iter120_sample_camelcase_maptestsmall_botA.bc22`.
+
+## Iteration 121 — pause Sage production above 80 gold to let Archon reach level 3 (REJECTED; hypothesis's premise not supported by evidence)
+
+### Capability gap
+
+Confirmed via `--metrics` that `A_archonHP` never once exceeds 1080
+(the level-2 cap) in a fresh `bot vs sample_camelcase/maptestsmall`
+trace, despite gold flowing genuinely now (Iterations 115/117/118).
+Archon level 3 (a level-sweep probe, Iteration 82, found it costs 80
+gold) has never fired in this project's history. Hypothesized cause:
+`wantSage` fires unconditionally whenever gold >= 20, every round,
+forever -- gold can never accumulate to 80 because Sage always spends
+it first.
+
+### Solution (tested, then reverted)
+
+`wantSage` additionally required `gold < 80`, so Sage production
+pauses once gold reaches the level-3 threshold, giving a Builder in
+mutate range first claim on it that same round.
+
+### Verification
+
+Step 6.4: looked for direct evidence the new upper bound ever actually
+mattered (i.e. that gold got high enough for the `< 80` clause to ever
+be the reason `wantSage` was false). Checked 4 separate long traces:
+`bot vs sample_camelcase/maptestsmall` (max gold **27**), `bot vs
+g_iter21/chessboard` (gold capped at 20 the whole game, and Archon HP
+never even reached level 2 there -- a lead-starved map, not a good
+test case anyway), and `bot vs g_iter21/maptestsmall` run **twice**
+(fully deterministic, both runs r1050, max gold **64** both times).
+Gold never once reached 80 in any traced game -- meaning the `< 80`
+condition was never actually false in practice, so the code change was
+never exercised at all. The original hypothesis (Sage priority is
+*the* blocker) doesn't hold up: removing Sage from the competition
+entirely didn't get gold anywhere near 80 either, which means the real
+bottleneck is **gold income rate itself** (1-2 Laboratories'
+transmute throughput, capping out around 60-64 gold over a game's
+natural lifespan) rather than a priority race with Sage spending.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against HEAD). No Step 6.5/full-Gauntlet budget
+spent -- Step 6.4 found no evidence of engagement in 4 separate
+traces, squarely Step 6.4.3 territory. Genuinely useful diagnostic
+regardless: confirms structure-level-3 mutations are still out of
+reach at current gold-income scale, and that the actual lever (if this
+is revisited) is Laboratory throughput/count, not Sage-vs-mutate
+priority. Iteration 118's `MAX_LABS=2` cap is the more promising
+thread to extend if this is picked back up.
