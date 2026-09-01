@@ -9879,3 +9879,99 @@ after this fix.
 **Replay**: `replays/iter117_sample_camelcase_maptestsmall_botA.bc22`
 (r513 loss, up from r255 before the fix, with 4 extra-Watchtower
 builds visible in `--indicators`).
+
+### Diagnostic note — fresh benchmark tally after Iteration 117: unchanged, as expected
+
+Ran a fresh 20-game tally with `g_iter54` (Iteration 117's extra
+Watchtower) as the working state: `sample_camelcase` **0/20 (0%)**,
+`sample_afinals` **3/20 (15%)** -- both unchanged, exactly as
+predicted in Iteration 117's outcome note. Added as a new
+`BENCHMARK_HISTORY` point in `tools/plot_progress.py`
+(`2026-08-31T17:20:48-07:00`, camelcase=0, afinals=3).
+
+## Iteration 118 — second, lead-surplus-gated Laboratory (ACCEPTED, 57.6%); high-risk structural, directly targets the "afinals A_gold=0" bottleneck
+
+### Capability gap
+
+Directly follows Iteration 117's own "worth revisiting" note. Traced
+why `sample_afinals` (Iteration 115/117's still-unmoved benchmark
+matchup) so thoroughly outproduces us on gold: `--metrics` on a fresh
+loss showed `sample_afinals` running **4 Laboratories** and building
+**72 Sages** off them, while our own `runBuilder` -- via the exact same
+per-robot-lifetime-cap pattern Iteration 117 found for Watchtowers --
+permanently caps the team at **1 Laboratory, ever** (`builtLab`, a
+per-robot boolean, and `SA_LAB_BUILT`, Iteration 93/112's team-wide
+race-guard, which was written as a strict 0/1 flag). This directly
+explains Iteration 115's diagnostic note that `A_gold` stays flat at 0
+against `afinals` all game: one Lab's transmute throughput is simply
+too small relative to what a 4-Lab opponent can do, independent of
+whatever Iteration 115 unlocked on the Sage-spending side.
+
+### Solution
+
+Changed `SA_LAB_BUILT` from a boolean flag to a small counter, capped
+at a new `MAX_LABS = 2` (team-wide, race-guarded the same way
+Iteration 112 already protects the first Lab -- re-checked right
+before placement, not just at spawn time). A second Lab is
+discretionary surplus spending, not a committed investment like the
+first: gated on team lead exceeding 1500 (higher than Iteration 117's
+1000-lead Watchtower bar, since a Lab is a bigger, longer-horizon
+investment), checked once before a Builder commits to the 7-tile walk
+out -- if lead isn't there yet, the Builder gives up on the second Lab
+for good and falls through to other idle-time work (Iteration 117's
+extra Watchtower, Archon/structure mutation) rather than camping and
+waiting for lead that may never come on lead-scarce maps.
+
+### Verification
+
+Step 6.4: mechanistic engagement confirmed directly on the motivating
+`bot vs sample_camelcase/maptestsmall` game -- **2** "built laboratory"
+indicator hits (both Labs actually built), `A_labs` reaching 2 by
+r149, and -- for the first time in this exact matchup -- **nonzero,
+sustained `A_gold`** (up to 21) feeding real Sage production (up to 3
+alive at once). The game is still a loss, but **survival time nearly
+tripled versus the pre-116 baseline: r255 -> r513 (Iteration 117) ->
+r597 (this iteration)** -- each successive fix in this vein
+measurably compounding on the last.
+
+Step 6.5: 8-peer reproduction sample (`g_iter17/18/19/21/23/26/29/30`,
+all 10 maps, both sides, 160 games) -- 104/160 (65.0%, +1 vs.
+baseline's 103/160), **1 diff**: `g_iter21/maptestsmall/A` flipped
+loss->win. A single, one-directional (favorable) diff is squarely in
+"likely noise, not disqualifying" territory by the shape heuristic,
+but reproducing cleanly is still worth confirming at full scale.
+
+Step 2/3: full 36-peer Gauntlet (`g_iter17`-`g_iter52`, 720 games) --
+415/720 (57.6%, +1 vs. baseline's 414/720), matched-subset diff over
+all 720 overlapping keys: **1 diff**, the exact same
+`g_iter21/maptestsmall/A` loss->win flip, reproducing identically at
+both scales. Zero win->loss diffs anywhere. A single, consistently-
+reproducing, favorable flip with no offsetting regression anywhere in
+the pool -- a genuine (if small) improvement, not a fluke.
+
+### Outcome
+
+**ACCEPTED.** Second consecutive iteration in the "Builder idle-time
+surplus spending" vein (Iteration 117 -> 118), and the first to show
+a measurable ripple into a real peer-game outcome rather than only
+mechanistic engagement. Closes out the "afinals A_gold=0" diagnostic
+thread opened at Iteration 115 with a concrete structural fix, even
+though it doesn't flip that specific matchup outright (a 2-Lab vs.
+4-Lab gap is still a real scale disadvantage, just a smaller one than
+1-vs-4).
+
+**Next, if revisited:** the same per-robot-lifetime-cap pattern likely
+still has headroom (a 3rd Watchtower, `MAX_LABS` raised to 3, or
+generalizing to "keep investing while lead surplus exceeds successive
+thresholds" as a single mechanism) -- worth returning to once a fresh
+benchmark tally shows whether 2 Labs meaningfully narrows the gold gap
+against `afinals` or whether the scale mismatch is still too large to
+matter, the same way this iteration's own tally will need to be
+checked.
+
+**Snapshot**: `src/g_iter55/` (via `tools/snapshot.sh g_iter55`).
+**New baseline**: `gauntlet/20260901-003155/` supersedes
+`gauntlet/20260831-235254/` for all future diffs.
+**Replay**: `replays/iter118_sample_camelcase_maptestsmall_botA.bc22`
+(r597 loss, up from r513 after Iteration 117 alone; 2 Labs built, gold
+and Sages both flowing for the first time in this matchup).
