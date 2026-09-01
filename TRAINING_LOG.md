@@ -10228,3 +10228,26 @@ Iteration 118's 2 did.
 `gauntlet/20260901-015504/` for all future diffs.
 **Replay**: `replays/iter122_g_iter21_maptestsmall_botA.bc22` (3 Labs
 built, r1543 loss).
+
+### Diagnostic note — fresh benchmark tally after Iteration 122: unchanged for the 5th check running, closes the economy-scaling sub-thread
+
+Ran a fresh 20-game tally with `g_iter58` (Iteration 122's third
+Laboratory) as the working state: `sample_camelcase` **0/20 (0%)**,
+`sample_afinals` **3/20 (15%)** -- both unchanged, the fifth
+consecutive check (Iterations 115/117/118/120/122) to land here
+without moving either benchmark matchup, despite each one being
+mechanistically verified and several (117, 118, 120) genuinely
+improving peer-pool performance or survival time along the way. This
+is a strong, now well-replicated signal that incremental
+economy-scaling fixes (more Watchtowers, more Labs, better retreat
+thresholds) are not the lever that closes the gap against these two
+specific benchmark bots -- their advantage is a genuine, large-scale
+structural mismatch (`afinals` alone still runs 4 Labs to our 3 and a
+much larger Sage count; `camelcase` wins through raw early Soldier/
+Watchtower mass, a completely different axis). Not spending further
+Step 6 budget scaling `MAX_LABS`/`extraWatchtowers` further for the
+specific purpose of flipping these matchups -- the vein still has
+peer-pool value (see Iteration 118's own +1), just not benchmark
+value at the current investment scale. Added as a new
+`BENCHMARK_HISTORY` point in `tools/plot_progress.py`
+(`2026-08-31T19:33:00-07:00`, camelcase=0, afinals=3).

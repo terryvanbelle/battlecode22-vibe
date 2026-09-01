@@ -78,6 +78,7 @@ BENCHMARK_HISTORY = [
     ("2026-08-31T15:34:09-07:00", 0, 3),   # post-Iteration-115 check (Sage-gate unlock; afinals unaffected -- separate A_gold=0 bottleneck)
     ("2026-08-31T17:20:48-07:00", 0, 3),   # post-Iteration-117 check (extra Watchtower); unchanged, as expected
     ("2026-08-31T17:56:00-07:00", 0, 3),   # post-Iteration-118 check (2nd Laboratory); unchanged -- scale gap (2 vs 4 Labs) still too large
+    ("2026-08-31T19:33:00-07:00", 0, 3),   # post-Iteration-122 check (3rd Laboratory); unchanged -- 5th check in a row with no movement, closes the economy-scaling sub-thread against these two specific bots
 ]
 
 
