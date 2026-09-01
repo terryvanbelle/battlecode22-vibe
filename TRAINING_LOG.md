@@ -10851,3 +10851,58 @@ iteration.
 `gauntlet/20260901-181907/` for all future diffs.
 **Replay**: `replays/iter127_g_iter59_chessboard_botA.bc22` (the
 heavier of the two stress tests, r697 win, bcN0 bcO0 throughout).
+
+## Iteration 128 — multi-Archon home-threat priority (REJECTED; real bug, wrong motivating case)
+
+### Capability gap
+
+Continuing the `chessboard`/`squer` asymmetry thread left open by
+Iteration 126: mirror-matched the bot against `g_iter62` (its own
+latest snapshot) on `chessboard` -- still a decisive B-side win
+(r886), unchanged by Iterations 126/127. Traced the metrics: our side
+loses one of its two Archons by ~r500 while the opponent keeps both
+the whole game, the same snowballing pattern already seen in an
+earlier `g_iter11`/`chessboard` diagnostic. Found a real, distinct bug
+while investigating: `checkHomeThreat` (called independently by every
+non-Miner unit each round, against its own `foes` view) used to flag
+whichever own Archon it checked *first* in fixed shared-array slot
+order, with no comparison to severity -- and since every unit's own
+call can overwrite `SA_HOME_THREAT`, the *last* unit to act in a given
+round effectively wins regardless of which Archon is actually in more
+danger. On a multi-Archon map, a real siege on one Archon could get
+silently overwritten by a trivial, unrelated skirmish reported near
+the other one later the same round.
+
+### Solution (tested, then reverted)
+
+Added `SA_HOME_THREAT_SEVERITY` (attacker count of the currently-
+recorded threat). `checkHomeThreat` now finds the worst-threatened own
+Archon visible to the calling robot and only overwrites
+`SA_HOME_THREAT` if it's a bigger threat than what's already recorded,
+clearing the severity alongside the existing threat-clear logic in
+`runArchon`.
+
+### Verification
+
+Step 6.4: re-ran the exact motivating `bot vs g_iter62/chessboard`
+mirror match. **Byte-for-byte identical trajectory to the unmodified
+version** -- same round of death (r886), same metrics at every
+checkpoint. Traced why: in this specific game, only one Archon was
+ever seriously besieged at a time (the other's HP stayed untouched the
+whole game) -- there was never an actual competing-priority decision
+for the fix to change. No evidence the fix engaged in the scenario it
+was meant to address.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against HEAD). A real, defensible correctness
+improvement in isolation (the old "last writer wins" behavior is
+genuinely arbitrary), but it doesn't explain `chessboard`'s
+asymmetry -- that thread remains open. Useful negative result:
+whatever causes one side to lose an Archon early on this map, it's not
+simultaneous-multi-Archon-threat mishandling. Worth revisiting the
+severity-tracking fix on its own merits later (a map with a genuine
+simultaneous two-Archon siege would be the right motivating case), but
+not worth spending further verification budget on it as a `chessboard`
+fix specifically.
