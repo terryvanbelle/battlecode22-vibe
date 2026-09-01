@@ -10493,3 +10493,105 @@ relative to the map's actual symmetry transform).
 `gauntlet/20260901-141657/` for all future diffs.
 **Replay**: `replays/iter125_g_iter21_maptestsmall_botA.bc22` (27
 Watchtowers built).
+
+## Iteration 126 — remove fixed-compass DIRS-order tie-breaks (REJECTED, two variants both net-negative; root cause confirmed, fix not yet safe)
+
+### Capability gap (user-directed root-cause audit)
+
+Per explicit user request, audited the whole codebase for behavior
+that isn't genuinely symmetric between sides. Found 8 sites using
+`for (Direction d : DIRS)` (fixed compass order N, NE, E, SE, S, SW,
+W, NW) for tie-breaking: build-placement rubble ties (4 sites), stuck-
+Builder recovery fallbacks (2 sites, "first movable direction"),
+`repositionForRubble` (combat repositioning, "first rubble
+improvement" rather than true minimum), and `moveToward`'s greedy
+fallback (exact-score ties). Also confirmed via `--all-actions`
+headers that `maptestsmall` and `squer` -- which favor *opposite*
+sides in real play -- both declare `symmetry: rotational`, ruling out
+a map-authoring imbalance. No `Team.A`/`Team.B` hardcoding, no
+`rc.getID()` usage anywhere.
+
+**Root cause confirmed directly:** a fixed absolute-direction
+preference (e.g. "prefer North on ties") has no inherent bias in
+isolation, but interacts with each map's *specific* spawn geometry --
+whichever side's forward-toward-center direction happens to align
+better with the preferred compass direction gets a small, compounding
+per-round edge, and which side that is depends on where each map's
+author placed the two spawn corners, not on team identity. This
+explains both the map-to-map inconsistency (A favored on
+`maptestsmall`, B favored on `squer`) and rules out any universal
+engine-level explanation.
+
+### Solution attempted (two variants)
+
+**v1**: kept true-minimum-rubble search everywhere, replaced DIRS-
+order tiebreaks with "closest to map center" (for build placement) or
+"closest to `target`"/"closest to `goal`" (for movement) -- all
+relative-to-geometry criteria, not fixed compass points.
+
+**v2**: same restructuring, but ties broken uniformly at random via
+the existing shared `rng` (already confirmed statistically
+side-neutral elsewhere in this file, see `moveExplore`) instead of any
+geometric criterion, on the theory that even a "smart" geometric
+tiebreak could itself carry a hidden bias.
+
+### Verification
+
+**Mirror-match spot checks (both variants):** mirror-matched the
+current bot against its own near-identical snapshot (`g_iter59`) on
+both `maptestsmall` and `squer`. v1 showed a clean, complete win-win:
+previously-losing side B *won* on `maptestsmall` (r2000 tiebreak),
+previously-losing side A *won* on `squer` (r332), while the
+previously-winning sides stayed strong (A still won `maptestsmall`
+r339). This looked like a full, clean fix in isolation.
+
+**8-peer reproduction sample (the real test) told a different story
+for both variants:**
+- v1: 87/160 (54.4%), down hard from baseline's 103/160. Diff showed
+  56 changes (36 win->loss, 20 loss->win) -- not noise, and
+  `pillars` specifically flipped from a near-total A-side sweep to a
+  near-total B-side sweep across almost every opponent, an even
+  *bigger* single-map asymmetry than the one being fixed, just
+  pointing the other way. The "closest to map center" tiebreak turned
+  out to be its own non-neutral bias, not a neutral one.
+- v2 (random tiebreak, designed specifically to have zero geometric
+  meaning): 94/160 (58.8%), still down from baseline. A/B split
+  narrowed (baseline 75%/53.75% -> 67.5%/50%, a real ~18% reduction in
+  the gap) but *both* sides got measurably worse in absolute terms (59
+  diffs, 34 win->loss / 25 loss->win).
+
+### Root cause of the regression
+
+Both variants trade a real asymmetry for a real loss in overall
+strength. The likely explanation: a *consistent* directional
+preference -- even an arbitrary one -- gives an army real tactical
+cohesion benefit (units converging via the same tie-break make more
+predictable, coordinated formation choices round to round), similar in
+spirit to Iteration 29's own "column congestion" finding about
+consistent single-file movement through chokepoints. Removing the
+fixed preference (via either a different fixed criterion or pure
+randomness) sacrifices that cohesion benefit for every unit, every
+round, team-wide -- a much larger cost than the narrow tie-break
+scenarios themselves, which is why the fix reads as a net loss despite
+correctly, measurably narrowing the A/B gap.
+
+### Outcome
+
+**REJECTED, reverted** (`git checkout -- src/bot/RobotPlayer.java`,
+confirmed clean diff against HEAD). This is not a dead end -- the root
+cause is now solidly confirmed (not guessed), and the regression's own
+shape points at the real fix: preserve *per-robot* consistency (so
+cohesion is undisturbed) while removing the *team-wide* uniformity
+(so the bias can't systematically favor one side). Concretely, a
+future attempt should give each robot a single, personally-fixed
+tie-break order chosen once at spawn (e.g. a shuffled copy of `DIRS`,
+seeded by something that varies per-robot but is stable for that
+robot's whole lifetime) rather than either a shared fixed order or a
+freshly-rolled-every-decision random pick -- individual robots would
+still move predictably and cohesively round to round, but the *team-
+wide aggregate* preference should average out across many
+independently-seeded robots, removing the systematic map-favoring
+effect without paying Iteration 29's cohesion cost. Not implemented
+this cycle given the complexity of getting the seeding right and the
+substantial verification budget already spent -- a clean target for
+the next cycle.
