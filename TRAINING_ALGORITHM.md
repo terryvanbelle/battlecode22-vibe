@@ -98,6 +98,8 @@ Every accept/reject decision in Step 3 and Step 6 below is made by **diffing two
 
 The initial implementation of our Battlecode bot will be very simple. The bot will create a single instance of a low-cost unit, which will be instructed to move about the board at random. It will be instrumented to store arbitrary strings of information in the gameplay save file, for use in analyzing games.
 
+Iteration 0 must also include live bytecode-budget monitoring, from the very start rather than as a change bolted on partway through the project. A silent bytecode overrun (the engine truncates a robot's turn mid-instruction and resumes on the next round) can quietly break a strategy without ever raising an exception, so every subsequent iteration should be developed and verified with this signal already in place, not retrofitted once a problem is suspected. Concretely: a per-round check (comparing the round number before and after a robot's own logic runs, to catch confirmed overruns; comparing `Clock.getBytecodeNum()` against the robot's `bytecodeLimit` to catch near-misses) that surfaces both counts somewhere visible in the replay (e.g. an Archon's own indicator string) and is checked as a standing part of verification (Step 6 and the full Gauntlet) going forward, not just once.
+
 ## The Algorithm
 
 The algorithm for generating and improving a bot is defined in this section. This algorithm relies on the following hyperparameters:
