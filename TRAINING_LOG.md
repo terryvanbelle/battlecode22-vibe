@@ -10595,3 +10595,59 @@ effect without paying Iteration 29's cohesion cost. Not implemented
 this cycle given the complexity of getting the seeding right and the
 substantial verification budget already spent -- a clean target for
 the next cycle.
+
+### Follow-up: v3 (per-robot-fixed random tiebreak) also rejected -- the finding is now definitive, not just under-designed
+
+Implemented the exact fix the note above proposed: `myDirs(rc)`, a
+personal shuffled copy of `DIRS` computed once per robot (lazily
+cached in a per-robot static field) and reused for that robot's whole
+lifetime, seeded on `rc.getID()` specifically because it's unique per
+robot *regardless of team* (unlike the shared `rng`, whose fixed seed
+would otherwise make "corresponding" robots on opposite teams compute
+the *same* personal order, reproducing the original bug one level
+removed). Swapped all 8 DIRS-order tie-break sites to iterate
+`myDirs(rc)` instead of `DIRS` -- a minimal, surgical change that
+reuses the exact same true-minimum/first-improvement logic already
+in place, just decorrelating which order ties are checked in.
+
+**8-peer sample**: 95/160 (59.4%), still well below baseline's
+103/160. A/B split: 71.25%/47.5%, a **23.75-point gap -- slightly
+worse than baseline's own 21.25-point gap**, and no better than v1 or
+v2's attempts. The per-robot-consistency hypothesis did not pan out.
+
+**Ruled out the "our peer roster shares the same bias" confound**:
+since every peer (`g_iter17`-`g_iter52`) is our own historical code,
+testing a de-biased current bot against them isn't fully clean --
+their AI has the identical DIRS-order quirk, so a regression there
+could in principle just mean "peers *also* benefit from this quirk
+when facing a now-fixed opponent," not that the quirk has independent
+tactical value. Checked directly against the two external, independently-
+coded benchmark bots instead: `sample_afinals` dropped from 3/20 (15%,
+the number that's held steady across 5 consecutive checks all
+session) to **1/20 (5%)** with this fix applied. The regression is
+real against opponents with zero shared code history, not an artifact
+of the peer roster's shared lineage.
+
+### Conclusion (definitive, spanning 3 independent fix designs)
+
+The root cause (fixed absolute-direction tie-breaking interacting with
+each map's specific, non-standardized spawn geometry) is now
+conclusively identified and explained -- not in doubt. But the fix is
+not safe to ship: three structurally different attempts (a
+geometrically-motivated tiebreak, a freshly-random tiebreak, and a
+per-robot-consistent-random tiebreak) all produced real, substantial
+net regressions, confirmed against both the historical peer roster and
+independent external bots. The likely explanation: 60+ iterations of
+accumulated tuning (movement scoring, rally thresholds, formation
+behavior) have been implicitly shaped around units sharing one
+consistent, predictable directional preference -- removing it doesn't
+just fix an unfairness, it also removes a real coordination/tempo
+asset the rest of the bot's tuning has come to depend on, and that
+asset appears to be worth more (in aggregate, across this session's
+whole opponent pool) than the fairness gain. A real fix would likely
+require re-tuning significant parts of the movement/combat logic
+*alongside* removing the bias, not just swapping the tiebreak in
+isolation -- a much larger-scope project than a single iteration.
+Not pursuing further variants of "just change the tiebreak" without a
+genuinely different angle; the diagnostic value (root cause fully
+understood) stands even without a shipped fix.
