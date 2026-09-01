@@ -9975,3 +9975,97 @@ checked.
 **Replay**: `replays/iter118_sample_camelcase_maptestsmall_botA.bc22`
 (r597 loss, up from r513 after Iteration 117 alone; 2 Labs built, gold
 and Sages both flowing for the first time in this matchup).
+
+### Diagnostic note — fresh benchmark tally after Iteration 118: unchanged, closes out the surplus-investment vein for now
+
+Ran a fresh 20-game tally with `g_iter55` (Iteration 118's second
+Laboratory) as the working state: `sample_camelcase` **0/20 (0%)**,
+`sample_afinals` **3/20 (15%)** -- both unchanged for the third check
+in a row (Iterations 115/117/118 all landed here without moving
+either benchmark matchup, despite each one engaging and helping
+survival time). Consistent with Iteration 118's own prediction: 2 Labs
+vs. `afinals`'s 4, and comparable mass gaps elsewhere, are still too
+large a scale disadvantage for these specific fixes alone to close.
+Per the "prefer fresh territory" guidance, not spending further Step 6
+budget pushing `MAX_LABS`/`extraWatchtowers` higher right now --
+survival time is still measurably improving each iteration (r255 ->
+r513 -> r597 in the same motivating game), so the vein isn't dead, it
+just needs to compound with other fixes rather than being pushed
+alone. Added as a new `BENCHMARK_HISTORY` point in
+`tools/plot_progress.py` (`2026-08-31T17:56:00-07:00`, camelcase=0,
+afinals=3).
+
+## Iteration 119 — Watchtower joins the shared SA_FOCUS mechanism (ACCEPTED, 57.5%); fresh territory, pivot away from the surplus-investment vein
+
+### Capability gap
+
+Per the "prefer fresh territory" step after three straight iterations
+(116-118) in the Builder-idle-time-surplus vein hit diminishing
+benchmark returns, looked at `runWatchtower` instead -- genuinely
+untouched by any coordination mechanism. It picks its own
+`betterTarget` independently every round, never reading or writing
+`SA_FOCUS` (Iteration 12's shared focus-fire coordination, used by
+every Soldier). With Iteration 117 now routinely producing 2
+Watchtowers per Archon instead of 1, uncoordinated fire risked
+splitting damage across separate targets instead of piling onto
+whatever the Soldier army is already committed to killing.
+
+### Solution
+
+Watchtower now reads/writes `SA_FOCUS` exactly like `runSoldier`:
+promotes its own best local target to the shared focus if it beats
+the current one, attacks the shared focus if in range, and only falls
+back to its own independently-chosen target if the shared focus isn't
+attackable from this Watchtower's position.
+
+### Verification
+
+Step 6.4: mechanistic engagement confirmed on a `bot vs
+sample_camelcase/maptestsmall` game via `--indicators` -- 427
+"watchtower attack" hits total, and (checked programmatically) **37
+cases** where a Watchtower's attack coordinate matched a Soldier's
+`focus` coordinate within a tight line window of the same round,
+confirming genuine cross-unit-type coordination, not just independent
+agreement.
+
+Step 6.5: 8-peer reproduction sample -- 103/160 (64.4%), **1 diff**:
+`g_iter21/maptestsmall/A` flipped win->loss (the exact same key that
+Iteration 118 had just flipped loss->win). Reproduced the flipped game
+directly, twice, outside the Gauntlet harness: **both reruns
+deterministically produced the identical r1435 loss** -- this
+environment's matches are fully deterministic per fixed code, so this
+is a real, attributable, reproducible effect of this change on this
+one specific game, not a fluke roll. But it's an extremely long
+(1435-round) grinding game already sitting exactly on a knife's edge
+-- it had already flipped loss (Iteration 117 and earlier) -> win
+(Iteration 118) -> loss (this iteration) three iterations running,
+each time from a different, unrelated change. Consistent with the
+same "real, causal, but not systemically wrong" army-cohesion
+phenomenon this project's `chessboard`/`squer` diagnostics have
+already characterized on other long grinding maps -- a small
+per-round behavior change on either side compounds differently over
+1000+ rounds without indicating a general regression.
+
+Step 2/3: full 36-peer Gauntlet -- 414/720 (57.5%), matched-subset
+diff: **1 diff**, the identical `g_iter21/maptestsmall/A` win->loss
+flip, nothing else anywhere in the other 719 games. Single-diff,
+single-game, non-concentrated -- squarely in "likely noise, not
+disqualifying" by the shape heuristic, and net neutral on aggregate
+(57.5%, matching Iteration 117's own number, since this one flip
+exactly cancels Iteration 118's own +1).
+
+### Outcome
+
+**ACCEPTED.** A real, deterministic, but isolated and unconcentrated
+effect on one already-fragile long game, not a systemic regression --
+correctly readable as noise despite being reproducible, precisely
+because reproducibility and "is this a general problem" are different
+questions (see "Reading a diff's shape"). The coordination mechanism
+itself is unambiguously more correct (Watchtowers should fight
+alongside the army's chosen target, not pick their own), and
+mechanistically verified working exactly as designed.
+
+**Snapshot**: `src/g_iter56/` (via `tools/snapshot.sh g_iter56`).
+**New baseline**: `gauntlet/20260901-011148/` supersedes
+`gauntlet/20260901-003155/` for all future diffs.
+**Replay**: `replays/iter119_sample_camelcase_maptestsmall_botA.bc22`.
