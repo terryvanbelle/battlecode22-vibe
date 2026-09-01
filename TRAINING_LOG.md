@@ -10442,3 +10442,54 @@ reopening that specific thread again without a genuinely new angle on
 diagnostic (see above) remains open and valuable groundwork for a
 future, more carefully-scoped attempt, but doesn't yet have a safe,
 verified fix attached to it.
+
+## Iteration 125 — third extra Watchtower per Builder (ACCEPTED, 57.5%)
+
+### Capability gap
+
+Continues the proven-safe Watchtower-count thread (117->123), now also
+motivated by the tempo-asymmetry diagnostic: a stationary Watchtower
+fights from wherever it's built regardless of which side wins the
+maneuver war, unlike Soldiers whose value depends on reaching a moving
+front -- one of the few levers that plausibly helps whichever side is
+tempo-disadvantaged on a given map, without touching the still-open
+combat-time decision itself.
+
+### Solution
+
+`extraWatchtowers` cap raised from 2 to 3. Threshold escalates:
+1000/2500/5000 lead surplus for the 1st/2nd/3rd extra.
+
+### Verification
+
+Step 6.4: mechanistic engagement confirmed on `bot vs
+g_iter21/maptestsmall` -- 24 "built extra watchtower" hits,
+`A_watchtowers` peaking at **27** (up from 19 under the 2-cap
+version).
+
+Step 6.5: 8-peer reproduction sample -- 103/160 (64.4%, identical to
+baseline), **zero diffs**.
+
+Step 2/3: full 36-peer Gauntlet -- 414/720 (57.5%, identical to
+baseline), matched-subset diff over all 720 overlapping keys: **zero
+diffs**. Also checked the team-wide A/B split directly (motivated by
+the tempo-asymmetry thread): still exactly 103 A-side losses / 203
+B-side losses, unchanged from Iteration 123's own full run -- this
+increment alone doesn't move that specific needle, as expected for a
+structural add-on rather than a targeted fix.
+
+### Outcome
+
+**ACCEPTED.** Clean, safe, consistent with the whole thread's track
+record. Confirms (via the unchanged A/B split) that this vein has
+reached diminishing returns for the tempo-asymmetry problem
+specifically -- pivoting to the user's newly-requested direction next
+(auditing the bot's own code for genuine positional-symmetry
+violations, e.g. fixed-compass-direction tie-breaks that aren't
+relative to the map's actual symmetry transform).
+
+**Snapshot**: `src/g_iter60/` (via `tools/snapshot.sh g_iter60`).
+**New baseline**: `gauntlet/20260901-150839/` supersedes
+`gauntlet/20260901-141657/` for all future diffs.
+**Replay**: `replays/iter125_g_iter21_maptestsmall_botA.bc22` (27
+Watchtowers built).
