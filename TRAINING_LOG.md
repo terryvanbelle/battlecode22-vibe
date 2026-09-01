@@ -10333,3 +10333,64 @@ benchmark numbers start moving as the count climbs.
 `gauntlet/20260901-023833/` for all future diffs.
 **Replay**: `replays/iter123_g_iter21_maptestsmall_botA.bc22` (19
 Watchtowers built, r1465 loss).
+
+### Diagnostic note — major finding: per-map side (A/B) tempo asymmetry, not a code bug, directly explains most old-bot losses
+
+Prompted by the user's request to focus on old-bot performance
+(`progress/vs_old_bots.png`): investigated why `g_iter41`/`g_iter51`
+sit at only 50% despite being much weaker, older snapshots. Found the
+loss list heavily concentrated on `bot_side=B`. Checked this at full
+scale on the Iteration 123 Gauntlet (720 games): we win **71.4%** as
+side A but only **43.6%** as side B, team-wide across all 36 peers --
+a massive, previously-unnoticed asymmetry.
+
+Broken down per-map (same 720-game run), it is **not** a uniform "A
+always wins" effect -- it's wildly map-specific, and different maps
+favor opposite sides:
+
+```
+maptestsmall   A:  1/36 losses (3%)    B: 36/36 losses (100%)
+squer          A: 26/36 losses (72%)   B:  0/36 losses (0%)
+sandwich       A: 30/36 losses (83%)   B: 12/36 losses (33%)
+chessboard     A:  5/36 losses (14%)   B: 29/36 losses (81%)
+intersection   A:  2/36 losses (6%)    B: 29/36 losses (81%)
+pillars        A:  0/36 losses (0%)    B: 26/36 losses (72%)
+highway        A:  3/36 losses (8%)    B: 23/36 losses (64%)
+valley         A: 10/36 losses (28%)   B: 21/36 losses (58%)
+maze           A: 10/36 losses (28%)   B: 17/36 losses (47%)
+jellyfish      A: 16/36 losses (44%)   B: 10/36 losses (28%)
+```
+
+Traced the mechanism directly: on `maptestsmall`, mirror-matched the
+current bot against `g_iter59` (essentially identical code) -- **bot
+(A) wins r337** despite both sides running the same strategy. On
+`squer`, the same mirror match flips: **g_iter59 (B) wins r377**. This
+rules out both (1) a code-quality difference between old/new snapshots
+(a mirror match of nearly-identical code still shows the skew) and (2)
+a universal engine-level "team A always moves first" advantage (it
+would show the same direction on every map, not flip between maps).
+The map header confirms `symmetry: rotational` -- genuinely
+point-symmetric terrain -- so this isn't a map-authoring imbalance
+either. What's left: each map's specific tactical geometry (chokepoint
+control, distance-to-center, rubble layout) creates a real tempo
+advantage for whichever side's spawn happens to reach the decisive
+terrain first under a *given* movement/pathing strategy -- and which
+side that is flips depending on the map's specific layout, not the
+team letter.
+
+**Why this isn't a quick targeted fix:** there's no clean "if side B,
+do X" branch that would help, since the disadvantaged side differs per
+map, and the bot has no way to know in advance which side it's on
+relative to each specific map's geometry (only `rc.getTeam()`, not "am
+I on the tactically-favored side"). The generically-safe lever is
+whatever *closes the gap* regardless of which side ends up
+disadvantaged: faster/more-direct army convergence once a fight
+starts, since a slight pathing/tempo edge compounding over hundreds of
+rounds is exactly the shape of effect a 337-round mirror-match margin
+would produce. This connects directly to the still-open diagnostic
+above (camelcase's ~2x attack-count edge, traced to reinforcement
+travel time) -- likely the same underlying lever. Next: look at
+`moveToward`'s Dijkstra pathing (`Dijkstra20.java`) and the SA_FOCUS
+reinforcement trigger for concrete speed-up opportunities, since this
+single lever plausibly explains both the camelcase gap and this
+map-tempo asymmetry.
